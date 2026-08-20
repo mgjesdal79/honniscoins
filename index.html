@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#050505">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<title>Honniscoins</title>
+<style>
+  :root{
+    --bg:#000;--surface:#0b1a33;--surface-2:#0f2547;--line:#1c3a63;
+    --text:#fff;--muted:#9fb3cf;--accent:#3b6fe0;
+    --bronze:#cd7f32;--silver:#cfd6dd;--gold:#ffce3a;--good:#3ddc97;--bad:#ff8080;
+    --radius:16px;--font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0 auto;background:#050505;color:var(--text);font-family:var(--font);
+       max-width:480px;padding:12px 16px 40px;min-height:100vh;-webkit-tap-highlight-color:transparent}
+  button{font-family:var(--font);cursor:pointer}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:12px;padding:14px;font-weight:700;font-size:1rem;width:100%}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text)}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+  .muted{color:var(--muted)}
+  .who{display:flex;flex-direction:column;justify-content:center;gap:14px;text-align:center;min-height:80vh}
+  .who .logo{font-size:2.6rem}.who h1{font-size:1.8rem;margin:4px 0 0}
+  .role{display:flex;align-items:center;gap:12px;text-align:left;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);cursor:pointer}
+  .role .em{font-size:1.6rem}.role b{display:block;font-size:1.05rem}.role span{color:var(--muted);font-size:.8rem}
+  .balance{background:linear-gradient(160deg,var(--surface-2),var(--surface));border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+  .balance .coins{font-size:2rem;font-weight:800;display:flex;align-items:baseline;gap:8px}
+  .balance .coins small{font-size:.9rem;font-weight:700;color:var(--muted)}
+  .balance .kr{color:var(--muted);font-size:.82rem;margin-top:2px}
+  .daynav{display:flex;align-items:center;justify-content:space-between;margin:4px 0 12px}
+  .daynav .arrow{width:40px;height:40px;border-radius:11px;background:var(--surface);border:1px solid var(--line);font-size:1.2rem;color:#fff}
+  .daynav .today{text-align:center}.daynav .today b{font-size:1.02rem}.daynav .today .d{color:var(--muted);font-size:.75rem}
+  .daynav .today input[type=date]{background:transparent;border:none;color:var(--muted);font-family:var(--font);font-size:.75rem}
+  .lesson{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #10233f}
+  .lesson .name{flex:1;font-weight:600;font-size:.95rem}
+  .medals{display:flex;gap:6px}
+  .m{width:36px;height:36px;border-radius:10px;background:var(--surface);border:1px solid var(--line);font-size:1rem;color:#fff;padding:0}
+  .m.zero{font-size:.7rem;font-weight:800;color:var(--muted)}
+  .m.sel{border-width:2px}
+  .m.b.sel{border-color:var(--bronze)}.m.s.sel{border-color:var(--silver)}
+  .m.g.sel{border-color:var(--gold)}.m.zero.sel{border-color:var(--bad);color:var(--bad)}
+  .daysum{margin-top:14px;color:var(--good);font-weight:700;text-align:center}
+  .pinwrap{display:flex;flex-direction:column;align-items:center;gap:18px;min-height:70vh;justify-content:center}
+  .pindots{display:flex;gap:14px}.pindot{width:14px;height:14px;border-radius:50%;border:2px solid var(--line)}
+  .pindot.on{background:var(--accent);border-color:var(--accent)}
+  .keypad{display:grid;grid-template-columns:repeat(3,72px);gap:12px}
+  .key{height:60px;border-radius:14px;background:var(--surface);border:1px solid var(--line);font-size:1.3rem;font-weight:700;color:#fff}
+  .key.blank{background:transparent;border:none}
+  .tabbar{display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px;margin:8px 0 12px}
+  .tabbar .t{flex:1;padding:9px;border-radius:9px;font-size:.8rem;font-weight:700;color:var(--muted);background:transparent;border:none}
+  .tabbar .t.on{background:var(--accent);color:#fff}
+  .sec{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:14px 2px 8px;font-weight:700}
+  .row{display:flex;align-items:center;justify-content:space-between;padding:11px 4px;border-bottom:1px solid #10233f;gap:10px}
+  .row .lbl{font-size:.92rem}
+  .pill{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:5px 10px;font-weight:700;font-size:.85rem;color:#fff}
+  input.inp{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:8px 10px;color:#fff;font-family:var(--font);width:90px;text-align:right;font-size:1rem}
+  input.inp.wide{width:100%;text-align:left}
+  .logitem{padding:10px 4px;border-bottom:1px solid #10233f;font-size:.84rem}
+  .logitem .meta{color:var(--muted);font-size:.72rem;margin-bottom:2px;display:flex;gap:8px;align-items:center}
+  .tag{border-radius:6px;padding:1px 6px;font-size:.66rem;font-weight:700}
+  .tag.son{background:#12325e;color:#bcd4ff}.tag.parent{background:#3a2a12;color:#ffd8a0}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+  .link{background:none;border:none;color:var(--muted);font-size:.8rem;text-decoration:underline}
+  #appVersion{color:#3a3a3a;font-size:.68rem;text-align:center;margin-top:24px}
+</style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="appVersion"></div>
+  <script>
+    window.APP_VERSION = '2026.08.20 (b1)';
+    window.EDGE_FUNCTION_URL = ''; // tom streng = localStorage-modus (backend legges på til slutt)
+  </script>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
