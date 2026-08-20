@@ -124,7 +124,17 @@ juksesikkert bevis. Dette er akseptert.
   `days[dato].subjects`. Historikk blir dermed stabil selv om malen endres senere.
 - **`marks` nøkkel** = indeks inn i dagens `subjects`.
 - **`medal`** ∈ `null` (ikke vurdert) · `"0"` (fravær) · `"bronse"` · `"solv"` · `"gull"`.
-- **Saldo** = Σ(medaljepoeng over alle dager/fag) − Σ(payouts.coins). Beregnes, lagres ikke.
+
+### Saldo som generelt regnskap (forberedt for fremtid)
+
+Saldo = **Σ(opptjent fra alle kilder) − Σ(brukt)**. Beregnes, lagres ikke.
+
+- **Opptjeningskilder** (nå: skoletimer; senere: sidequests). Modelleres slik at nye kilder
+  kan legges til uten migrering — saldofunksjonen summerer over en liste av kilder.
+- **Bruk** modelleres som **typede poster** i én liste (ikke bare `payouts`). Hver post har en
+  `type` (`"payout"` nå; `"purchase"` senere) og et antall `coins` som trekkes fra. `payouts`
+  i modellen over er MVP-formen av dette; i implementeringsplanen vurderes om den skal hete
+  `spend`/`ledger` fra start for å slippe rename senere.
 
 ## Synk / fletting
 
@@ -138,14 +148,52 @@ juksesikkert bevis. Dette er akseptert.
 - `payout` — utbetaling registrert.
 - `settings` — endring av poengverdier, kr-kurs, timeplan eller PIN.
 
+## Fremtidige utvidelser (bygges senere — arkitekturen skal støtte dem)
+
+Disse skal IKKE bygges nå, men datamodellen og saldo-logikken forberedes så de kan legges
+til uten smertefull migrering.
+
+### Item shop (utbetaling som butikk)
+- Foreldre legger inn **varer**: navn, **bilde**, pris i coins, **produktlenke**, aktiv/inaktiv.
+  - `shopItems: [ { id, name, image, priceCoins, productUrl, active } ]`
+  - `image` lagres som data-URL (base64) eller URL — avklares i planen (blob-størrelse).
+- Sønn ser butikken; kan «**be om å kjøpe**» en vare. Det oppretter en **kjøpsforespørsel**
+  som foreldre ser (med produktlenken, så de kan bestille varen).
+- **Kjøp = typet bruks-post** (`type:"purchase"`) i bruks-lista → trekker coins fra saldo.
+  - `purchases: [ { id, itemId, at, status, coinsSpent, irlKr, note } ]`
+  - `status` ∈ f.eks. `requested` → `approved`/`rejected` → `fulfilled`.
+- **IRL-oppgjør:** en vare kan koste mer enn han har. Da kan kjøpet dekkes **delvis av coins og
+  resten av «IRL-penger»** (mellomlegg bokført i `irlKr`). Coins trekkes for coin-andelen;
+  kr-andelen er kun bokføring (påvirker ikke poenghistorikk). Alt logges.
+
+### Sidequests (ekstra oppdrag, ikke nødvendigvis skolerelatert)
+- Foreldre lager oppdrag med en coin-belønning; sønn fullfører → coins opptjent.
+  - `quests: [ { id, title, rewardCoins, active, ... } ]` og fullføringer som **opptjeningskilde**.
+- Fordi saldo allerede summerer over flere opptjeningskilder, kommer dette inn uten migrering.
+
+### Andre
+- **Streaks** (neste runde).
+- Push-varsler / påminnelser (krever server-side push — vurderes separat).
+
 ## Utenfor scope (nå)
 
-- **Streaks** (neste runde).
-- Push-varsler / påminnelser.
+- Alt under «Fremtidige utvidelser» over.
 - Fuskesikker autentisering.
+
+## Design / tema (godkjent via skisser)
+
+Mørkt tema, mobil-først. Skisser: `mockups/skisser.html`.
+
+- Bakgrunn sort (`#050505`/`#000`), tekst hvit (`#ffffff`), dempet `#9fb3cf`.
+- Uthevede flater i mørkeblå: `--surface #0b1a33`, `--surface-2 #0f2547`, kantlinje `--line #1c3a63`.
+- Aksent (knapper/aktiv): `--accent #3b6fe0`.
+- Medaljefarger: bronse `#cd7f32`, sølv `#cfd6dd`, gull `#ffce3a`; «positiv» grønn `#3ddc97`.
+- Skjermer skissert: (1) Hvem er du, (2) Sønnens dag, (3) PIN, (4) Poeng/utbetaling,
+  (5) Endringslogg, (6) Timeplan-oppsett. Bruker: «designet er veldig fint».
 
 ## Åpne detaljer til implementeringsplanen
 
 - Nøyaktig tabell-layout (én `data`-kolonne vs. flere kolonner).
 - Hvor mye av loggen som vises (paginering/tak) og evt. GC av gamle logglinjer.
-- Design/farger (egen palett; ikke gjenbruk av Handleliste sine butikkfarger).
+- Navngiving av bruks-lista (`payouts` vs. generell `spend`/`ledger` fra start), gitt at item
+  shop-kjøp kommer senere.

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Honniscoins – skisser</title>
+<style>
+  :root{
+    --bg:#000000;
+    --surface:#0b1a33;      /* mørkeblå uthevet flate */
+    --surface-2:#0f2547;    /* litt lysere uthevet */
+    --line:#1c3a63;
+    --text:#ffffff;
+    --muted:#9fb3cf;
+    --accent:#3b6fe0;       /* klar blå for knapper/aktiv */
+    --bronze:#cd7f32;
+    --silver:#cfd6dd;
+    --gold:#ffce3a;
+    --good:#3ddc97;
+    --radius:16px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#050505;color:var(--text);font-family:var(--font);padding:28px 16px 60px}
+  .page-title{max-width:1100px;margin:0 auto 6px;font-weight:800;font-size:1.5rem;letter-spacing:-.02em}
+  .page-sub{max-width:1100px;margin:0 auto 28px;color:var(--muted);font-size:.9rem}
+  .gallery{max-width:1100px;margin:0 auto;display:flex;flex-wrap:wrap;gap:28px;justify-content:center}
+  .frame-wrap{display:flex;flex-direction:column;gap:10px;align-items:center}
+  .frame-label{color:var(--muted);font-size:.8rem;font-weight:600;letter-spacing:.02em}
+  .phone{
+    width:300px;height:620px;background:var(--bg);border-radius:34px;
+    border:1px solid #1a1a1a;box-shadow:0 0 0 6px #101010,0 24px 60px rgba(0,0,0,.6);
+    overflow:hidden;position:relative;display:flex;flex-direction:column
+  }
+  .status{height:34px;flex:0 0 34px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.72rem}
+  .screen{flex:1;overflow:hidden;padding:6px 16px 16px;display:flex;flex-direction:column}
+  .muted{color:var(--muted)}
+
+  /* generic bits */
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:12px;padding:14px;font-weight:700;font-size:1rem;width:100%;font-family:var(--font)}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text)}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+
+  /* balance header */
+  .balance{background:linear-gradient(160deg,var(--surface-2),var(--surface));border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+  .balance .coins{font-size:2rem;font-weight:800;letter-spacing:-.02em;display:flex;align-items:baseline;gap:8px}
+  .balance .coins small{font-size:.9rem;font-weight:700;color:var(--muted)}
+  .balance .kr{color:var(--muted);font-size:.82rem;margin-top:2px}
+
+  /* day nav */
+  .daynav{display:flex;align-items:center;justify-content:space-between;margin:4px 0 12px}
+  .daynav .arrow{width:38px;height:38px;border-radius:11px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:1.2rem}
+  .daynav .today{text-align:center}
+  .daynav .today b{font-size:1.02rem}
+  .daynav .today .d{color:var(--muted);font-size:.75rem}
+  .cal{font-size:1.1rem}
+
+  /* lesson row */
+  .lesson{display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid #10233f}
+  .lesson .name{flex:1;font-weight:600;font-size:.95rem}
+  .medals{display:flex;gap:6px}
+  .m{width:34px;height:34px;border-radius:10px;background:var(--surface);border:1px solid var(--line);
+     display:flex;align-items:center;justify-content:center;font-size:1rem}
+  .m.sel{border-width:2px;transform:scale(1.05)}
+  .m.b.sel{border-color:var(--bronze);box-shadow:0 0 12px rgba(205,127,50,.5)}
+  .m.s.sel{border-color:var(--silver);box-shadow:0 0 12px rgba(207,214,221,.4)}
+  .m.g.sel{border-color:var(--gold);box-shadow:0 0 14px rgba(255,206,58,.5)}
+  .m.zero.sel{border-color:#e06a6a;color:#ff9a9a}
+  .m.zero{font-size:.7rem;font-weight:800;color:var(--muted)}
+  .daysum{margin-top:auto;padding-top:12px;color:var(--good);font-weight:700;font-size:.95rem;text-align:center}
+
+  /* who screen */
+  .who{flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px;text-align:center}
+  .who h1{font-size:1.8rem;margin:0 0 4px}
+  .who .logo{font-size:2.6rem;margin-bottom:6px}
+  .who .role{display:flex;align-items:center;gap:12px;text-align:left;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+  .who .role .em{font-size:1.6rem}
+  .who .role b{display:block;font-size:1.05rem}
+  .who .role span{color:var(--muted);font-size:.8rem}
+
+  /* pin */
+  .pinwrap{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:18px}
+  .pindots{display:flex;gap:14px}
+  .pindot{width:14px;height:14px;border-radius:50%;border:2px solid var(--line)}
+  .pindot.on{background:var(--accent);border-color:var(--accent)}
+  .keypad{display:grid;grid-template-columns:repeat(3,64px);gap:12px}
+  .key{height:56px;border-radius:14px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:700}
+
+  /* section title */
+  .sec{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:14px 2px 8px;font-weight:700}
+  .row{display:flex;align-items:center;justify-content:space-between;padding:12px 4px;border-bottom:1px solid #10233f}
+  .row .lbl{font-size:.92rem}
+  .pill{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:4px 10px;font-weight:700;font-size:.85rem}
+
+  /* log */
+  .logitem{padding:10px 4px;border-bottom:1px solid #10233f;font-size:.82rem}
+  .logitem .meta{color:var(--muted);font-size:.72rem;margin-bottom:2px;display:flex;gap:8px}
+  .tag{border-radius:6px;padding:1px 6px;font-size:.66rem;font-weight:700}
+  .tag.son{background:#12325e;color:#bcd4ff}
+  .tag.parent{background:#3a2a12;color:#ffd8a0}
+  .logitem .txt b{color:#fff}
+  .arrowto{color:var(--muted)}
+
+  /* tabbar for parent */
+  .tabbar{display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:12px}
+  .tabbar .t{flex:1;text-align:center;padding:8px;border-radius:9px;font-size:.78rem;font-weight:700;color:var(--muted)}
+  .tabbar .t.on{background:var(--accent);color:#fff}
+  .scroll{overflow:auto}
+</style>
+</head>
+<body>
+  <div class="page-title">Honniscoins — skisser</div>
+  <div class="page-sub">Mørkt tema: sort bakgrunn, hvit tekst, mørkeblå uthevede flater. Ikke-funksjonelle skisser for å avklare layout.</div>
+
+  <div class="gallery">
+
+    <!-- 1. Hvem er du -->
+    <div class="frame-wrap">
+      <div class="frame-label">1 · Hvem er du?</div>
+      <div class="phone"><div class="status">9:41</div><div class="screen">
+        <div class="who">
+          <div>
+            <div class="logo">🪙</div>
+            <h1>Honniscoins</h1>
+            <div class="muted" style="font-size:.85rem">Velg hvem du er</div>
+          </div>
+          <div class="role"><span class="em">🧒</span><div><b>Sønn</b><span>Timeplan og medaljer</span></div></div>
+          <div class="role"><span class="em">👨‍👩‍👦</span><div><b>Forelder</b><span>Innstillinger og logg · PIN</span></div></div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 2. Sønnens dag -->
+    <div class="frame-wrap">
+      <div class="frame-label">2 · Sønnens dag</div>
+      <div class="phone"><div class="status">9:41</div><div class="screen">
+        <div class="balance">
+          <div class="coins">128 <small>Honniscoins</small></div>
+          <div class="kr">≈ 128 kr ved dagens kurs</div>
+        </div>
+        <div class="daynav">
+          <div class="arrow">‹</div>
+          <div class="today"><b>Onsdag</b><div class="d">20. aug <span class="cal">📅</span></div></div>
+          <div class="arrow">›</div>
+        </div>
+        <div class="scroll">
+          <div class="lesson"><div class="name">Norsk</div><div class="medals">
+            <div class="m zero">0</div><div class="m b">🥉</div><div class="m s">🥈</div><div class="m g sel">🥇</div></div></div>
+          <div class="lesson"><div class="name">Matte</div><div class="medals">
+            <div class="m zero">0</div><div class="m b">🥉</div><div class="m s sel">🥈</div><div class="m g">🥇</div></div></div>
+          <div class="lesson"><div class="name">Engelsk</div><div class="medals">
+            <div class="m zero">0</div><div class="m b sel">🥉</div><div class="m s">🥈</div><div class="m g">🥇</div></div></div>
+          <div class="lesson"><div class="name">Naturfag</div><div class="medals">
+            <div class="m zero sel">0</div><div class="m b">🥉</div><div class="m s">🥈</div><div class="m g">🥇</div></div></div>
+          <div class="lesson"><div class="name">Gym</div><div class="medals">
+            <div class="m zero">0</div><div class="m b">🥉</div><div class="m s">🥈</div><div class="m g">🥇</div></div></div>
+          <div class="lesson"><div class="name">KRLE</div><div class="medals">
+            <div class="m zero">0</div><div class="m b">🥉</div><div class="m s">🥈</div><div class="m g">🥇</div></div></div>
+        </div>
+        <div class="daysum">+6 Honniscoins i dag 🎉</div>
+      </div></div>
+    </div>
+
+    <!-- 3. Forelder PIN -->
+    <div class="frame-wrap">
+      <div class="frame-label">3 · Forelder · PIN</div>
+      <div class="phone"><div class="status">9:41</div><div class="screen">
+        <div class="pinwrap">
+          <div style="text-align:center"><div style="font-size:1.8rem">🔒</div><b>Foreldremodus</b><div class="muted" style="font-size:.8rem">Tast PIN</div></div>
+          <div class="pindots"><div class="pindot on"></div><div class="pindot on"></div><div class="pindot"></div><div class="pindot"></div></div>
+          <div class="keypad">
+            <div class="key">1</div><div class="key">2</div><div class="key">3</div>
+            <div class="key">4</div><div class="key">5</div><div class="key">6</div>
+            <div class="key">7</div><div class="key">8</div><div class="key">9</div>
+            <div class="key" style="background:transparent;border:none"></div><div class="key">0</div><div class="key" style="background:transparent;border:none;color:var(--muted)">⌫</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 4. Foreldre innstillinger -->
+    <div class="frame-wrap">
+      <div class="frame-label">4 · Foreldre · Innstillinger</div>
+      <div class="phone"><div class="status">9:41</div><div class="screen">
+        <div class="tabbar"><div class="t">Timeplan</div><div class="t on">Poeng</div><div class="t">Logg</div></div>
+        <div class="scroll">
+          <div class="sec">Poengverdier</div>
+          <div class="card" style="padding:6px 12px">
+            <div class="row"><div class="lbl">🥉 Bronse</div><div class="pill">1 poeng</div></div>
+            <div class="row"><div class="lbl">🥈 Sølv</div><div class="pill">2 poeng</div></div>
+            <div class="row" style="border:none"><div class="lbl">🥇 Gull</div><div class="pill">3 poeng</div></div>
+          </div>
+          <div class="sec">Kroneverdi (frakoblet)</div>
+          <div class="card" style="padding:6px 12px">
+            <div class="row" style="border:none"><div class="lbl">Kr per Honniscoin</div><div class="pill">1,00 kr</div></div>
+          </div>
+          <div class="sec">Utbetalinger</div>
+          <div class="card" style="padding:6px 12px">
+            <div class="row"><div class="lbl">🎬 Kino <span class="muted" style="font-size:.72rem">· 12. aug</span></div><div class="pill" style="color:#ff9a9a">−100</div></div>
+            <div class="row" style="border:none"><div class="lbl" style="color:var(--accent)">+ Registrer utbetaling</div></div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 5. Endringslogg -->
+    <div class="frame-wrap">
+      <div class="frame-label">5 · Foreldre · Endringslogg</div>
+      <div class="phone"><div class="status">9:41</div><div class="screen">
+        <div class="tabbar"><div class="t">Timeplan</div><div class="t">Poeng</div><div class="t on">Logg</div></div>
+        <div class="scroll">
+          <div class="logitem">
+            <div class="meta"><span class="tag son">Sønn</span><span>i dag 15:20</span></div>
+            <div class="txt">Norsk (ons 20.8): <span class="arrowto">🥈 →</span> <b>🥇 Gull</b></div>
+          </div>
+          <div class="logitem">
+            <div class="meta"><span class="tag parent">Forelder</span><span>i dag 16:05</span></div>
+            <div class="txt">Naturfag (ons 20.8): <span class="arrowto">🥈 →</span> <b>0 Fravær</b> <span class="muted">(overstyrt)</span></div>
+          </div>
+          <div class="logitem">
+            <div class="meta"><span class="tag parent">Forelder</span><span>i går 20:11</span></div>
+            <div class="txt">Utbetaling: <b>−100 Honniscoins</b> · «Kino»</div>
+          </div>
+          <div class="logitem">
+            <div class="meta"><span class="tag son">Sønn</span><span>i går 14:02</span></div>
+            <div class="txt">Engelsk (tir 19.8): <span class="arrowto">– →</span> <b>🥉 Bronse</b></div>
+          </div>
+          <div class="logitem">
+            <div class="meta"><span class="tag parent">Forelder</span><span>18.8 09:30</span></div>
+            <div class="txt">Endret Gull: <span class="arrowto">2 →</span> <b>3 poeng</b></div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 6. Timeplan-oppsett -->
+    <div class="frame-wrap">
+      <div class="frame-label">6 · Foreldre · Timeplan</div>
+      <div class="phone"><div class="status">9:41</div><div class="screen">
+        <div class="tabbar"><div class="t on">Timeplan</div><div class="t">Poeng</div><div class="t">Logg</div></div>
+        <div class="scroll">
+          <div style="display:flex;gap:6px;margin:2px 0 10px">
+            <div class="pill" style="background:var(--accent);border-color:var(--accent)">Man</div>
+            <div class="pill">Tir</div><div class="pill">Ons</div><div class="pill">Tor</div><div class="pill">Fre</div>
+          </div>
+          <div class="card" style="padding:4px 12px">
+            <div class="row"><div class="lbl">1 · Norsk</div><div class="muted">⋯</div></div>
+            <div class="row"><div class="lbl">2 · Matte</div><div class="muted">⋯</div></div>
+            <div class="row"><div class="lbl">3 · Engelsk</div><div class="muted">⋯</div></div>
+            <div class="row"><div class="lbl">4 · Naturfag</div><div class="muted">⋯</div></div>
+            <div class="row"><div class="lbl">5 · Gym</div><div class="muted">⋯</div></div>
+            <div class="row" style="border:none"><div class="lbl">6 · KRLE</div><div class="muted">⋯</div></div>
+          </div>
+          <button class="btn ghost" style="margin-top:12px">+ Legg til fag</button>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+</body>
+</html>
