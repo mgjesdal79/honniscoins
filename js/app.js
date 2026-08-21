@@ -434,6 +434,14 @@ async function init() {
 }
 init();
 
+// Bytt rom uten manuell reload: hvis en ny #r=-lenke limes inn i en åpen fane,
+// laster vi siden på nytt så riktig rom hentes fra skyen.
+window.addEventListener('hashchange', () => {
+  const m = location.hash.match(/[#&]r=([^&]+)/);
+  const newRoom = m ? decodeURIComponent(m[1]) : null;
+  if (newRoom && newRoom !== App.room) location.reload();
+});
+
 // eksponert for feilsøking i konsollen
 window.App = App;
 window.routeToView = routeToView;
