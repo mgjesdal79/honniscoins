@@ -106,6 +106,13 @@ function renderSon() {
 
   const canSync = App.role === 'parent' && !daySubjectsMatchTimetable(s, date);
   const who = App.role === 'parent' ? '👨‍👩‍👦 Forelder (overstyrer)' : '🧒 Sønn';
+  const brand =
+    App.role === 'son'
+      ? `<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin:2px 0 10px">
+          <img src="icon-192.png" alt="" width="40" height="40" style="border-radius:10px">
+          <b style="font-size:1.2rem">Honniscoins</b>
+        </div>`
+      : '';
   const dayStatus = isSick
     ? '🤒 Merket syk/fri'
     : cls === 'present'
@@ -117,6 +124,7 @@ function renderSon() {
     : '';
 
   el.innerHTML = `
+    ${brand}
     <div class="topbar"><span class="muted">${who}</span>
       <button class="link" id="switchUser">Bytt bruker</button></div>
     <div class="balance">
