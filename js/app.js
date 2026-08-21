@@ -2,8 +2,10 @@ import { getRoom, loadState, scheduleSave, startPolling } from './store.js';
 import {
   isoDate, nearestWeekday, stepWeekday, weekdayKey, subjectsForDate,
   setMark, setSick, addPayout, logSettingsChange, computeBalance, formatKr, WEEKDAY_KEYS,
-  isWeekLocked, attendanceStreakInfo, classifyDay, dailyTotal, weeklyTotal,
+  attendanceStreakInfo, classifyDay, dailyTotal, weeklyTotal,
   weekdaysOf, daySubjectsMatchTimetable, resyncSubjects,
+  isDayLocked, isWeekClosed, canSonEditDay, lockDay, closeWeek, reopenWeek, weekStartIso,
+  weeklyMedalCounts, weeklyStreakBonus, silverStreakInfo, goldStreakInfo,
 } from './logic.js';
 
 const el = document.getElementById('app');
@@ -16,6 +18,8 @@ const App = {
   parentUnlocked: false,
   currentDate: nearestWeekday(isoDate(new Date())),
   parentTab: 'uke',
+  sonPage: localStorage.getItem('honniscoins:sonPage') || 'uken',
+  mondayDismissed: false,
 };
 
 // --- hjelpere ------------------------------------------------------------
@@ -40,6 +44,7 @@ const MEDAL_BTNS = [
   { medal: 'gull', cls: 'g', label: '🥇' },
 ];
 const WD_NAME = { mon: 'Mandag', tue: 'Tirsdag', wed: 'Onsdag', thu: 'Torsdag', fri: 'Fredag' };
+const WD_SHORT = { mon: 'Man', tue: 'Tir', wed: 'Ons', thu: 'Tor', fri: 'Fre' };
 const MEDAL_LABEL = { 0: '0 Fravær', bronse: '🥉 Bronse', solv: '🥈 Sølv', gull: '🥇 Gull' };
 
 function fmtDayLabel(iso) {
@@ -49,6 +54,66 @@ function fmtDayLabel(iso) {
 }
 function medalLabel(m) {
   return m == null ? '–' : MEDAL_LABEL[m] || m;
+}
+
+// Kan den innloggede rollen redigere denne dagen nå?
+function canEditDate(date) {
+  if (App.role === 'parent') return true;
+  return canSonEditDay(App.state, date, isoDate(new Date()));
+}
+
+// --- delt: fag-liste + bindinger (brukes av både sønn og forelder) --------
+
+function lessonsHtml(s, date, { disabled, big }) {
+  const subjects = subjectsForDate(s, date);
+  const marks = (s.days[date] && s.days[date].marks) || {};
+  const { wd } = fmtDayLabel(date);
+  if (!subjects.length)
+    return `<div class="card muted">Ingen fag satt opp for ${wd || 'denne dagen'}. En forelder kan legge inn timeplanen.</div>`;
+  return subjects
+    .map((name, i) => {
+      const cur = marks[String(i)] ? marks[String(i)].medal : null;
+      const btns = MEDAL_BTNS.map(
+        (b) =>
+          `<button class="m ${big ? 'fill big' : ''} ${b.cls} ${cur === b.medal ? 'sel' : ''}" data-idx="${i}" data-medal="${b.medal}"${
+            disabled ? ' disabled' : ''
+          }>${b.label}</button>`
+      ).join('');
+      return `<div class="lesson ${big ? 'lessonbig' : ''}"><div class="name">${escapeHtml(name)}</div><div class="medals">${btns}</div></div>`;
+    })
+    .join('');
+}
+
+function bindLessons(host, date, disabled) {
+  host.querySelectorAll('.m').forEach(
+    (btn) =>
+      (btn.onclick = () => {
+        if (disabled) return;
+        const idx = Number(btn.dataset.idx);
+        const marks = (App.state.days[date] && App.state.days[date].marks) || {};
+        const cur = marks[String(idx)] ? marks[String(idx)].medal : null;
+        const medal = cur === btn.dataset.medal ? null : btn.dataset.medal; // toggle av = null
+        const actor = App.role === 'parent' ? 'parent' : 'son';
+        App.state = setMark(App.state, { date, idx, medal, actor }, { now: nowIso(), id: newId() });
+        save();
+        routeToView();
+      })
+  );
+}
+
+function toggleSick(date, isSick, disabled) {
+  if (disabled) return;
+  const actor = App.role === 'parent' ? 'parent' : 'son';
+  App.state = setSick(App.state, { date, sick: !isSick, actor }, { now: nowIso(), id: newId() });
+  save();
+  routeToView();
+}
+
+function toggleLock(date, locked) {
+  const actor = App.role === 'parent' ? 'parent' : 'son';
+  App.state = lockDay(App.state, { date, locked, actor }, { now: nowIso(), id: newId() });
+  save();
+  routeToView();
 }
 
 // --- rollevalg -----------------------------------------------------------
@@ -72,131 +137,259 @@ function renderWho() {
   document.getElementById('roleParent').onclick = () => setRole('parent');
 }
 
-// --- sønnens dag ---------------------------------------------------------
+// --- SØNN: pager (Uken / Poeng / Sidequests) -----------------------------
 
-// Sønnens fullskjerm: logo + topbar + selve dag-innholdet.
+const SON_PAGES = [
+  { key: 'uken', icon: '📅', label: 'Uken' },
+  { key: 'poeng', icon: '🪙', label: 'Poeng' },
+  { key: 'sidequests', icon: '⭐', label: 'Sidequests' },
+];
+
+function setSonPage(key) {
+  App.sonPage = key;
+  localStorage.setItem('honniscoins:sonPage', key);
+  routeToView();
+}
+
 function renderSon() {
-  const brand = `<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin:2px 0 10px">
-      <img src="icon-192.png" alt="" width="40" height="40" style="border-radius:10px">
-      <b style="font-size:1.2rem">Honniscoins</b>
+  const brand = `<div class="brand">
+      <img src="icon-192.png" alt="" width="34" height="34" style="border-radius:9px">
+      <b>Honniscoins</b>
     </div>`;
+  const dots = SON_PAGES.map((p) => `<span class="dot ${p.key === App.sonPage ? 'on' : ''}"></span>`).join('');
+  const nav = SON_PAGES.map(
+    (p) =>
+      `<button class="pg ${p.key === App.sonPage ? 'on' : ''}" data-page="${p.key}">
+        <span class="i">${p.icon}</span><span class="l">${p.label}</span></button>`
+  ).join('');
   el.innerHTML = `
     ${brand}
     <div class="topbar"><span class="muted">🧒 Sønn</span>
       <button class="link" id="switchUser">Bytt bruker</button></div>
-    <div id="dayBody"></div>`;
+    <div id="page" class="page"></div>
+    <div class="dots">${dots}</div>
+    <div class="pagenav">${nav}</div>`;
   document.getElementById('switchUser').onclick = () => setRole(null);
-  renderDayBody(document.getElementById('dayBody'));
+  el.querySelectorAll('.pg[data-page]').forEach((b) => (b.onclick = () => setSonPage(b.dataset.page)));
+
+  const host = document.getElementById('page');
+  if (App.sonPage === 'uken') renderUkenPage(host);
+  else if (App.sonPage === 'poeng') renderPoengPage(host);
+  else renderSidequestsPage(host);
+
+  bindSwipe(host);
 }
 
-// Dag-innholdet (saldo, dagnav, synk, medaljer). Rendres i `host` — enten sønnens
-// fullskjerm eller foreldrenes «Dag»-fane (som beholder tab-baren rundt).
-function renderDayBody(host) {
-  const s = App.state,
-    date = App.currentDate;
-  const today = isoDate(new Date());
-  const locked = App.role === 'son' && isWeekLocked(date, today);
-  const subjects = subjectsForDate(s, date);
-  const marks = (s.days[date] && s.days[date].marks) || {};
-  const isSick = !!(s.days[date] && s.days[date].sick);
-  const bal = computeBalance(s);
-  const streak = attendanceStreakInfo(s, today);
-  const wTot = weeklyTotal(s, date);
-  const dTot = dailyTotal(s, date);
-  const cls = classifyDay(s, date);
-  const { wd, dm } = fmtDayLabel(date);
+function bindSwipe(host) {
+  let x0 = null, y0 = null;
+  host.addEventListener('touchstart', (e) => {
+    const t = e.changedTouches[0];
+    x0 = t.clientX;
+    y0 = t.clientY;
+  }, { passive: true });
+  host.addEventListener('touchend', (e) => {
+    if (x0 == null) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - x0, dy = t.clientY - y0;
+    x0 = null;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
+    const i = SON_PAGES.findIndex((p) => p.key === App.sonPage);
+    const ni = dx < 0 ? i + 1 : i - 1;
+    if (ni >= 0 && ni < SON_PAGES.length) setSonPage(SON_PAGES[ni].key);
+  }, { passive: true });
+}
 
-  const lessons = subjects.length
-    ? subjects
-        .map((name, i) => {
-          const cur = marks[String(i)] ? marks[String(i)].medal : null;
-          const btns = MEDAL_BTNS.map(
-            (b) =>
-              `<button class="m ${b.cls} ${cur === b.medal ? 'sel' : ''}" data-idx="${i}" data-medal="${b.medal}"${
-                locked ? ' disabled' : ''
-              }>${b.label}</button>`
-          ).join('');
-          return `<div class="lesson"><div class="name">${escapeHtml(name)}</div><div class="medals">${btns}</div></div>`;
-        })
-        .join('')
-    : `<div class="card muted">Ingen fag satt opp for ${wd || 'denne dagen'}. En forelder kan legge inn timeplanen.</div>`;
+function weekHasContent(s, iso) {
+  return weekdaysOf(iso).some((d) => {
+    const day = s.days[d];
+    return day && ((day.marks && Object.keys(day.marks).length) || day.sick);
+  });
+}
+
+// Uken: mandag-prompt + ukestrip (5 dager) + stor aktiv dag + lås.
+function renderUkenPage(host) {
+  const s = App.state;
+  const today = isoDate(new Date());
+  const date = App.currentDate;
+  const weekDays = weekdaysOf(date);
+  const editable = canEditDate(date);
+  const locked = isDayLocked(s, date);
+  const isSick = !!(s.days[date] && s.days[date].sick);
+  const disabled = locked || !editable;
+  const { wd, dm } = fmtDayLabel(date);
+  const dTot = dailyTotal(s, date);
+
+  // Mandag-prompt: ny uke, forrige uke ikke avsluttet og har innhold.
+  const prevWeekDay = stepWeekday(weekStartIso(today), -1);
+  const showMonday =
+    weekdayKey(today) === 'mon' &&
+    !App.mondayDismissed &&
+    !isWeekClosed(s, prevWeekDay) &&
+    weekHasContent(s, prevWeekDay);
+
+  const strip = weekDays
+    .map((d) => {
+      const dl = fmtDayLabel(d);
+      const dLocked = isDayLocked(s, d);
+      const active = d === date;
+      const badge = dLocked ? `🔒 +${dailyTotal(s, d)}` : '·';
+      return `<button class="wd ${active ? 'on' : ''} ${dLocked ? 'locked' : ''}" data-day="${d}">
+        <span class="n">${WD_SHORT[weekdayKey(d)]}</span>
+        <span class="b">${badge}</span></button>`;
+    })
+    .join('');
 
   const canSync = App.role === 'parent' && !daySubjectsMatchTimetable(s, date);
-  const dayStatus = isSick
-    ? '🤒 Merket syk/fri'
-    : cls === 'present'
-    ? `✅ Hel dag til stede · +${streak.bonusPerDay}`
-    : cls === 'broken'
-    ? '⚠️ Fravær uten syk-merking'
-    : subjects.length
-    ? '⏳ Ikke ferdig vurdert'
-    : '';
+
+  const lockBtn = editable
+    ? locked
+      ? `<button class="btn ghost" id="lockBtn">🔓 Åpne dagen for redigering</button>`
+      : `<button class="btn" id="lockBtn">🔒 Lås dagen</button>`
+    : `<div class="card muted" style="text-align:center">🔒 Denne uka er avsluttet – be en forelder om å endre.</div>`;
+
+  const weekClosed = isWeekClosed(s, date);
+  const closeWeekBtn =
+    editable && !weekClosed
+      ? `<button class="link" id="closeWeekBtn" style="display:block;margin:14px auto 0">Lås hele uka</button>`
+      : '';
+
+  host.innerHTML = `
+    ${showMonday ? `<div class="card monday">
+      <b>Ny uke! 🎉</b>
+      <div class="muted" style="margin:4px 0 10px">Er du ferdig med forrige uke? Da låser vi den så streaken teller.</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="mondayYes" style="flex:1">Ja, lås forrige uke</button>
+        <button class="btn ghost" id="mondayNo" style="width:auto;padding:14px 16px">Senere</button>
+      </div></div>` : ''}
+
+    <div class="weeknav">
+      <button class="arrow" id="prevWeek">‹</button>
+      <div class="wlabel">Uke fra ${fmtDayLabel(weekStartIso(date)).dm}${weekClosed ? ' · 🔒 avsluttet' : ''}</div>
+      <button class="arrow" id="nextWeek">›</button>
+    </div>
+    <div class="weekstrip">${strip}</div>
+
+    <div class="activeday">
+      <div class="ahead"><b>${wd}</b> <span class="muted">${dm}</span>
+        ${locked ? '<span class="lockchip">🔒 låst</span>' : ''}</div>
+      ${canSync ? `<div class="card" style="margin-bottom:10px;border-color:var(--gold)">
+        <div style="font-size:.85rem;margin-bottom:8px">⚠️ Fagene stemmer ikke med timeplanen.</div>
+        <button class="btn ghost" id="syncSubjects">Synk fag fra timeplan</button></div>` : ''}
+      <div id="lessons">${lessonsHtml(s, date, { disabled, big: true })}</div>
+      ${subjectsForDate(s, date).length ? `<div class="daysum">${locked ? `+${dTot} Honniscoins låst inn` : `${dTot} Honniscoins når du låser`}</div>` : ''}
+      <div class="sickrow">
+        <button class="sicklink" id="sickToggle"${disabled ? ' disabled' : ''}>${isSick ? '🤒 Syk/fri: på – trykk for å fjerne' : 'Var syk/fri denne dagen?'}</button>
+      </div>
+      <div style="margin-top:14px">${lockBtn}</div>
+      ${closeWeekBtn}
+    </div>`;
+
+  // ukesnavigasjon + dagsvalg
+  document.getElementById('prevWeek').onclick = () => {
+    App.currentDate = stepWeekday(date, -5);
+    renderSon();
+  };
+  document.getElementById('nextWeek').onclick = () => {
+    App.currentDate = stepWeekday(date, 5);
+    renderSon();
+  };
+  host.querySelectorAll('.wd[data-day]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        App.currentDate = b.dataset.day;
+        renderSon();
+      })
+  );
+
+  bindLessons(host, date, disabled);
+  const sickBtn = document.getElementById('sickToggle');
+  if (sickBtn) sickBtn.onclick = () => toggleSick(date, isSick, disabled);
+  const lb = document.getElementById('lockBtn');
+  if (lb) lb.onclick = () => toggleLock(date, !locked);
+  const cw = document.getElementById('closeWeekBtn');
+  if (cw)
+    cw.onclick = () => {
+      App.state = closeWeek(App.state, { weekIso: date, actor: App.role === 'parent' ? 'parent' : 'son' }, { now: nowIso(), id: newId() });
+      save();
+      renderSon();
+    };
+  const sy = document.getElementById('syncSubjects');
+  if (sy)
+    sy.onclick = () => {
+      App.state = resyncSubjects(App.state, { date, actor: 'parent' }, { now: nowIso(), id: newId() });
+      save();
+      renderSon();
+    };
+  const my = document.getElementById('mondayYes');
+  if (my)
+    my.onclick = () => {
+      App.state = closeWeek(App.state, { weekIso: prevWeekDay, actor: 'son' }, { now: nowIso(), id: newId() });
+      App.mondayDismissed = true;
+      save();
+      renderSon();
+    };
+  const mn = document.getElementById('mondayNo');
+  if (mn)
+    mn.onclick = () => {
+      App.mondayDismissed = true;
+      renderSon();
+    };
+}
+
+// Poeng: saldo + ukesbonus + bronse/sølv/gull-streaks.
+function renderPoengPage(host) {
+  const s = App.state;
+  const today = isoDate(new Date());
+  const bal = computeBalance(s);
+  const wTot = weeklyTotal(s, today);
+  const att = attendanceStreakInfo(s, today);
+  const wc = weeklyMedalCounts(s, today);
+  const wb = weeklyStreakBonus(s, today);
+  const sv = silverStreakInfo(s, today.slice(0, 7), today);
+  const gd = goldStreakInfo(s, today.slice(0, 7), today);
+
+  const statGrid = (info) => `
+    <div class="grid3">
+      <div class="stat"><b>${info.current}</b><span>Nå${info.currentOngoing ? ' ⏳' : ''}</span></div>
+      <div class="stat"><b>${info.allTimeBest}</b><span>All-time</span></div>
+      <div class="stat"><b>${info.monthBest}</b><span>Denne mnd${info.monthBestOngoing ? ' ⏳' : ''}</span></div>
+    </div>`;
 
   host.innerHTML = `
     <div class="balance">
       <div class="coins">${bal} <small>Honniscoins</small></div>
       <div class="kr">≈ ${formatKr(bal, s.settings.krPerCoin)} · denne uka +${wTot}</div>
-      <div class="kr">🔥 Oppmøte-streak: ${streak.length} ${streak.length === 1 ? 'dag' : 'dager'} · +${streak.bonusPerDay}/dag</div>
     </div>
-    <div class="daynav">
-      <button class="arrow" id="prevDay">‹</button>
-      <div class="today"><b>${wd}</b><div class="d">${dm} · <input type="date" id="datePick" value="${date}"></div></div>
-      <button class="arrow" id="nextDay">›</button>
-    </div>
-    ${locked ? '<div class="card muted" style="margin-bottom:10px">🔒 Låst uke – be en forelder om å endre.</div>' : ''}
-    ${canSync ? `<div class="card" style="margin-bottom:10px;border-color:var(--gold)">
-      <div style="font-size:.85rem;margin-bottom:8px">⚠️ Fagene her stemmer ikke med timeplanen. Trolig frosset før timeplanen var ferdig.</div>
-      <button class="btn ghost" id="syncSubjects">Synk fag fra timeplan</button></div>` : ''}
-    <div class="row" style="border:none;padding:2px 4px 10px">
-      <div class="lbl muted" style="font-size:.82rem">${dayStatus}</div>
-      <button class="pill" id="sickToggle"${locked ? ' disabled' : ''} style="${
-        isSick ? 'color:var(--gold);border-color:var(--gold)' : ''
-      }">${isSick ? '🤒 Syk/fri: på' : '🤒 Merk syk/fri'}</button>
-    </div>
-    <div id="lessons">${lessons}</div>
-    ${subjects.length ? `<div class="daysum">+${dTot} Honniscoins i dag</div>` : ''}`;
 
-  document.getElementById('prevDay').onclick = () => {
-    App.currentDate = stepWeekday(date, -1);
-    routeToView();
-  };
-  document.getElementById('nextDay').onclick = () => {
-    App.currentDate = stepWeekday(date, 1);
-    routeToView();
-  };
-  document.getElementById('datePick').onchange = (e) => {
-    App.currentDate = nearestWeekday(e.target.value);
-    routeToView();
-  };
-  const syncBtn = document.getElementById('syncSubjects');
-  if (syncBtn)
-    syncBtn.onclick = () => {
-      App.state = resyncSubjects(App.state, { date, actor: 'parent' }, { now: nowIso(), id: newId() });
-      save();
-      routeToView();
-    };
-  const sickBtn = document.getElementById('sickToggle');
-  if (sickBtn)
-    sickBtn.onclick = () => {
-      if (locked) return;
-      const actor = App.role === 'parent' ? 'parent' : 'son';
-      App.state = setSick(App.state, { date, sick: !isSick, actor }, { now: nowIso(), id: newId() });
-      save();
-      routeToView();
-    };
-  host.querySelectorAll('.m').forEach(
-    (btn) =>
-      (btn.onclick = () => {
-        if (locked) return;
-        const idx = Number(btn.dataset.idx);
-        const cur = marks[String(idx)] ? marks[String(idx)].medal : null;
-        const medal = cur === btn.dataset.medal ? null : btn.dataset.medal; // toggle av = null
-        const actor = App.role === 'parent' ? 'parent' : 'son';
-        App.state = setMark(App.state, { date, idx, medal, actor }, { now: nowIso(), id: newId() });
-        save();
-        routeToView();
-      })
-  );
+    <div class="sec">Ukesbonus (denne uka)</div>
+    <div class="card">
+      <div class="row"><div class="lbl">🥈 Sølvtimer <span class="muted">(sølv + gull)</span></div>
+        <div><span class="pill">${wc.silverHours}</span> <b class="bonuspt">+${wb.silver}</b></div></div>
+      <div class="row" style="border:none"><div class="lbl">🥇 Gulltimer</div>
+        <div><span class="pill">${wc.goldHours}</span> <b class="bonuspt">+${wb.gold}</b></div></div>
+      ${wb.total ? `<div class="daysum" style="margin-top:8px">+${wb.total} bonus denne uka</div>` : '<div class="muted" style="text-align:center;font-size:.78rem;margin-top:6px">Mål: 15 sølvtimer = +5 · 10 gulltimer = +10</div>'}
+    </div>
+
+    <div class="sec">🔥 Oppmøte-streak (bronse+)</div>
+    <div class="card">
+      <div class="row" style="border:none"><div class="lbl">På rad nå</div>
+        <div><span class="pill">${att.length} ${att.length === 1 ? 'dag' : 'dager'}</span> <b class="bonuspt">+${att.bonusPerDay}/dag</b></div></div>
+    </div>
+
+    <div class="sec">🥈 Sølv-streak (timer på rad)</div>
+    ${statGrid(sv)}
+
+    <div class="sec">🥇 Gull-streak (timer på rad)</div>
+    ${statGrid(gd)}`;
+}
+
+function renderSidequestsPage(host) {
+  host.innerHTML = `
+    <div class="empty">
+      <div style="font-size:2.4rem">⭐</div>
+      <b>Sidequests</b>
+      <div class="muted">Kommer snart! Her blir det ekstraoppdrag du kan gjøre for bonus-coins.</div>
+    </div>`;
 }
 
 // --- foreldre: kode-gate -------------------------------------------------
@@ -314,6 +507,7 @@ function renderUkeTab(host) {
       const sick = !!(day && day.sick);
       const subjects = subjectsForDate(s, d);
       const dTot = dailyTotal(s, d);
+      const dLocked = isDayLocked(s, d);
       const { wd, dm } = fmtDayLabel(d);
       const status = sick
         ? '🤒 Syk/fri'
@@ -326,7 +520,7 @@ function renderUkeTab(host) {
         : '– ingen fag';
       const isToday = d === today;
       return `<button class="row" data-goday="${d}" style="width:100%;background:transparent;color:var(--text);border:none;border-bottom:1px solid #10233f;font-family:var(--font)">
-        <div style="text-align:left"><div class="lbl">${wd}${isToday ? ' · i dag' : ''}</div>
+        <div style="text-align:left"><div class="lbl">${wd}${isToday ? ' · i dag' : ''} ${dLocked ? '🔒' : ''}</div>
           <div class="muted" style="font-size:.74rem">${dm} · ${status}</div></div>
         <div class="pill">+${dTot}</div></button>`;
     })
@@ -348,6 +542,95 @@ function renderUkeTab(host) {
         routeToView();
       })
   );
+}
+
+// Foreldrenes «Dag»-fane: samme fag-liste, men med lås/åpne + åpne-uke-kontroll.
+function renderDayBody(host) {
+  const s = App.state,
+    date = App.currentDate;
+  const today = isoDate(new Date());
+  const locked = isDayLocked(s, date);
+  const subjects = subjectsForDate(s, date);
+  const isSick = !!(s.days[date] && s.days[date].sick);
+  const disabled = locked; // forelder låser opp for å redigere
+  const bal = computeBalance(s);
+  const streak = attendanceStreakInfo(s, today);
+  const wTot = weeklyTotal(s, date);
+  const dTot = dailyTotal(s, date);
+  const cls = classifyDay(s, date);
+  const { wd, dm } = fmtDayLabel(date);
+  const weekClosed = isWeekClosed(s, date);
+
+  const canSync = !daySubjectsMatchTimetable(s, date);
+  const dayStatus = isSick
+    ? '🤒 Merket syk/fri'
+    : cls === 'present'
+    ? `✅ Hel dag til stede · +${streak.bonusPerDay}`
+    : cls === 'broken'
+    ? '⚠️ Fravær uten syk-merking'
+    : subjects.length
+    ? '⏳ Ikke ferdig vurdert'
+    : '';
+
+  host.innerHTML = `
+    <div class="balance">
+      <div class="coins">${bal} <small>Honniscoins</small></div>
+      <div class="kr">≈ ${formatKr(bal, s.settings.krPerCoin)} · denne uka +${wTot}</div>
+      <div class="kr">🔥 Oppmøte-streak: ${streak.length} ${streak.length === 1 ? 'dag' : 'dager'} · +${streak.bonusPerDay}/dag</div>
+    </div>
+    <div class="daynav">
+      <button class="arrow" id="prevDay">‹</button>
+      <div class="today"><b>${wd}</b><div class="d">${dm} · <input type="date" id="datePick" value="${date}"></div></div>
+      <button class="arrow" id="nextDay">›</button>
+    </div>
+    <div class="row" style="border:none;padding:2px 4px 8px">
+      <div class="lbl muted" style="font-size:.82rem">${dayStatus}</div>
+      <div style="display:flex;gap:6px">
+        <button class="pill" id="sickToggle"${disabled ? ' disabled' : ''} style="${
+          isSick ? 'color:var(--gold);border-color:var(--gold)' : ''
+        }">${isSick ? '🤒 Syk/fri: på' : '🤒 Syk/fri'}</button>
+        <button class="pill" id="lockBtn" style="${locked ? 'color:var(--good);border-color:var(--good)' : ''}">${locked ? '🔒 Låst' : '🔓 Ulåst'}</button>
+      </div>
+    </div>
+    ${canSync ? `<div class="card" style="margin-bottom:10px;border-color:var(--gold)">
+      <div style="font-size:.85rem;margin-bottom:8px">⚠️ Fagene her stemmer ikke med timeplanen.</div>
+      <button class="btn ghost" id="syncSubjects">Synk fag fra timeplan</button></div>` : ''}
+    <div id="lessons">${lessonsHtml(s, date, { disabled, big: false })}</div>
+    ${subjects.length ? `<div class="daysum">${locked ? `+${dTot} Honniscoins låst` : `${dTot} Honniscoins (ikke låst)`}</div>` : ''}
+    <div class="row" style="border:none;margin-top:10px">
+      <div class="lbl muted" style="font-size:.8rem">${weekClosed ? '🔒 Uka er avsluttet' : 'Uka er åpen'}</div>
+      <button class="link" id="weekToggle">${weekClosed ? 'Åpne uka igjen' : 'Lås hele uka'}</button>
+    </div>`;
+
+  document.getElementById('prevDay').onclick = () => {
+    App.currentDate = stepWeekday(date, -1);
+    routeToView();
+  };
+  document.getElementById('nextDay').onclick = () => {
+    App.currentDate = stepWeekday(date, 1);
+    routeToView();
+  };
+  document.getElementById('datePick').onchange = (e) => {
+    App.currentDate = nearestWeekday(e.target.value);
+    routeToView();
+  };
+  const syncBtn = document.getElementById('syncSubjects');
+  if (syncBtn)
+    syncBtn.onclick = () => {
+      App.state = resyncSubjects(App.state, { date, actor: 'parent' }, { now: nowIso(), id: newId() });
+      save();
+      routeToView();
+    };
+  document.getElementById('sickToggle').onclick = () => toggleSick(date, isSick, disabled);
+  document.getElementById('lockBtn').onclick = () => toggleLock(date, !locked);
+  document.getElementById('weekToggle').onclick = () => {
+    App.state = weekClosed
+      ? reopenWeek(App.state, { weekIso: date, actor: 'parent' }, { now: nowIso(), id: newId() })
+      : closeWeek(App.state, { weekIso: date, actor: 'parent' }, { now: nowIso(), id: newId() });
+    save();
+    routeToView();
+  };
+  bindLessons(host, date, disabled);
 }
 
 function renderTimeplanTab(host) {
@@ -377,7 +660,6 @@ function renderTimeplanTab(host) {
       })
   );
   host.querySelectorAll('.inp[data-i]').forEach((inp) => {
-    // Marker hele teksten ved fokus (tab/klikk) så man bare kan skrive over.
     inp.onfocus = () => inp.select();
     inp.onchange = () => {
       tt[editWeekday][Number(inp.dataset.i)] = inp.value.trim();
@@ -521,6 +803,13 @@ function renderLoggTab(host) {
       } else if (e.type === 'sick') {
         const dl = fmtDayLabel(e.day);
         txt = `${e.to ? 'Merket <b>syk/fri</b>' : 'Fjernet syk/fri'} (${dl.wd.slice(0, 3).toLowerCase()} ${dl.dm})`;
+      } else if (e.type === 'lock') {
+        const dl = fmtDayLabel(e.day);
+        txt = `${e.to ? '🔒 Låste' : '🔓 Åpnet'} dagen (${dl.wd.slice(0, 3).toLowerCase()} ${dl.dm})`;
+      } else if (e.type === 'weekclose') {
+        txt = `🔒 Avsluttet uka (fra ${fmtDayLabel(e.week).dm})`;
+      } else if (e.type === 'weekopen') {
+        txt = `🔓 Åpnet uka igjen (fra ${fmtDayLabel(e.week).dm})`;
       } else if (e.type === 'resync') {
         const dl = fmtDayLabel(e.day);
         txt =
@@ -547,8 +836,6 @@ async function init() {
     App.room,
     () => App.state,
     (merged) => {
-      // Ikke forstyrr en pågående redigering: hvis et tekstfelt er i fokus,
-      // vent til brukeren er ferdig (neste poll tar det) så vi ikke stjeler fokus.
       const ae = document.activeElement;
       if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) return;
       App.state = merged;

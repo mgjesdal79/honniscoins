@@ -67,13 +67,62 @@
   .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
   .link{background:none;border:none;color:var(--muted);font-size:.8rem;text-decoration:underline}
   #appVersion{color:#3a3a3a;font-size:.68rem;text-align:center;margin-top:24px}
+
+  /* --- sønn: pager --- */
+  .brand{display:flex;align-items:center;justify-content:center;gap:10px;margin:2px 0 8px}
+  .brand b{font-size:1.15rem}
+  .page{min-height:60vh;padding-bottom:8px}
+  .dots{display:flex;gap:7px;justify-content:center;margin:8px 0 6px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--line)}
+  .dot.on{background:var(--accent)}
+  .pagenav{position:sticky;bottom:0;display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px;margin-top:2px}
+  .pagenav .pg{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:10px;background:transparent;border:none;color:var(--muted)}
+  .pagenav .pg .i{font-size:1.25rem;line-height:1}
+  .pagenav .pg .l{font-size:.68rem;font-weight:700}
+  .pagenav .pg.on{background:var(--accent);color:#fff}
+
+  /* --- sønn: uken --- */
+  .weeknav{display:flex;align-items:center;justify-content:space-between;margin:2px 0 8px}
+  .weeknav .arrow{width:36px;height:36px;border-radius:10px;background:var(--surface);border:1px solid var(--line);font-size:1.1rem;color:#fff}
+  .weeknav .wlabel{font-size:.82rem;color:var(--muted);font-weight:700}
+  .weekstrip{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:14px}
+  .weekstrip .wd{display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 2px;border-radius:12px;background:var(--surface);border:1px solid var(--line);color:var(--text)}
+  .weekstrip .wd .n{font-size:.72rem;font-weight:700;color:var(--muted)}
+  .weekstrip .wd .b{font-size:.72rem;font-weight:800}
+  .weekstrip .wd.locked{border-color:var(--good)}
+  .weekstrip .wd.locked .b{color:var(--good)}
+  .weekstrip .wd.on{background:var(--accent);border-color:var(--accent)}
+  .weekstrip .wd.on .n,.weekstrip .wd.on .b{color:#fff}
+  .activeday .ahead{font-size:1.15rem;margin:2px 2px 10px;display:flex;align-items:center;gap:8px}
+  .lockchip{font-size:.68rem;background:#0e2a1c;color:var(--good);border:1px solid var(--good);border-radius:8px;padding:2px 7px;font-weight:700}
+  .lessonbig{padding:14px 4px}
+  .lessonbig .name{font-size:1.05rem}
+  .m.fill.big{width:52px;height:52px;font-size:1.5rem;border-radius:14px}
+  .m.fill.big.zero{font-size:.9rem}
+  .m.fill.b.sel{background:var(--bronze);border-color:var(--bronze);color:#3b2200}
+  .m.fill.s.sel{background:var(--silver);border-color:var(--silver);color:#1a2230}
+  .m.fill.g.sel{background:var(--gold);border-color:var(--gold);color:#3a2f00}
+  .m.fill.zero.sel{background:var(--bad);border-color:var(--bad);color:#3a0000}
+  .sickrow{text-align:center;margin-top:10px}
+  .sicklink{background:none;border:none;color:var(--muted);font-size:.78rem;text-decoration:underline}
+  .sicklink:disabled{opacity:.5}
+  .monday{border-color:var(--accent);margin-bottom:14px}
+
+  /* --- sønn: poeng --- */
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 6px;text-align:center}
+  .stat b{display:block;font-size:1.6rem;font-weight:800}
+  .stat span{color:var(--muted);font-size:.66rem;text-transform:uppercase;letter-spacing:.04em;font-weight:700}
+  .bonuspt{color:var(--good)}
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;min-height:50vh}
+  .empty b{font-size:1.2rem}.empty .muted{max-width:260px}
 </style>
 </head>
 <body>
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.08.21 (b9 · foreldre-meny på Dag)';
+    window.APP_VERSION = '2026.08.21 (b10 · låsing, sølv/gull-streaks, sider)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>
