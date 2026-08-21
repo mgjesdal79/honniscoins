@@ -143,6 +143,7 @@ const SON_PAGES = [
   { key: 'uken', icon: '📅', label: 'Uken' },
   { key: 'poeng', icon: '🪙', label: 'Poeng' },
   { key: 'sidequests', icon: '⭐', label: 'Sidequests' },
+  { key: 'shop', icon: '🛒', label: 'Shop' },
 ];
 
 function setSonPage(key) {
@@ -175,6 +176,7 @@ function renderSon() {
   const host = document.getElementById('page');
   if (App.sonPage === 'uken') renderUkenPage(host);
   else if (App.sonPage === 'poeng') renderPoengPage(host);
+  else if (App.sonPage === 'shop') renderShopPage(host);
   else renderSidequestsPage(host);
 
   bindSwipe(host);
@@ -389,6 +391,17 @@ function renderSidequestsPage(host) {
       <div style="font-size:2.4rem">⭐</div>
       <b>Sidequests</b>
       <div class="muted">Kommer snart! Her blir det ekstraoppdrag du kan gjøre for bonus-coins.</div>
+    </div>`;
+}
+
+function renderShopPage(host) {
+  const bal = computeBalance(App.state);
+  host.innerHTML = `
+    <div class="empty">
+      <div style="font-size:2.4rem">🛒</div>
+      <b>Shop</b>
+      <div class="muted">Kommer snart! Her kan du bruke Honniscoinsene dine på premier.</div>
+      <div class="pill" style="margin-top:6px">Du har ${bal} 🪙</div>
     </div>`;
 }
 
