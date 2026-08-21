@@ -74,7 +74,24 @@ function renderWho() {
 
 // --- sønnens dag ---------------------------------------------------------
 
+// Sønnens fullskjerm: logo + topbar + selve dag-innholdet.
 function renderSon() {
+  const brand = `<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin:2px 0 10px">
+      <img src="icon-192.png" alt="" width="40" height="40" style="border-radius:10px">
+      <b style="font-size:1.2rem">Honniscoins</b>
+    </div>`;
+  el.innerHTML = `
+    ${brand}
+    <div class="topbar"><span class="muted">🧒 Sønn</span>
+      <button class="link" id="switchUser">Bytt bruker</button></div>
+    <div id="dayBody"></div>`;
+  document.getElementById('switchUser').onclick = () => setRole(null);
+  renderDayBody(document.getElementById('dayBody'));
+}
+
+// Dag-innholdet (saldo, dagnav, synk, medaljer). Rendres i `host` — enten sønnens
+// fullskjerm eller foreldrenes «Dag»-fane (som beholder tab-baren rundt).
+function renderDayBody(host) {
   const s = App.state,
     date = App.currentDate;
   const today = isoDate(new Date());
@@ -105,14 +122,6 @@ function renderSon() {
     : `<div class="card muted">Ingen fag satt opp for ${wd || 'denne dagen'}. En forelder kan legge inn timeplanen.</div>`;
 
   const canSync = App.role === 'parent' && !daySubjectsMatchTimetable(s, date);
-  const who = App.role === 'parent' ? '👨‍👩‍👦 Forelder (overstyrer)' : '🧒 Sønn';
-  const brand =
-    App.role === 'son'
-      ? `<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin:2px 0 10px">
-          <img src="icon-192.png" alt="" width="40" height="40" style="border-radius:10px">
-          <b style="font-size:1.2rem">Honniscoins</b>
-        </div>`
-      : '';
   const dayStatus = isSick
     ? '🤒 Merket syk/fri'
     : cls === 'present'
@@ -123,10 +132,7 @@ function renderSon() {
     ? '⏳ Ikke ferdig vurdert'
     : '';
 
-  el.innerHTML = `
-    ${brand}
-    <div class="topbar"><span class="muted">${who}</span>
-      <button class="link" id="switchUser">Bytt bruker</button></div>
+  host.innerHTML = `
     <div class="balance">
       <div class="coins">${bal} <small>Honniscoins</small></div>
       <div class="kr">≈ ${formatKr(bal, s.settings.krPerCoin)} · denne uka +${wTot}</div>
@@ -162,7 +168,6 @@ function renderSon() {
     App.currentDate = nearestWeekday(e.target.value);
     routeToView();
   };
-  document.getElementById('switchUser').onclick = () => setRole(null);
   const syncBtn = document.getElementById('syncSubjects');
   if (syncBtn)
     syncBtn.onclick = () => {
@@ -179,7 +184,7 @@ function renderSon() {
       save();
       routeToView();
     };
-  el.querySelectorAll('.m').forEach(
+  host.querySelectorAll('.m').forEach(
     (btn) =>
       (btn.onclick = () => {
         if (locked) return;
@@ -269,7 +274,6 @@ function renderParentHome() {
     ['poeng', 'Poeng'],
     ['logg', 'Logg'],
   ];
-  if (App.parentTab === 'dag') return renderSon(); // forelder ser dag-skjerm (overstyring)
   const bar = tabs
     .map(([k, l]) => `<button class="t ${App.parentTab === k ? 'on' : ''}" data-tab="${k}">${l}</button>`)
     .join('');
@@ -288,6 +292,7 @@ function renderParentHome() {
   );
   const host = document.getElementById('ptab');
   if (App.parentTab === 'uke') return renderUkeTab(host);
+  if (App.parentTab === 'dag') return renderDayBody(host);
   if (App.parentTab === 'timeplan') return renderTimeplanTab(host);
   if (App.parentTab === 'poeng') return renderPoengTab(host);
   if (App.parentTab === 'logg') return renderLoggTab(host);
