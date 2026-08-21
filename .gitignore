@@ -1,3 +1,2 @@
+.storecode/
 .DS_Store
-*.local
-*-backup-*.json
