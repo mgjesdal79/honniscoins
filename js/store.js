@@ -1,4 +1,4 @@
-import { defaultState, mergeState } from './logic.js';
+import { defaultState, mergeState, migrate, isoDate } from './logic.js';
 
 // index.html definerer window.EDGE_FUNCTION_URL (tom streng i utvikling = localStorage-modus).
 const EDGE = () => (window.EDGE_FUNCTION_URL || '').trim();
@@ -62,7 +62,10 @@ export async function saveRemote(room, state) {
 export async function loadState(room) {
   const local = loadLocal(room) || defaultState();
   const remote = await loadRemote(room);
-  const merged = mergeState(local, remote);
+  // Migrer før fletting: fyll manglende felt og lås eksisterende dager med innhold,
+  // så opptjente poeng ikke forsvinner når «lås styrer alt» tas i bruk.
+  const today = isoDate(new Date());
+  const merged = migrate(mergeState(local, remote), today);
   saveLocal(room, merged);
   return merged;
 }

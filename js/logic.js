@@ -17,6 +17,12 @@ export function medalPoints(medal, medalValues = DEFAULT_MEDAL_VALUES) {
   return 0; // null (ikke vurdert) og '0' (fravær) gir 0
 }
 
+export const DEFAULT_BONUS = {
+  attendanceLadder: [{ from: 1, pts: 1 }, { from: 11, pts: 2 }], // bronse/oppmøte-trapp (utvidbar)
+  silverTiers: [{ min: 15, pts: 5 }, { min: 30, pts: 10 }], // ukesbonus sølvtimer (sølv+gull)
+  goldTiers: [{ min: 10, pts: 10 }, { min: 20, pts: 20 }, { min: 30, pts: 30 }], // ukesbonus gulltimer
+};
+
 export function defaultState() {
   return {
     settings: {
@@ -24,19 +30,23 @@ export function defaultState() {
       medalValues: { ...DEFAULT_MEDAL_VALUES },
       krPerCoin: 1,
       timetable: { mon: [], tue: [], wed: [], thu: [], fri: [] },
-      schemaVersion: 1,
+      bonus: JSON.parse(JSON.stringify(DEFAULT_BONUS)),
+      schemaVersion: 2,
       updatedAt: null,
     },
     days: {},
+    weekLocks: {},
     payouts: [],
     log: [],
   };
 }
 
+// Kun LÅSTE dager teller (lås = commit).
 export function computeEarned(state) {
   const v = state.settings.medalValues;
   let sum = 0;
   for (const date of Object.keys(state.days || {})) {
+    if (!state.days[date].locked) continue;
     const marks = state.days[date].marks || {};
     for (const idx of Object.keys(marks)) sum += medalPoints(marks[idx].medal, v);
   }
@@ -47,9 +57,14 @@ export function computeSpent(state) {
   return (state.payouts || []).reduce((a, p) => a + (p.coins || 0), 0);
 }
 
-// Saldo = medaljepoeng + streak-bonus − utbetalinger (= total-total).
+// Saldo = medaljepoeng + oppmøte-bonus + ukesbonus (sølv/gull) − utbetalinger.
 export function computeBalance(state) {
-  return computeEarned(state) + streakBonusTotal(state) - computeSpent(state);
+  return (
+    computeEarned(state) +
+    streakBonusTotal(state) +
+    weeklyStreakBonusTotal(state) -
+    computeSpent(state)
+  );
 }
 
 // --- Dato / ukedag -------------------------------------------------------
@@ -179,23 +194,52 @@ export function classifyDay(state, iso) {
   return allPresent ? 'present' : 'paused';
 }
 
-// Bonus per til stede-dag innenfor gjeldende streak: +1 for dag 1–10, +2 fra dag 11.
-function bonusForPosition(n) {
-  return n <= 10 ? 1 : 2;
+// Trappe-oppslag: høyeste trinn der posisjon n har nådd `from`.
+export function attendanceBonusForPosition(n, ladder = DEFAULT_BONUS.attendanceLadder) {
+  let pts = 0;
+  for (const step of ladder) if (n >= step.from) pts = step.pts;
+  return pts;
 }
 
-// Går gjennom historikken i datorekkefølge og returnerer per-dato bonus + løpende streak.
-function bonusByDate(state, uptoIso) {
-  const dates = Object.keys(state.days || {})
-    .filter((d) => !uptoIso || d <= uptoIso)
+function attendanceLadder(state) {
+  return (state.settings.bonus && state.settings.bonus.attendanceLadder) || DEFAULT_BONUS.attendanceLadder;
+}
+
+// Låste skoledager, sortert.
+function lockedDates(state) {
+  return Object.keys(state.days || {})
+    .filter((d) => weekdayKey(d) && state.days[d].locked)
     .sort();
+}
+
+// Sammenhengende rekke skoledager fra første til siste LÅSTE dag (t.o.m. uptoIso).
+// Ulåste skoledager i intervallet er «hull» og tas med (behandles som brudd av kallerne).
+function scoringDaySequence(state, uptoIso) {
+  const locked = lockedDates(state).filter((d) => !uptoIso || d <= uptoIso);
+  if (!locked.length) return [];
+  const first = locked[0];
+  const end = locked[locked.length - 1];
+  const out = [];
+  let d = first;
+  for (let i = 0; i < 6000 && d <= end; i++) {
+    out.push(d);
+    d = stepWeekday(d, 1);
+  }
+  return out;
+}
+
+// Går gjennom låste dager i rekkefølge og returnerer per-dato bonus + løpende streak.
+// Kun låste dager vurderes; ulåste dager i intervallet bryter streaken.
+function bonusByDate(state, uptoIso) {
+  const dates = scoringDaySequence(state, uptoIso);
+  const ladder = attendanceLadder(state);
   const map = {};
   let count = 0;
   for (const d of dates) {
-    const c = classifyDay(state, d);
+    const c = state.days[d] && state.days[d].locked ? classifyDay(state, d) : 'broken';
     if (c === 'present') {
       count += 1;
-      map[d] = bonusForPosition(count);
+      map[d] = attendanceBonusForPosition(count, ladder);
     } else if (c === 'broken') {
       count = 0;
       map[d] = 0;
@@ -211,7 +255,187 @@ export function attendanceStreakInfo(state, uptoIso) {
   const { map, count } = bonusByDate(state, uptoIso);
   let bonusTotal = 0;
   for (const d of Object.keys(map)) bonusTotal += map[d];
-  return { length: count, bonusPerDay: count >= 10 ? 2 : 1, bonusTotal };
+  return { length: count, bonusPerDay: attendanceBonusForPosition(count || 1, attendanceLadder(state)), bonusTotal };
+}
+
+// --- Låsing (commit) -----------------------------------------------------
+
+export function isDayLocked(state, iso) {
+  const day = (state.days || {})[iso];
+  return !!(day && day.locked);
+}
+
+export function isWeekClosed(state, iso) {
+  const wl = (state.weekLocks || {})[weekStartIso(iso)];
+  return !!(wl && wl.closed);
+}
+
+// Sønn kan redigere inneværende + forrige uke (til den avsluttes). Eldre = kun visning.
+export function canSonEditDay(state, iso, todayIso) {
+  const ws = weekStartIso(iso);
+  const cur = weekStartIso(todayIso);
+  if (ws >= cur) return true;
+  const prev = weekStartIso(stepWeekday(cur, -1));
+  if (ws === prev) return !isWeekClosed(state, iso);
+  return false;
+}
+
+// Lås/åpne en dag. Fryser fag ved første lås (som setMark). Ren funksjon.
+export function lockDay(state, { date, locked, actor }, ctx) {
+  const s = clone(state);
+  if (!s.days[date]) s.days[date] = { subjects: subjectsForDate(state, date), marks: {} };
+  s.days[date].locked = !!locked;
+  s.days[date].lockedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'lock', day: date, to: !!locked });
+  return s;
+}
+
+// Avslutt en uke: lås alle fem skoledager «som de står» + merk uka avsluttet.
+export function closeWeek(state, { weekIso, actor }, ctx) {
+  const s = clone(state);
+  const ws = weekStartIso(weekIso);
+  for (const d of weekdaysOf(weekIso)) {
+    if (!s.days[d]) s.days[d] = { subjects: subjectsForDate(state, d), marks: {} };
+    s.days[d].locked = true;
+    s.days[d].lockedAt = ctx.now;
+  }
+  if (!s.weekLocks) s.weekLocks = {};
+  s.weekLocks[ws] = { closed: true, at: ctx.now, by: actor };
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'weekclose', week: ws });
+  return s;
+}
+
+// Åpne en avsluttet uke igjen (forelder).
+export function reopenWeek(state, { weekIso, actor }, ctx) {
+  const s = clone(state);
+  const ws = weekStartIso(weekIso);
+  if (!s.weekLocks) s.weekLocks = {};
+  s.weekLocks[ws] = { closed: false, at: ctx.now, by: actor };
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'weekopen', week: ws });
+  return s;
+}
+
+// --- Ukesbonus: sølv/gull-timer -----------------------------------------
+
+// Teller medaljer over LÅSTE dager i uka som `iso` ligger i.
+export function weeklyMedalCounts(state, iso) {
+  const ws = weekStartIso(iso);
+  let bronse = 0, solv = 0, gull = 0;
+  for (const d of Object.keys(state.days || {})) {
+    if (weekStartIso(d) !== ws || !state.days[d].locked) continue;
+    const marks = state.days[d].marks || {};
+    for (const idx of Object.keys(marks)) {
+      const m = marks[idx].medal;
+      if (m === 'bronse') bronse += 1;
+      else if (m === 'solv') solv += 1;
+      else if (m === 'gull') gull += 1;
+    }
+  }
+  return { bronse, solv, gull, silverHours: solv + gull, goldHours: gull };
+}
+
+// Høyeste trinn nådd (min-terskler). tiers = [{min,pts}, ...].
+export function tierBonus(count, tiers = []) {
+  let pts = 0;
+  for (const t of tiers) if (count >= t.min) pts = Math.max(pts, t.pts);
+  return pts;
+}
+
+// Ukesbonus for uka som `iso` ligger i. Sølv og gull stables.
+export function weeklyStreakBonus(state, iso) {
+  const c = weeklyMedalCounts(state, iso);
+  const b = state.settings.bonus || DEFAULT_BONUS;
+  const silver = tierBonus(c.silverHours, b.silverTiers || DEFAULT_BONUS.silverTiers);
+  const gold = tierBonus(c.goldHours, b.goldTiers || DEFAULT_BONUS.goldTiers);
+  return { silver, gold, total: silver + gold, counts: c };
+}
+
+// Sum ukesbonus over alle uker med låste dager (inngår i saldo).
+export function weeklyStreakBonusTotal(state) {
+  const weeks = new Set();
+  for (const d of Object.keys(state.days || {})) if (state.days[d].locked) weeks.add(weekStartIso(d));
+  let sum = 0;
+  for (const w of weeks) sum += weeklyStreakBonus(state, w).total;
+  return sum;
+}
+
+// --- Ekte streak: timer på rad ------------------------------------------
+
+// Kronologisk sekvens av timer over låste dager. Hull (ulåst dag i intervallet) = {break:true}.
+// Syk-dag hoppes over (pauser, bryter ikke). Ren funksjon.
+export function lessonSequence(state, uptoIso) {
+  const days = scoringDaySequence(state, uptoIso);
+  const seq = [];
+  for (const d of days) {
+    const day = state.days[d];
+    if (!day || !day.locked) { seq.push({ date: d, break: true }); continue; }
+    if (day.sick) continue; // syk pauser
+    const subjects = subjectsForDate(state, d);
+    const marks = day.marks || {};
+    for (let i = 0; i < subjects.length; i++) {
+      const m = marks[String(i)] ? marks[String(i)].medal : null;
+      seq.push({ date: d, idx: i, medal: m });
+    }
+  }
+  return seq;
+}
+
+// Regn ut nå/all-time/måned for en «treff»-funksjon over timesekvensen.
+export function hourStreak(state, isHit, monthPrefix, uptoIso) {
+  const seq = lessonSequence(state, uptoIso);
+  let cur = 0, best = 0;
+  for (const e of seq) {
+    if (!e.break && isHit(e)) { cur += 1; if (cur > best) best = cur; }
+    else cur = 0;
+  }
+  let mcur = 0, mbest = 0;
+  for (const e of seq) {
+    const inMonth = !e.break && e.date && monthPrefix && e.date.slice(0, 7) === monthPrefix;
+    if (inMonth && isHit(e)) { mcur += 1; if (mcur > mbest) mbest = mcur; }
+    else mcur = 0;
+  }
+  return {
+    current: cur,
+    currentOngoing: cur > 0,
+    allTimeBest: best,
+    monthBest: mbest,
+    monthBestOngoing: cur > 0 && mbest > 0 && mcur === mbest,
+  };
+}
+
+export function silverStreakInfo(state, monthPrefix, uptoIso) {
+  return hourStreak(state, (e) => e.medal === 'solv' || e.medal === 'gull', monthPrefix, uptoIso);
+}
+export function goldStreakInfo(state, monthPrefix, uptoIso) {
+  return hourStreak(state, (e) => e.medal === 'gull', monthPrefix, uptoIso);
+}
+
+// --- Migrering av eldre state -------------------------------------------
+
+// Fyller manglende felt og markerer eksisterende dager med innhold som låst,
+// så opptjente poeng ikke forsvinner når «lås styrer alt» tas i bruk. Ren funksjon.
+export function migrate(state, todayIso) {
+  const s = clone(state);
+  const def = DEFAULT_BONUS;
+  if (!s.settings.bonus) s.settings.bonus = JSON.parse(JSON.stringify(def));
+  else {
+    if (!s.settings.bonus.attendanceLadder) s.settings.bonus.attendanceLadder = [...def.attendanceLadder];
+    if (!s.settings.bonus.silverTiers) s.settings.bonus.silverTiers = [...def.silverTiers];
+    if (!s.settings.bonus.goldTiers) s.settings.bonus.goldTiers = [...def.goldTiers];
+  }
+  if (!s.weekLocks) s.weekLocks = {};
+  const stamp = (todayIso || '2000-01-01') + 'T00:00:00.000Z';
+  for (const d of Object.keys(s.days || {})) {
+    const day = s.days[d];
+    if (day.locked === undefined) {
+      const hasContent = (day.marks && Object.keys(day.marks).length > 0) || day.sick;
+      if (hasContent) {
+        day.locked = true;
+        if (!day.lockedAt) day.lockedAt = stamp;
+      }
+    }
+  }
+  return s;
 }
 
 // Total streak-bonus over hele historikken (inngår i saldo).
@@ -230,21 +454,22 @@ function dayMedalPoints(state, iso) {
   return s;
 }
 
-// Opptjent på én dag = medaljepoeng + evt. streak-bonus for dagen.
+// Opptjent på én dag = medaljepoeng + oppmøte-bonus. Kun hvis dagen er låst.
 export function dailyTotal(state, iso) {
+  if (!(state.days[iso] && state.days[iso].locked)) return 0;
   const { map } = bonusByDate(state, iso);
   return dayMedalPoints(state, iso) + (map[iso] || 0);
 }
 
-// Opptjent i uka som `iso` ligger i (man–fre) = medaljepoeng + streak-bonus.
+// Opptjent i uka som `iso` ligger i (man–fre) = medaljepoeng + oppmøte-bonus + ukesbonus.
 export function weeklyTotal(state, iso) {
   const ws = weekStartIso(iso);
   const { map } = bonusByDate(state);
   let sum = 0;
   for (const d of Object.keys(state.days || {})) {
-    if (weekStartIso(d) === ws) sum += dayMedalPoints(state, d) + (map[d] || 0);
+    if (weekStartIso(d) === ws && state.days[d].locked) sum += dayMedalPoints(state, d) + (map[d] || 0);
   }
-  return sum;
+  return sum + weeklyStreakBonus(state, iso).total;
 }
 
 // Merk (eller fjern) syk/fri for en dag. sickAt lagres for konfliktfri fletting.
@@ -351,6 +576,19 @@ export function mergeState(local, remote) {
       else delete out.days[date].sick;
       out.days[date].sickAt = remote.days[date].sickAt;
     }
+    // lås-flagg: LWW på lockedAt
+    if ((remote.days[date].lockedAt || '') > (out.days[date].lockedAt || '')) {
+      out.days[date].locked = !!remote.days[date].locked;
+      out.days[date].lockedAt = remote.days[date].lockedAt;
+    }
+  }
+
+  // weekLocks: LWW per uke på `at`
+  out.weekLocks = clone(local.weekLocks || {});
+  for (const w of Object.keys(remote.weekLocks || {})) {
+    const lw = out.weekLocks[w],
+      rw = remote.weekLocks[w];
+    if (!lw || (rw.at || '') > (lw.at || '')) out.weekLocks[w] = clone(rw);
   }
 
   // append-only lister: union på id

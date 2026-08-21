@@ -2,260 +2,363 @@
 <html lang="no">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Honniscoins – skisser</title>
 <style>
   :root{
-    --bg:#000000;
-    --surface:#0b1a33;      /* mørkeblå uthevet flate */
-    --surface-2:#0f2547;    /* litt lysere uthevet */
-    --line:#1c3a63;
-    --text:#ffffff;
-    --muted:#9fb3cf;
-    --accent:#3b6fe0;       /* klar blå for knapper/aktiv */
-    --bronze:#cd7f32;
-    --silver:#cfd6dd;
-    --gold:#ffce3a;
-    --good:#3ddc97;
-    --radius:16px;
-    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --bg:#000;--surface:#0b1a33;--surface-2:#0f2547;--line:#1c3a63;
+    --text:#fff;--muted:#9fb3cf;--accent:#3b6fe0;
+    --bronze:#cd7f32;--silver:#cfd6dd;--gold:#ffce3a;--good:#3ddc97;--bad:#ff8080;
+    --radius:16px;--font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:#050505;color:var(--text);font-family:var(--font);padding:28px 16px 60px}
-  .page-title{max-width:1100px;margin:0 auto 6px;font-weight:800;font-size:1.5rem;letter-spacing:-.02em}
-  .page-sub{max-width:1100px;margin:0 auto 28px;color:var(--muted);font-size:.9rem}
-  .gallery{max-width:1100px;margin:0 auto;display:flex;flex-wrap:wrap;gap:28px;justify-content:center}
-  .frame-wrap{display:flex;flex-direction:column;gap:10px;align-items:center}
-  .frame-label{color:var(--muted);font-size:.8rem;font-weight:600;letter-spacing:.02em}
-  .phone{
-    width:300px;height:620px;background:var(--bg);border-radius:34px;
-    border:1px solid #1a1a1a;box-shadow:0 0 0 6px #101010,0 24px 60px rgba(0,0,0,.6);
-    overflow:hidden;position:relative;display:flex;flex-direction:column
-  }
-  .status{height:34px;flex:0 0 34px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.72rem}
-  .screen{flex:1;overflow:hidden;padding:6px 16px 16px;display:flex;flex-direction:column}
+  body{margin:0;background:#050505;color:var(--text);font-family:var(--font);
+       display:flex;flex-wrap:wrap;gap:22px;justify-content:center;padding:26px 14px 60px}
+  .note{width:100%;text-align:center;color:var(--muted);font-size:.85rem;max-width:900px;margin:0 auto 6px}
+  .note b{color:#fff}
+  /* Telefon-ramme */
+  .phone{width:360px;background:#050505;border:1px solid #16233b;border-radius:26px;
+         padding:14px 14px 0;position:relative;box-shadow:0 10px 40px #0008;display:flex;flex-direction:column;min-height:720px}
+  .phone .cap{position:absolute;top:-11px;left:50%;transform:translateX(-50%);
+              background:#16233b;color:#9fb3cf;font-size:.62rem;padding:2px 12px;border-radius:0 0 10px 10px;letter-spacing:.05em}
+  .screen{flex:1;overflow:hidden}
+  .brand{display:flex;align-items:center;gap:9px;margin:2px 0 12px}
+  .brand .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(160deg,#1b3c78,#0f2547);
+               display:flex;align-items:center;justify-content:center;font-size:1.15rem}
+  .brand b{font-size:1.05rem;letter-spacing:.02em}
+  .brand .who{margin-left:auto;color:var(--muted);font-size:.72rem;background:#0f2547;border:1px solid var(--line);
+              border-radius:8px;padding:4px 8px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px}
   .muted{color:var(--muted)}
+  .sec{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:6px 2px 8px;font-weight:700}
 
-  /* generic bits */
-  .btn{background:var(--accent);color:#fff;border:none;border-radius:12px;padding:14px;font-weight:700;font-size:1rem;width:100%;font-family:var(--font)}
-  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text)}
-  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+  /* ukesteller chips */
+  .chips{display:flex;gap:10px;margin-bottom:12px}
+  .chip{flex:1;background:linear-gradient(160deg,var(--surface-2),var(--surface));border:1px solid var(--line);
+        border-radius:14px;padding:11px 12px}
+  .chip .top{display:flex;align-items:center;gap:6px;font-weight:800;font-size:1.35rem}
+  .chip .top small{font-size:.7rem;font-weight:700;color:var(--muted)}
+  .chip .lab{color:var(--muted);font-size:.72rem;margin-top:1px}
+  .bar{height:6px;border-radius:4px;background:#0a1830;margin-top:8px;overflow:hidden}
+  .bar > i{display:block;height:100%;border-radius:4px}
+  .chip .next{font-size:.66rem;color:var(--muted);margin-top:5px}
 
-  /* balance header */
-  .balance{background:linear-gradient(160deg,var(--surface-2),var(--surface));border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:12px}
-  .balance .coins{font-size:2rem;font-weight:800;letter-spacing:-.02em;display:flex;align-items:baseline;gap:8px}
-  .balance .coins small{font-size:.9rem;font-weight:700;color:var(--muted)}
-  .balance .kr{color:var(--muted);font-size:.82rem;margin-top:2px}
+  /* daynav */
+  .daynav{display:flex;align-items:center;justify-content:space-between;margin:2px 0 8px}
+  .daynav .arrow{width:38px;height:38px;border-radius:11px;background:var(--surface);border:1px solid var(--line);font-size:1.1rem;color:#fff}
+  .daynav .today{text-align:center}.daynav .today b{font-size:1rem}.daynav .today .d{color:var(--muted);font-size:.72rem}
 
-  /* day nav */
-  .daynav{display:flex;align-items:center;justify-content:space-between;margin:4px 0 12px}
-  .daynav .arrow{width:38px;height:38px;border-radius:11px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:1.2rem}
-  .daynav .today{text-align:center}
-  .daynav .today b{font-size:1.02rem}
-  .daynav .today .d{color:var(--muted);font-size:.75rem}
-  .cal{font-size:1.1rem}
+  /* ukestrip: alle fem dager */
+  .weekstrip{display:flex;gap:5px;margin:2px 0 14px}
+  .weekstrip .day{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:12px;
+                  padding:8px 2px 7px;text-align:center;position:relative}
+  .weekstrip .day .dn{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .weekstrip .day .dd{font-size:1.15rem;font-weight:800;margin-top:1px;line-height:1}
+  .weekstrip .day .st{font-size:.85rem;margin-top:4px;height:1.05em;line-height:1.05em}
+  .weekstrip .day .st.pts{color:var(--good);font-weight:800;font-size:.72rem;white-space:nowrap}
+  .weekstrip .day.on .st.pts{color:#eafff5}
+  .weekstrip .day.on{background:var(--accent);border-color:var(--accent);box-shadow:0 4px 14px #3b6fe055}
+  .weekstrip .day.on .dn{color:#dbe7ff}
+  .weekstrip .day.locked{border-color:#1c5c3f}
 
-  /* lesson row */
-  .lesson{display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid #10233f}
-  .lesson .name{flex:1;font-weight:600;font-size:.95rem}
-  .medals{display:flex;gap:6px}
+  .dayhead{display:flex;align-items:baseline;gap:8px;margin:2px 2px 10px}
+  .dayhead b{font-size:1.3rem}.dayhead .d{color:var(--muted);font-size:.8rem}
+
+  /* stor, romslig aktiv dag */
+  .lesson{display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid #10233f}
+  .lesson .name{flex:1;font-weight:600;font-size:.92rem}
+  .medals{display:flex;gap:5px}
   .m{width:34px;height:34px;border-radius:10px;background:var(--surface);border:1px solid var(--line);
-     display:flex;align-items:center;justify-content:center;font-size:1rem}
-  .m.sel{border-width:2px;transform:scale(1.05)}
-  .m.b.sel{border-color:var(--bronze);box-shadow:0 0 12px rgba(205,127,50,.5)}
-  .m.s.sel{border-color:var(--silver);box-shadow:0 0 12px rgba(207,214,221,.4)}
-  .m.g.sel{border-color:var(--gold);box-shadow:0 0 14px rgba(255,206,58,.5)}
-  .m.zero.sel{border-color:#e06a6a;color:#ff9a9a}
-  .m.zero{font-size:.7rem;font-weight:800;color:var(--muted)}
-  .daysum{margin-top:auto;padding-top:12px;color:var(--good);font-weight:700;font-size:.95rem;text-align:center}
+     font-size:.95rem;color:#fff;display:flex;align-items:center;justify-content:center}
+  .m.zero{font-size:.72rem;font-weight:800;color:var(--muted)}
+  .m.sel{border-width:2px}
+  .m.b.sel{border-color:var(--bronze)}.m.s.sel{border-color:var(--silver)}
+  .m.g.sel{border-color:var(--gold);box-shadow:0 0 0 2px #ffce3a22}
 
-  /* who screen */
-  .who{flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px;text-align:center}
-  .who h1{font-size:1.8rem;margin:0 0 4px}
-  .who .logo{font-size:2.6rem;margin-bottom:6px}
-  .who .role{display:flex;align-items:center;gap:12px;text-align:left;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
-  .who .role .em{font-size:1.6rem}
-  .who .role b{display:block;font-size:1.05rem}
-  .who .role span{color:var(--muted);font-size:.8rem}
+  /* Stil B: fylles ved valg (toggle) */
+  .m.fill.sel{transform:scale(1.06)}
+  .m.fill.b.sel{background:var(--bronze);border-color:var(--bronze);color:#2a1a00}
+  .m.fill.s.sel{background:var(--silver);border-color:var(--silver);color:#26303a}
+  .m.fill.g.sel{background:var(--gold);border-color:var(--gold);color:#3a2a00;box-shadow:0 0 14px #ffce3a55}
+  .m.fill.zero.sel{background:var(--bad);border-color:var(--bad);color:#3a0000}
+  /* Stil C: alltid tonet, solid ved valg */
+  .m.tint.b{background:#3a2a1526;border-color:#5a3f1f}
+  .m.tint.s{background:#cfd6dd1a;border-color:#5a6470}
+  .m.tint.g{background:#ffce3a17;border-color:#6a591f}
+  .m.tint.sel{border-width:2px}
+  .m.tint.b.sel{background:var(--bronze);color:#2a1a00}
+  .m.tint.s.sel{background:var(--silver);color:#26303a}
+  .m.tint.g.sel{background:var(--gold);color:#3a2a00}
 
-  /* pin */
-  .pinwrap{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:18px}
-  .pindots{display:flex;gap:14px}
-  .pindot{width:14px;height:14px;border-radius:50%;border:2px solid var(--line)}
-  .pindot.on{background:var(--accent);border-color:var(--accent)}
-  .keypad{display:grid;grid-template-columns:repeat(3,64px);gap:12px}
-  .key{height:56px;border-radius:14px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:700}
+  /* sammenligningskort */
+  .compare{width:100%;max-width:920px;margin:0 auto 10px;background:#0b1a33;border:1px solid #1c3a63;border-radius:16px;padding:16px}
+  .ctitle{font-weight:800;margin-bottom:12px}
+  .cgrid{display:flex;gap:14px;flex-wrap:wrap}
+  .copt{flex:1;min-width:236px;background:#0a1830;border:1px solid #1c3a63;border-radius:12px;padding:13px}
+  .clab{font-size:.82rem;font-weight:800;margin-bottom:12px}
+  .clab span{color:#9fb3cf;font-weight:600}
+  .crow{display:flex;align-items:center;gap:8px}
+  .crow .name{flex:1;font-weight:700}
+  .crow .m{width:44px;height:44px;font-size:1.2rem;border-radius:12px}
+  .cdesc{color:#9fb3cf;font-size:.74rem;margin-top:12px;line-height:1.4}
 
-  /* section title */
-  .sec{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:14px 2px 8px;font-weight:700}
-  .row{display:flex;align-items:center;justify-content:space-between;padding:12px 4px;border-bottom:1px solid #10233f}
-  .row .lbl{font-size:.92rem}
-  .pill{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:4px 10px;font-weight:700;font-size:.85rem}
+  .lessonbig{padding:15px 4px}
+  .lessonbig .name{font-size:1.1rem;font-weight:700}
+  .lessonbig .m{width:52px;height:52px;font-size:1.4rem;border-radius:14px}
 
-  /* log */
-  .logitem{padding:10px 4px;border-bottom:1px solid #10233f;font-size:.82rem}
-  .logitem .meta{color:var(--muted);font-size:.72rem;margin-bottom:2px;display:flex;gap:8px}
-  .tag{border-radius:6px;padding:1px 6px;font-size:.66rem;font-weight:700}
-  .tag.son{background:#12325e;color:#bcd4ff}
-  .tag.parent{background:#3a2a12;color:#ffd8a0}
-  .logitem .txt b{color:#fff}
-  .arrowto{color:var(--muted)}
+  /* nedtonet syke-lenke */
+  .sicklink{display:block;width:100%;background:transparent;border:none;color:var(--muted);
+            font-size:.76rem;text-decoration:underline;margin-top:12px;padding:6px}
 
-  /* tabbar for parent */
-  .tabbar{display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:12px}
-  .tabbar .t{flex:1;text-align:center;padding:8px;border-radius:9px;font-size:.78rem;font-weight:700;color:var(--muted)}
-  .tabbar .t.on{background:var(--accent);color:#fff}
-  .scroll{overflow:auto}
+  .lockbtn{width:100%;border:none;border-radius:14px;padding:15px;font-weight:800;font-size:1rem;margin-top:14px;color:#fff}
+  .lockbtn.open{background:var(--good);color:#062}
+  .lockbtn.locked{background:#0f2547;border:1px solid var(--line);color:var(--muted)}
+  .lockbanner{display:flex;align-items:center;gap:8px;background:#0c2a1c;border:1px solid #1c5c3f;color:#8ff0c2;
+              border-radius:12px;padding:10px 12px;font-size:.82rem;font-weight:700;margin-bottom:10px}
+
+  /* mandag-prompt */
+  .prompt{background:linear-gradient(160deg,#243a12,#1a2b0d);border:1px solid #4a6a1c;border-radius:14px;padding:13px;margin-bottom:12px}
+  .prompt b{display:block;margin-bottom:2px}
+  .prompt .row{display:flex;gap:8px;margin-top:10px}
+  .prompt button{flex:1;border-radius:10px;padding:10px;font-weight:800;border:none}
+  .prompt .yes{background:var(--gold);color:#3a2a00}
+  .prompt .no{background:transparent;border:1px solid #4a6a1c;color:#cfe6a0}
+
+  /* saldo */
+  .balance{background:linear-gradient(160deg,var(--surface-2),var(--surface));border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+  .balance .coins{font-size:2rem;font-weight:800;display:flex;align-items:baseline;gap:8px}
+  .balance .coins small{font-size:.85rem;font-weight:700;color:var(--muted)}
+  .balance .kr{color:var(--muted);font-size:.8rem;margin-top:2px}
+
+  .brow{display:flex;align-items:center;justify-content:space-between;padding:9px 2px;border-bottom:1px solid #10233f}
+  .brow:last-child{border-bottom:none}
+  .brow .l{display:flex;align-items:center;gap:8px;font-size:.9rem}
+  .brow .pts{font-weight:800}
+  .brow .pts.on{color:var(--good)}.brow .pts.off{color:var(--muted)}
+
+  /* streak-blokk */
+  .streak{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center}
+  .streak .cell{background:#0a1830;border:1px solid var(--line);border-radius:11px;padding:9px 4px}
+  .streak .n{font-size:1.5rem;font-weight:800;line-height:1}
+  .streak .lab{font-size:.62rem;color:var(--muted);margin-top:3px}
+  .streak .cell.live{border-color:var(--gold)}
+  .ongoing{display:inline-block;font-size:.6rem;color:#3a2a00;background:var(--gold);border-radius:6px;padding:0 5px;margin-top:4px;font-weight:800}
+  .streakhead{display:flex;align-items:center;gap:8px;font-weight:800;margin:2px 2px 8px}
+
+  .quest{opacity:.6;text-align:center;padding:60px 10px}
+  .quest .big{font-size:3rem}
+
+  /* bottom nav + dots */
+  .dots{display:flex;gap:6px;justify-content:center;margin:2px 0 8px}
+  .dots i{width:6px;height:6px;border-radius:50%;background:#22406e}
+  .dots i.on{background:var(--accent);width:18px;border-radius:3px}
+  .nav{display:flex;gap:6px;background:var(--surface);border-top:1px solid var(--line);
+       margin:0 -14px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));position:sticky;bottom:0}
+  .nav button{flex:1;background:transparent;border:none;color:var(--muted);border-radius:12px;padding:7px 4px;font-weight:700;font-size:.66rem}
+  .nav button .ic{display:block;font-size:1.25rem;margin-bottom:2px}
+  .nav button.on{background:var(--accent);color:#fff}
 </style>
 </head>
 <body>
-  <div class="page-title">Honniscoins — skisser</div>
-  <div class="page-sub">Mørkt tema: sort bakgrunn, hvit tekst, mørkeblå uthevede flater. Ikke-funksjonelle skisser for å avklare layout.</div>
-
-  <div class="gallery">
-
-    <!-- 1. Hvem er du -->
-    <div class="frame-wrap">
-      <div class="frame-label">1 · Hvem er du?</div>
-      <div class="phone"><div class="status">9:41</div><div class="screen">
-        <div class="who">
-          <div>
-            <div class="logo">🪙</div>
-            <h1>Honniscoins</h1>
-            <div class="muted" style="font-size:.85rem">Velg hvem du er</div>
-          </div>
-          <div class="role"><span class="em">🧒</span><div><b>Sønn</b><span>Timeplan og medaljer</span></div></div>
-          <div class="role"><span class="em">👨‍👩‍👦</span><div><b>Forelder</b><span>Innstillinger og logg · PIN</span></div></div>
-        </div>
-      </div></div>
-    </div>
-
-    <!-- 2. Sønnens dag -->
-    <div class="frame-wrap">
-      <div class="frame-label">2 · Sønnens dag</div>
-      <div class="phone"><div class="status">9:41</div><div class="screen">
-        <div class="balance">
-          <div class="coins">128 <small>Honniscoins</small></div>
-          <div class="kr">≈ 128 kr ved dagens kurs</div>
-        </div>
-        <div class="daynav">
-          <div class="arrow">‹</div>
-          <div class="today"><b>Onsdag</b><div class="d">20. aug <span class="cal">📅</span></div></div>
-          <div class="arrow">›</div>
-        </div>
-        <div class="scroll">
-          <div class="lesson"><div class="name">Norsk</div><div class="medals">
-            <div class="m zero">0</div><div class="m b">🥉</div><div class="m s">🥈</div><div class="m g sel">🥇</div></div></div>
-          <div class="lesson"><div class="name">Matte</div><div class="medals">
-            <div class="m zero">0</div><div class="m b">🥉</div><div class="m s sel">🥈</div><div class="m g">🥇</div></div></div>
-          <div class="lesson"><div class="name">Engelsk</div><div class="medals">
-            <div class="m zero">0</div><div class="m b sel">🥉</div><div class="m s">🥈</div><div class="m g">🥇</div></div></div>
-          <div class="lesson"><div class="name">Naturfag</div><div class="medals">
-            <div class="m zero sel">0</div><div class="m b">🥉</div><div class="m s">🥈</div><div class="m g">🥇</div></div></div>
-          <div class="lesson"><div class="name">Gym</div><div class="medals">
-            <div class="m zero">0</div><div class="m b">🥉</div><div class="m s">🥈</div><div class="m g">🥇</div></div></div>
-          <div class="lesson"><div class="name">KRLE</div><div class="medals">
-            <div class="m zero">0</div><div class="m b">🥉</div><div class="m s">🥈</div><div class="m g">🥇</div></div></div>
-        </div>
-        <div class="daysum">+6 Honniscoins i dag 🎉</div>
-      </div></div>
-    </div>
-
-    <!-- 3. Forelder PIN -->
-    <div class="frame-wrap">
-      <div class="frame-label">3 · Forelder · PIN</div>
-      <div class="phone"><div class="status">9:41</div><div class="screen">
-        <div class="pinwrap">
-          <div style="text-align:center"><div style="font-size:1.8rem">🔒</div><b>Foreldremodus</b><div class="muted" style="font-size:.8rem">Tast PIN</div></div>
-          <div class="pindots"><div class="pindot on"></div><div class="pindot on"></div><div class="pindot"></div><div class="pindot"></div></div>
-          <div class="keypad">
-            <div class="key">1</div><div class="key">2</div><div class="key">3</div>
-            <div class="key">4</div><div class="key">5</div><div class="key">6</div>
-            <div class="key">7</div><div class="key">8</div><div class="key">9</div>
-            <div class="key" style="background:transparent;border:none"></div><div class="key">0</div><div class="key" style="background:transparent;border:none;color:var(--muted)">⌫</div>
-          </div>
-        </div>
-      </div></div>
-    </div>
-
-    <!-- 4. Foreldre innstillinger -->
-    <div class="frame-wrap">
-      <div class="frame-label">4 · Foreldre · Innstillinger</div>
-      <div class="phone"><div class="status">9:41</div><div class="screen">
-        <div class="tabbar"><div class="t">Timeplan</div><div class="t on">Poeng</div><div class="t">Logg</div></div>
-        <div class="scroll">
-          <div class="sec">Poengverdier</div>
-          <div class="card" style="padding:6px 12px">
-            <div class="row"><div class="lbl">🥉 Bronse</div><div class="pill">1 poeng</div></div>
-            <div class="row"><div class="lbl">🥈 Sølv</div><div class="pill">2 poeng</div></div>
-            <div class="row" style="border:none"><div class="lbl">🥇 Gull</div><div class="pill">3 poeng</div></div>
-          </div>
-          <div class="sec">Kroneverdi (frakoblet)</div>
-          <div class="card" style="padding:6px 12px">
-            <div class="row" style="border:none"><div class="lbl">Kr per Honniscoin</div><div class="pill">1,00 kr</div></div>
-          </div>
-          <div class="sec">Utbetalinger</div>
-          <div class="card" style="padding:6px 12px">
-            <div class="row"><div class="lbl">🎬 Kino <span class="muted" style="font-size:.72rem">· 12. aug</span></div><div class="pill" style="color:#ff9a9a">−100</div></div>
-            <div class="row" style="border:none"><div class="lbl" style="color:var(--accent)">+ Registrer utbetaling</div></div>
-          </div>
-        </div>
-      </div></div>
-    </div>
-
-    <!-- 5. Endringslogg -->
-    <div class="frame-wrap">
-      <div class="frame-label">5 · Foreldre · Endringslogg</div>
-      <div class="phone"><div class="status">9:41</div><div class="screen">
-        <div class="tabbar"><div class="t">Timeplan</div><div class="t">Poeng</div><div class="t on">Logg</div></div>
-        <div class="scroll">
-          <div class="logitem">
-            <div class="meta"><span class="tag son">Sønn</span><span>i dag 15:20</span></div>
-            <div class="txt">Norsk (ons 20.8): <span class="arrowto">🥈 →</span> <b>🥇 Gull</b></div>
-          </div>
-          <div class="logitem">
-            <div class="meta"><span class="tag parent">Forelder</span><span>i dag 16:05</span></div>
-            <div class="txt">Naturfag (ons 20.8): <span class="arrowto">🥈 →</span> <b>0 Fravær</b> <span class="muted">(overstyrt)</span></div>
-          </div>
-          <div class="logitem">
-            <div class="meta"><span class="tag parent">Forelder</span><span>i går 20:11</span></div>
-            <div class="txt">Utbetaling: <b>−100 Honniscoins</b> · «Kino»</div>
-          </div>
-          <div class="logitem">
-            <div class="meta"><span class="tag son">Sønn</span><span>i går 14:02</span></div>
-            <div class="txt">Engelsk (tir 19.8): <span class="arrowto">– →</span> <b>🥉 Bronse</b></div>
-          </div>
-          <div class="logitem">
-            <div class="meta"><span class="tag parent">Forelder</span><span>18.8 09:30</span></div>
-            <div class="txt">Endret Gull: <span class="arrowto">2 →</span> <b>3 poeng</b></div>
-          </div>
-        </div>
-      </div></div>
-    </div>
-
-    <!-- 6. Timeplan-oppsett -->
-    <div class="frame-wrap">
-      <div class="frame-label">6 · Foreldre · Timeplan</div>
-      <div class="phone"><div class="status">9:41</div><div class="screen">
-        <div class="tabbar"><div class="t on">Timeplan</div><div class="t">Poeng</div><div class="t">Logg</div></div>
-        <div class="scroll">
-          <div style="display:flex;gap:6px;margin:2px 0 10px">
-            <div class="pill" style="background:var(--accent);border-color:var(--accent)">Man</div>
-            <div class="pill">Tir</div><div class="pill">Ons</div><div class="pill">Tor</div><div class="pill">Fre</div>
-          </div>
-          <div class="card" style="padding:4px 12px">
-            <div class="row"><div class="lbl">1 · Norsk</div><div class="muted">⋯</div></div>
-            <div class="row"><div class="lbl">2 · Matte</div><div class="muted">⋯</div></div>
-            <div class="row"><div class="lbl">3 · Engelsk</div><div class="muted">⋯</div></div>
-            <div class="row"><div class="lbl">4 · Naturfag</div><div class="muted">⋯</div></div>
-            <div class="row"><div class="lbl">5 · Gym</div><div class="muted">⋯</div></div>
-            <div class="row" style="border:none"><div class="lbl">6 · KRLE</div><div class="muted">⋯</div></div>
-          </div>
-          <button class="btn ghost" style="margin-top:12px">+ Legg til fag</button>
-        </div>
-      </div></div>
-    </div>
-
+  <div class="note">
+    <b>Skisser – Honniscoins</b><br>
+    Klikk i den nederste menyen for å bytte side. Alt er «på liksom»-data for å vise layout og regler. Ikke koblet til appen ennå.
   </div>
+
+  <div class="compare">
+    <div class="ctitle">🎖️ Medaljeknapper – tre stiler (velg én)</div>
+    <div class="cgrid">
+      <div class="copt">
+        <div class="clab">A · Nøytral + farget ring <span>(dagens)</span></div>
+        <div class="crow"><span class="name">Matte</span><div class="medals">
+          <span class="m zero">✕</span><span class="m b">🥉</span><span class="m s sel">🥈</span><span class="m g">🥇</span></div></div>
+        <div class="cdesc">Rolig. Valgt = farget kant. Svakere signal på liten skjerm.</div>
+      </div>
+      <div class="copt">
+        <div class="clab">B · Fylles ved valg <span>(anbefalt)</span></div>
+        <div class="crow"><span class="name">Matte</span><div class="medals">
+          <span class="m fill zero">✕</span><span class="m fill b">🥉</span><span class="m fill s sel">🥈</span><span class="m fill g">🥇</span></div></div>
+        <div class="cdesc">Nøytral til han trykker, så «lyser» valgt medalje opp i sin farge. Tydelig og gøy.</div>
+      </div>
+      <div class="copt">
+        <div class="clab">C · Alltid tonet</div>
+        <div class="crow"><span class="name">Matte</span><div class="medals">
+          <span class="m tint zero">✕</span><span class="m tint b">🥉</span><span class="m tint s sel">🥈</span><span class="m tint g">🥇</span></div></div>
+        <div class="cdesc">Fargerikt hele tiden. Kan bli travelt og vanskeligere å se hva som er valgt.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TELEFON 1: FØRING ============ -->
+  <div class="phone">
+    <div class="cap">FØRING</div>
+    <div class="screen">
+      <div class="brand"><span class="logo">🐺</span><b>Honniscoins</b><span class="who">🧒 Sønn</span></div>
+
+      <div class="chips">
+        <div class="chip">
+          <div class="top">🥈 18<small>/30</small></div>
+          <div class="lab">Sølvtimer denne uka</div>
+          <div class="bar"><i style="width:60%;background:var(--silver)"></i></div>
+          <div class="next">✅ +5 låst · 12 til for <b>+10</b></div>
+        </div>
+        <div class="chip">
+          <div class="top">🥇 7<small>/10</small></div>
+          <div class="lab">Gulltimer denne uka</div>
+          <div class="bar"><i style="width:70%;background:var(--gold)"></i></div>
+          <div class="next">3 til for <b>+10</b></div>
+        </div>
+      </div>
+
+      <div class="weekstrip">
+        <div class="day locked"><div class="dn">Man</div><div class="dd">20</div><div class="st pts">🔒 +7</div></div>
+        <div class="day locked"><div class="dn">Tir</div><div class="dd">21</div><div class="st pts">🔒 +8</div></div>
+        <div class="day on"><div class="dn">Ons</div><div class="dd">22</div><div class="st"></div></div>
+        <div class="day"><div class="dn">Tor</div><div class="dd">23</div><div class="st">·</div></div>
+        <div class="day"><div class="dn">Fre</div><div class="dd">24</div><div class="st">·</div></div>
+      </div>
+
+      <div class="dayhead"><b>Onsdag</b><span class="d">22. oktober</span></div>
+
+      <div class="card" style="padding:4px 12px">
+        <div class="lesson lessonbig"><span class="name">Matte</span><div class="medals">
+          <span class="m fill zero">✕</span><span class="m fill b">🥉</span><span class="m fill s">🥈</span><span class="m fill g sel">🥇</span></div></div>
+        <div class="lesson lessonbig"><span class="name">Norsk</span><div class="medals">
+          <span class="m fill zero">✕</span><span class="m fill b">🥉</span><span class="m fill s sel">🥈</span><span class="m fill g">🥇</span></div></div>
+        <div class="lesson lessonbig"><span class="name">Engelsk</span><div class="medals">
+          <span class="m fill zero">✕</span><span class="m fill b">🥉</span><span class="m fill s">🥈</span><span class="m fill g sel">🥇</span></div></div>
+        <div class="lesson lessonbig"><span class="name">Naturfag</span><div class="medals">
+          <span class="m fill zero">✕</span><span class="m fill b sel">🥉</span><span class="m fill s">🥈</span><span class="m fill g">🥇</span></div></div>
+        <div class="lesson lessonbig" style="border-bottom:none"><span class="name">Gym</span><div class="medals">
+          <span class="m fill zero">✕</span><span class="m fill b">🥉</span><span class="m fill s sel">🥈</span><span class="m fill g">🥇</span></div></div>
+      </div>
+
+      <button class="lockbtn open">🔒 Lås dagen — tell poengene!</button>
+      <button class="sicklink">🤒 Var syk/fri denne dagen</button>
+    </div>
+
+    <div class="dots"><i class="on"></i><i></i><i></i></div>
+    <div class="nav">
+      <button class="on"><span class="ic">✍️</span>Føring</button>
+      <button><span class="ic">🏆</span>Poeng</button>
+      <button><span class="ic">🗺️</span>Sidequests</button>
+    </div>
+  </div>
+
+  <!-- ============ TELEFON 2: POENG ============ -->
+  <div class="phone">
+    <div class="cap">POENG</div>
+    <div class="screen">
+      <div class="brand"><span class="logo">🐺</span><b>Honniscoins</b><span class="who">🧒 Sønn</span></div>
+
+      <div class="balance">
+        <div class="coins">142 <small>coins</small></div>
+        <div class="kr">= 142 kr å ta ut</div>
+      </div>
+
+      <div class="sec">Ukens bonus (låste dager)</div>
+      <div class="card" style="padding:4px 14px">
+        <div class="brow"><span class="l">🥈 Sølv-bonus · 18 timer</span><span class="pts on">+5</span></div>
+        <div class="brow"><span class="l muted">🥈 Neste: 30 timer</span><span class="pts off">+10</span></div>
+        <div class="brow"><span class="l muted">🥇 Gull-bonus · 7 timer</span><span class="pts off">+10 ved 10</span></div>
+        <div class="brow"><span class="l">🥉 Bronse-streak · 14 dager på rad</span><span class="pts on">+2/dag</span></div>
+      </div>
+
+      <div class="sec">🥈 Sølv-streak (timer på rad)</div>
+      <div class="card">
+        <div class="streak">
+          <div class="cell live"><div class="n">23</div><div class="lab">NÅ</div><span class="ongoing">⏳ pågående</span></div>
+          <div class="cell"><div class="n">23</div><div class="lab">ALL-TIME</div></div>
+          <div class="cell"><div class="n">23</div><div class="lab">DENNE MÅ.</div><span class="ongoing">⏳</span></div>
+        </div>
+      </div>
+
+      <div class="sec">🥇 Gull-streak (timer på rad)</div>
+      <div class="card">
+        <div class="streak">
+          <div class="cell"><div class="n">4</div><div class="lab">NÅ</div></div>
+          <div class="cell"><div class="n">11</div><div class="lab">ALL-TIME</div></div>
+          <div class="cell"><div class="n">6</div><div class="lab">DENNE MÅ.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dots"><i></i><i class="on"></i><i></i></div>
+    <div class="nav">
+      <button><span class="ic">✍️</span>Føring</button>
+      <button class="on"><span class="ic">🏆</span>Poeng</button>
+      <button><span class="ic">🗺️</span>Sidequests</button>
+    </div>
+  </div>
+
+  <!-- ============ TELEFON 3: FØRING m/ mandag-prompt + låst dag ============ -->
+  <div class="phone">
+    <div class="cap">FØRING · mandag + låst dag</div>
+    <div class="screen">
+      <div class="brand"><span class="logo">🐺</span><b>Honniscoins</b><span class="who">🧒 Sønn</span></div>
+
+      <div class="prompt">
+        <b>📅 Ferdig med forrige uke?</b>
+        <span class="muted" style="font-size:.8rem">Uke 42 kan låses nå. Da telles poeng og streak, og uka blir låst for redigering.</span>
+        <div class="row"><button class="yes">🔒 Lås uke 42</button><button class="no">Ikke ennå</button></div>
+      </div>
+
+      <div class="weekstrip">
+        <div class="day on locked"><div class="dn">Man</div><div class="dd">20</div><div class="st pts">🔒 +6</div></div>
+        <div class="day"><div class="dn">Tir</div><div class="dd">21</div><div class="st">·</div></div>
+        <div class="day"><div class="dn">Ons</div><div class="dd">22</div><div class="st">·</div></div>
+        <div class="day"><div class="dn">Tor</div><div class="dd">23</div><div class="st">·</div></div>
+        <div class="day"><div class="dn">Fre</div><div class="dd">24</div><div class="st">·</div></div>
+      </div>
+
+      <div class="dayhead"><b>Mandag</b><span class="d">20. oktober</span></div>
+      <div class="lockbanner">🔒 Dagen er låst · trykk for å åpne og rette</div>
+
+      <div class="card" style="padding:4px 12px;opacity:.8">
+        <div class="lesson lessonbig"><span class="name">Matte</span><div class="medals"><span class="m fill g sel">🥇</span></div></div>
+        <div class="lesson lessonbig"><span class="name">Norsk</span><div class="medals"><span class="m fill s sel">🥈</span></div></div>
+        <div class="lesson lessonbig" style="border-bottom:none"><span class="name">KRLE</span><div class="medals"><span class="m fill b sel">🥉</span></div></div>
+      </div>
+
+      <button class="lockbtn locked">🔓 Åpne dagen igjen</button>
+      <div class="muted" style="font-size:.72rem;text-align:center;margin-top:8px">Dagen ga <b style="color:var(--good)">+6</b> poeng · sølv-streak +2</div>
+    </div>
+
+    <div class="dots"><i class="on"></i><i></i><i></i></div>
+    <div class="nav">
+      <button class="on"><span class="ic">✍️</span>Føring</button>
+      <button><span class="ic">🏆</span>Poeng</button>
+      <button><span class="ic">🗺️</span>Sidequests</button>
+    </div>
+  </div>
+
+  <!-- ============ TELEFON 4: SIDEQUESTS ============ -->
+  <div class="phone">
+    <div class="cap">SIDEQUESTS</div>
+    <div class="screen">
+      <div class="brand"><span class="logo">🐺</span><b>Honniscoins</b><span class="who">🧒 Sønn</span></div>
+      <div class="quest">
+        <div class="big">🗺️</div>
+        <h3 style="margin:12px 0 6px">Sidequests</h3>
+        <p class="muted" style="font-size:.85rem">Kommer snart! Her dukker det opp ekstra-oppdrag du kan gjøre for bonus-coins.</p>
+      </div>
+    </div>
+    <div class="dots"><i></i><i></i><i class="on"></i></div>
+    <div class="nav">
+      <button><span class="ic">✍️</span>Føring</button>
+      <button><span class="ic">🏆</span>Poeng</button>
+      <button class="on"><span class="ic">🗺️</span>Sidequests</button>
+    </div>
+  </div>
+
+<script>
+  // Klikk i bunn-menyen -> scroll til tilsvarende skjerm (enkel demo)
+  const phones = [...document.querySelectorAll('.phone')];
+  document.querySelectorAll('.nav').forEach(nav=>{
+    nav.querySelectorAll('button').forEach((b,i)=>{
+      b.onclick=()=>{ const t = i===2?phones[3]:phones[i]; t.scrollIntoView({behavior:'smooth',block:'center'}); };
+    });
+  });
+</script>
 </body>
 </html>
