@@ -75,16 +75,16 @@ export function scheduleSave(room, getState) {
   saveTimer = setTimeout(() => saveRemote(room, getState()), 600);
 }
 
-// Polling: hent remote, flett inn, kall applyMerged hvis endret (hash-diff).
+// Polling: hent remote, flett inn. Tegn KUN på nytt når fletting faktisk endrer
+// vår nåværende state (dvs. skyen hadde noe nytt) — ikke for våre egne endringer.
+// Det hindrer at UI-et tegnes om under skriving og stjeler fokus.
 export function startPolling(room, getState, applyMerged, intervalMs = 5000) {
-  let lastHash = JSON.stringify(getState());
   setInterval(async () => {
     const remote = await loadRemote(room);
     if (!remote) return;
+    const current = JSON.stringify(getState());
     const merged = mergeState(getState(), remote);
-    const h = JSON.stringify(merged);
-    if (h !== lastHash) {
-      lastHash = h;
+    if (JSON.stringify(merged) !== current) {
       saveLocal(room, merged);
       applyMerged(merged);
     }

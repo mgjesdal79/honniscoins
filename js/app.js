@@ -297,14 +297,15 @@ function renderTimeplanTab(host) {
         routeToView();
       })
   );
-  host.querySelectorAll('.inp[data-i]').forEach(
-    (inp) =>
-      (inp.onchange = () => {
-        tt[editWeekday][Number(inp.dataset.i)] = inp.value.trim();
-        App.state.settings.updatedAt = nowIso();
-        save();
-      })
-  );
+  host.querySelectorAll('.inp[data-i]').forEach((inp) => {
+    // Marker hele teksten ved fokus (tab/klikk) så man bare kan skrive over.
+    inp.onfocus = () => inp.select();
+    inp.onchange = () => {
+      tt[editWeekday][Number(inp.dataset.i)] = inp.value.trim();
+      App.state.settings.updatedAt = nowIso();
+      save();
+    };
+  });
   host.querySelectorAll('[data-del]').forEach(
     (b) =>
       (b.onclick = () => {
@@ -462,6 +463,10 @@ async function init() {
     App.room,
     () => App.state,
     (merged) => {
+      // Ikke forstyrr en pågående redigering: hvis et tekstfelt er i fokus,
+      // vent til brukeren er ferdig (neste poll tar det) så vi ikke stjeler fokus.
+      const ae = document.activeElement;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) return;
       App.state = merged;
       routeToView();
     }
