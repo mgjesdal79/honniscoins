@@ -147,6 +147,18 @@ export function isWeekLocked(iso, todayIso) {
   return weekStartIso(iso) < weekStartIso(todayIso);
 }
 
+// De fem skoledagene (man–fre) i uka som `iso` ligger i, som ISO-datoer.
+export function weekdaysOf(iso) {
+  const start = parseIso(weekStartIso(iso));
+  const out = [];
+  for (let i = 0; i < 5; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    out.push(isoDate(d));
+  }
+  return out;
+}
+
 // Klassifiser en skoledag ut fra medaljer + syk-flagg:
 //   'present' = alle timer minst Bronse (gir bonus, øker streak)
 //   'broken'  = 0/Fravær på minst én time og IKKE syk (nullstiller streak)
@@ -244,6 +256,57 @@ export function setSick(state, { date, sick, actor }, ctx) {
   else delete s.days[date].sick;
   s.days[date].sickAt = ctx.now;
   s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'sick', day: date, from: prev, to: !!sick });
+  return s;
+}
+
+// --- Re-synk av en dags fag med timeplanen -------------------------------
+
+// True hvis dagen ikke er «frosset», eller de frosne fagene er identiske med
+// gjeldende timeplan for ukedagen. False = fagene har kommet ut av synk.
+export function daySubjectsMatchTimetable(state, iso) {
+  const day = (state.days || {})[iso];
+  if (!day || !Array.isArray(day.subjects)) return true; // ikke frosset -> leser live
+  const wk = weekdayKey(iso);
+  const tt = wk ? state.settings.timetable[wk] || [] : [];
+  if (day.subjects.length !== tt.length) return false;
+  return day.subjects.every((s, i) => s === tt[i]);
+}
+
+// Oppdater en dags frosne fag fra gjeldende timeplan. Medaljer flyttes til riktig
+// rad via fagnavn; medaljer for fag som ikke lenger finnes forsvinner (telles i logg).
+// Flyttede medaljer får ny updatedAt så de vinner ved fletting mot andre enheter.
+// Ren funksjon (returnerer NY state).
+export function resyncSubjects(state, { date, actor }, ctx) {
+  const s = clone(state);
+  const wk = weekdayKey(date);
+  const newSubjects = wk ? (s.settings.timetable[wk] || []).slice() : [];
+  const day = s.days[date] || { subjects: [], marks: {} };
+  const oldSubjects = Array.isArray(day.subjects) ? day.subjects : [];
+  const oldMarks = day.marks || {};
+  const newMarks = {};
+  const used = new Set();
+  let dropped = 0;
+  for (const idx of Object.keys(oldMarks)) {
+    const name = oldSubjects[Number(idx)];
+    let target = -1;
+    for (let j = 0; j < newSubjects.length; j++) {
+      if (newSubjects[j] === name && !used.has(j)) {
+        target = j;
+        break;
+      }
+    }
+    if (target === -1) {
+      dropped += 1;
+      continue;
+    }
+    used.add(target);
+    newMarks[String(target)] = { ...oldMarks[idx], updatedAt: ctx.now };
+  }
+  s.days[date] = { ...day, subjects: newSubjects, marks: newMarks };
+  s.log.push({
+    id: ctx.id, at: ctx.now, actor, type: 'resync', day: date,
+    from: oldSubjects.length, to: newSubjects.length, dropped,
+  });
   return s;
 }
 

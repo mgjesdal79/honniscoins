@@ -278,6 +278,59 @@ run([
     eq('nyere setting vinner', L.mergeState(c, d).days['d1'].sick, true);
   },
 
+  // --- ukesdager ---
+  function weekdaysOf_returns_mon_to_fri() {
+    eq('fra torsdag', L.weekdaysOf('2026-08-20'), [
+      '2026-08-17', '2026-08-18', '2026-08-19', '2026-08-20', '2026-08-21',
+    ]);
+    eq('fra søndag samme uke', L.weekdaysOf('2026-08-23'), [
+      '2026-08-17', '2026-08-18', '2026-08-19', '2026-08-20', '2026-08-21',
+    ]);
+  },
+
+  // --- re-synk av fag mot timeplan ---
+  function daySubjectsMatchTimetable_detects_drift() {
+    const s = L.defaultState();
+    s.settings.timetable.mon = ['A', 'B', 'C'];
+    ok('ikke frosset -> match', L.daySubjectsMatchTimetable(s, '2026-08-24') === true);
+    s.days['2026-08-24'] = { subjects: ['A'], marks: { 0: { medal: 'gull' } } };
+    ok('frosset og ulik -> ingen match', L.daySubjectsMatchTimetable(s, '2026-08-24') === false);
+    s.days['2026-08-24'].subjects = ['A', 'B', 'C'];
+    ok('frosset og lik -> match', L.daySubjectsMatchTimetable(s, '2026-08-24') === true);
+  },
+  function resyncSubjects_append_keeps_marks() {
+    const s = L.defaultState();
+    s.settings.timetable.mon = ['Testfag', 'Matte', 'Norsk'];
+    s.days['2026-08-24'] = { subjects: ['Testfag'], marks: { 0: { medal: 'gull', by: 'son', updatedAt: 't0' } } };
+    const s2 = L.resyncSubjects(s, { date: '2026-08-24', actor: 'parent' }, { now: 't1', id: 'r1' });
+    eq('fag utvidet', s2.days['2026-08-24'].subjects, ['Testfag', 'Matte', 'Norsk']);
+    eq('gull beholdt på Testfag', s2.days['2026-08-24'].marks['0'].medal, 'gull');
+    eq('updatedAt bumpet', s2.days['2026-08-24'].marks['0'].updatedAt, 't1');
+    eq('ingen andre medaljer', Object.keys(s2.days['2026-08-24'].marks), ['0']);
+    eq('logg resync', s2.log[0], {
+      id: 'r1', at: 't1', actor: 'parent', type: 'resync', day: '2026-08-24', from: 1, to: 3, dropped: 0,
+    });
+    eq('input urørt', s.days['2026-08-24'].subjects, ['Testfag']);
+  },
+  function resyncSubjects_reorder_moves_mark_by_name() {
+    const s = L.defaultState();
+    s.settings.timetable.mon = ['Matte', 'Testfag'];
+    s.days['2026-08-24'] = { subjects: ['Testfag'], marks: { 0: { medal: 'solv', updatedAt: 't0' } } };
+    const s2 = L.resyncSubjects(s, { date: '2026-08-24', actor: 'parent' }, { now: 't1', id: 'r2' });
+    eq('medalje flyttet til ny indeks', s2.days['2026-08-24'].marks['1'].medal, 'solv');
+    eq('ingen medalje på 0', s2.days['2026-08-24'].marks['0'], undefined);
+  },
+  function resyncSubjects_drops_removed_subject() {
+    const s = L.defaultState();
+    s.settings.timetable.mon = ['Matte'];
+    s.days['2026-08-24'] = { subjects: ['Gammelt', 'Matte'], marks: { 0: { medal: 'gull', updatedAt: 't0' }, 1: { medal: 'bronse', updatedAt: 't0' } } };
+    const s2 = L.resyncSubjects(s, { date: '2026-08-24', actor: 'parent' }, { now: 't1', id: 'r3' });
+    eq('kun Matte igjen', s2.days['2026-08-24'].subjects, ['Matte']);
+    eq('bronse flyttet til 0', s2.days['2026-08-24'].marks['0'].medal, 'bronse');
+    eq('gull falt bort', Object.keys(s2.days['2026-08-24'].marks), ['0']);
+    eq('dropped talt', s2.log[0].dropped, 1);
+  },
+
   function logic_module_loads() {
     ok('logic module loads', L.APP_LOGIC_VERSION === 1);
   },
