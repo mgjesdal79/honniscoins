@@ -47,8 +47,9 @@ export function computeSpent(state) {
   return (state.payouts || []).reduce((a, p) => a + (p.coins || 0), 0);
 }
 
+// Saldo = medaljepoeng + streak-bonus − utbetalinger (= total-total).
 export function computeBalance(state) {
-  return computeEarned(state) - computeSpent(state);
+  return computeEarned(state) + streakBonusTotal(state) - computeSpent(state);
 }
 
 // --- Dato / ukedag -------------------------------------------------------
@@ -130,6 +131,122 @@ export function formatKr(coins, krPerCoin) {
   return `${s} kr`;
 }
 
+// --- Streaks: oppmøte-streak, ukelås, totaler ----------------------------
+
+// Mandag-startet uke. Returnerer ISO-dato for mandagen i uka som `iso` ligger i.
+export function weekStartIso(iso) {
+  const d = parseIso(iso);
+  const dow = d.getDay(); // 0=søn..6=lør
+  const diff = dow === 0 ? -6 : 1 - dow; // flytt til mandag
+  d.setDate(d.getDate() + diff);
+  return isoDate(d);
+}
+
+// En uke er låst for sønn-redigering hvis den ligger før inneværende uke.
+export function isWeekLocked(iso, todayIso) {
+  return weekStartIso(iso) < weekStartIso(todayIso);
+}
+
+// Klassifiser en skoledag ut fra medaljer + syk-flagg:
+//   'present' = alle timer minst Bronse (gir bonus, øker streak)
+//   'broken'  = 0/Fravær på minst én time og IKKE syk (nullstiller streak)
+//   'paused'  = blank/ufullstendig, syk, helg eller ingen fag (bryter ikke, ingen bonus)
+export function classifyDay(state, iso) {
+  if (!weekdayKey(iso)) return 'paused';
+  const subjects = subjectsForDate(state, iso);
+  if (subjects.length === 0) return 'paused';
+  const day = (state.days || {})[iso];
+  if (day && day.sick) return 'paused';
+  const marks = (day && day.marks) || {};
+  let allPresent = true;
+  for (let i = 0; i < subjects.length; i++) {
+    const m = marks[String(i)] ? marks[String(i)].medal : null;
+    if (m === '0') return 'broken';
+    if (m !== 'bronse' && m !== 'solv' && m !== 'gull') allPresent = false;
+  }
+  return allPresent ? 'present' : 'paused';
+}
+
+// Bonus per til stede-dag innenfor gjeldende streak: +1 for dag 1–10, +2 fra dag 11.
+function bonusForPosition(n) {
+  return n <= 10 ? 1 : 2;
+}
+
+// Går gjennom historikken i datorekkefølge og returnerer per-dato bonus + løpende streak.
+function bonusByDate(state, uptoIso) {
+  const dates = Object.keys(state.days || {})
+    .filter((d) => !uptoIso || d <= uptoIso)
+    .sort();
+  const map = {};
+  let count = 0;
+  for (const d of dates) {
+    const c = classifyDay(state, d);
+    if (c === 'present') {
+      count += 1;
+      map[d] = bonusForPosition(count);
+    } else if (c === 'broken') {
+      count = 0;
+      map[d] = 0;
+    } else {
+      map[d] = 0;
+    }
+  }
+  return { map, count };
+}
+
+// Oppsummering av oppmøte-streaken t.o.m. `uptoIso` (default: hele historikken).
+export function attendanceStreakInfo(state, uptoIso) {
+  const { map, count } = bonusByDate(state, uptoIso);
+  let bonusTotal = 0;
+  for (const d of Object.keys(map)) bonusTotal += map[d];
+  return { length: count, bonusPerDay: count >= 10 ? 2 : 1, bonusTotal };
+}
+
+// Total streak-bonus over hele historikken (inngår i saldo).
+export function streakBonusTotal(state) {
+  return attendanceStreakInfo(state).bonusTotal;
+}
+
+// Medaljepoeng for én enkelt dag.
+function dayMedalPoints(state, iso) {
+  const day = (state.days || {})[iso];
+  if (!day) return 0;
+  const v = state.settings.medalValues;
+  const marks = day.marks || {};
+  let s = 0;
+  for (const idx of Object.keys(marks)) s += medalPoints(marks[idx].medal, v);
+  return s;
+}
+
+// Opptjent på én dag = medaljepoeng + evt. streak-bonus for dagen.
+export function dailyTotal(state, iso) {
+  const { map } = bonusByDate(state, iso);
+  return dayMedalPoints(state, iso) + (map[iso] || 0);
+}
+
+// Opptjent i uka som `iso` ligger i (man–fre) = medaljepoeng + streak-bonus.
+export function weeklyTotal(state, iso) {
+  const ws = weekStartIso(iso);
+  const { map } = bonusByDate(state);
+  let sum = 0;
+  for (const d of Object.keys(state.days || {})) {
+    if (weekStartIso(d) === ws) sum += dayMedalPoints(state, d) + (map[d] || 0);
+  }
+  return sum;
+}
+
+// Merk (eller fjern) syk/fri for en dag. sickAt lagres for konfliktfri fletting.
+export function setSick(state, { date, sick, actor }, ctx) {
+  const s = clone(state);
+  if (!s.days[date]) s.days[date] = { subjects: subjectsForDate(state, date), marks: {} };
+  const prev = !!s.days[date].sick;
+  if (sick) s.days[date].sick = true;
+  else delete s.days[date].sick;
+  s.days[date].sickAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'sick', day: date, from: prev, to: !!sick });
+  return s;
+}
+
 // --- Fletting (LWW dager/innstillinger + union logg/utbetaling) -----------
 
 function unionById(arrA = [], arrB = []) {
@@ -165,6 +282,12 @@ export function mergeState(local, remote) {
     out.days[date].marks = lm;
     if (!out.days[date].subjects && remote.days[date].subjects)
       out.days[date].subjects = clone(remote.days[date].subjects);
+    // syk-flagg: LWW på sickAt (mangler sickAt = eldst)
+    if ((remote.days[date].sickAt || '') > (out.days[date].sickAt || '')) {
+      if (remote.days[date].sick) out.days[date].sick = true;
+      else delete out.days[date].sick;
+      out.days[date].sickAt = remote.days[date].sickAt;
+    }
   }
 
   // append-only lister: union på id

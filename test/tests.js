@@ -58,12 +58,13 @@ run([
   },
   function balance_earned_minus_spent() {
     const s = L.defaultState();
-    s.days['2026-08-20'] = { subjects: ['A', 'B'], marks: { 0: { medal: 'gull' }, 1: { medal: 'bronse' } } };
-    s.days['2026-08-21'] = { subjects: ['A'], marks: { 0: { medal: '0' } } }; // fravaer = 0
+    s.days['2026-08-20'] = { subjects: ['A', 'B'], marks: { 0: { medal: 'gull' }, 1: { medal: 'bronse' } } }; // present
+    s.days['2026-08-21'] = { subjects: ['A'], marks: { 0: { medal: '0' } } }; // fravaer = 0 -> broken
     s.payouts.push({ id: 'p1', coins: 1 });
-    eq('earned', L.computeEarned(s), 4); // 3 + 1 + 0
+    eq('earned (medaljer)', L.computeEarned(s), 4); // 3 + 1 + 0
     eq('spent', L.computeSpent(s), 1);
-    eq('balance', L.computeBalance(s), 3);
+    eq('streak-bonus', L.streakBonusTotal(s), 1); // 08-20 til stede -> +1, 08-21 broken
+    eq('balance = earned + bonus - spent', L.computeBalance(s), 4); // 4 + 1 - 1
   },
 
   // --- dato / ukedag ---
@@ -128,7 +129,7 @@ run([
     s.days['2026-08-20'] = { subjects: ['A'], marks: { 0: { medal: 'gull' } } }; // 3 opptjent
     s = L.addPayout(s, { coins: 2, kr: 2, note: 'Godteri', by: 'parent' }, { now: 't', id: 'p1' });
     eq('payout stored', s.payouts[0], { id: 'p1', coins: 2, kr: 2, note: 'Godteri', at: 't', by: 'parent' });
-    eq('balance after', L.computeBalance(s), 1);
+    eq('balance after', L.computeBalance(s), 2); // 3 medalje + 1 streak-bonus - 2 utbetalt
     eq('log payout', s.log[0], { id: 'p1', at: 't', actor: 'parent', type: 'payout', coins: 2, note: 'Godteri' });
   },
   function logSettingsChange_entry() {
@@ -183,6 +184,98 @@ run([
     const a = L.defaultState();
     a.settings.krPerCoin = 5;
     eq('null remote -> local', L.mergeState(a, null).settings.krPerCoin, 5);
+  },
+
+  // --- streaks: klassifisering ---
+  function classifyDay_states() {
+    const s = L.defaultState();
+    s.days['2026-08-20'] = { subjects: ['A', 'B'], marks: { 0: { medal: 'bronse' }, 1: { medal: 'gull' } } };
+    eq('alle >= bronse -> present', L.classifyDay(s, '2026-08-20'), 'present');
+    s.days['2026-08-21'] = { subjects: ['A'], marks: { 0: { medal: '0' } } };
+    eq('0/fravaer -> broken', L.classifyDay(s, '2026-08-21'), 'broken');
+    s.days['2026-08-24'] = { subjects: ['A', 'B'], marks: { 0: { medal: 'gull' } } }; // en blank
+    eq('blank time -> paused', L.classifyDay(s, '2026-08-24'), 'paused');
+    eq('helg -> paused', L.classifyDay(s, '2026-08-22'), 'paused');
+  },
+  function classifyDay_sick_excuses_absence() {
+    const s = L.defaultState();
+    s.days['2026-08-20'] = { subjects: ['A'], marks: { 0: { medal: '0' } }, sick: true };
+    eq('0 men syk -> paused', L.classifyDay(s, '2026-08-20'), 'paused');
+  },
+
+  // --- streaks: opptrapping, pause, brudd ---
+  function streak_escalation_two_tiers() {
+    const s = L.defaultState();
+    let d = '2026-08-03'; // mandag
+    for (let i = 0; i < 12; i++) {
+      s.days[d] = { subjects: ['A'], marks: { 0: { medal: 'bronse' } } };
+      d = L.stepWeekday(d, 1);
+    }
+    const info = L.attendanceStreakInfo(s);
+    eq('lengde 12', info.length, 12);
+    eq('bonus/dag = +2 etter 10', info.bonusPerDay, 2);
+    eq('bonusTotal 10*1 + 2*2', info.bonusTotal, 14);
+  },
+  function streak_pause_keeps_break_resets() {
+    const s = L.defaultState();
+    s.days['2026-08-03'] = { subjects: ['A'], marks: { 0: { medal: 'gull' } } }; // present
+    s.days['2026-08-04'] = { subjects: ['A'], marks: {}, sick: true }; // paused
+    s.days['2026-08-05'] = { subjects: ['A'], marks: { 0: { medal: 'bronse' } } }; // present
+    eq('pause bryter ikke', L.attendanceStreakInfo(s).length, 2);
+    s.days['2026-08-06'] = { subjects: ['A'], marks: { 0: { medal: '0' } } }; // broken
+    eq('brudd nullstiller', L.attendanceStreakInfo(s).length, 0);
+    s.days['2026-08-07'] = { subjects: ['A'], marks: { 0: { medal: 'solv' } } }; // present
+    eq('bygger opp igjen', L.attendanceStreakInfo(s).length, 1);
+  },
+
+  // --- streaks: totaler ---
+  function totals_day_and_week() {
+    const s = L.defaultState();
+    s.days['2026-08-03'] = { subjects: ['A'], marks: { 0: { medal: 'gull' } } }; // 3 + bonus 1
+    s.days['2026-08-04'] = { subjects: ['A'], marks: { 0: { medal: 'bronse' } } }; // 1 + bonus 1
+    eq('dagstotal man', L.dailyTotal(s, '2026-08-03'), 4);
+    eq('dagstotal tir', L.dailyTotal(s, '2026-08-04'), 2);
+    eq('ukestotal', L.weeklyTotal(s, '2026-08-05'), 6);
+  },
+
+  // --- ukelaas ---
+  function week_start_and_lock() {
+    eq('weekStart tor', L.weekStartIso('2026-08-20'), '2026-08-17');
+    eq('weekStart man', L.weekStartIso('2026-08-24'), '2026-08-24');
+    eq('weekStart son', L.weekStartIso('2026-08-23'), '2026-08-17');
+    ok('forrige uke laast', L.isWeekLocked('2026-08-20', '2026-08-24') === true);
+    ok('samme uke ikke laast', L.isWeekLocked('2026-08-24', '2026-08-26') === false);
+    ok('fremtid ikke laast', L.isWeekLocked('2026-08-31', '2026-08-24') === false);
+  },
+
+  // --- syk-mutasjon ---
+  function setSick_toggles_and_logs() {
+    const s = L.defaultState();
+    s.settings.timetable.mon = ['A'];
+    const s2 = L.setSick(s, { date: '2026-08-03', sick: true, actor: 'son' }, { now: 't1', id: 'k1' });
+    eq('sick satt', s2.days['2026-08-03'].sick, true);
+    eq('sickAt', s2.days['2026-08-03'].sickAt, 't1');
+    eq('fag frosset', s2.days['2026-08-03'].subjects, ['A']);
+    eq('logg sick', s2.log[0], { id: 'k1', at: 't1', actor: 'son', type: 'sick', day: '2026-08-03', from: false, to: true });
+    const s3 = L.setSick(s2, { date: '2026-08-03', sick: false, actor: 'parent' }, { now: 't2', id: 'k2' });
+    eq('sick fjernet', 'sick' in s3.days['2026-08-03'], false);
+    eq('sickAt oppdatert', s3.days['2026-08-03'].sickAt, 't2');
+    eq('input urort', s.days, {});
+  },
+
+  // --- fletting av syk ---
+  function merge_sick_lww() {
+    const a = L.defaultState();
+    const b = L.defaultState();
+    a.days['d1'] = { subjects: ['X'], marks: {}, sick: true, sickAt: '2026-01-01' };
+    b.days['d1'] = { subjects: ['X'], marks: {}, sickAt: '2026-02-01' }; // syk fjernet senere
+    eq('nyere fjerning vinner', 'sick' in L.mergeState(a, b).days['d1'], false);
+    eq('rekkefolge-uavhengig', 'sick' in L.mergeState(b, a).days['d1'], false);
+    const c = L.defaultState();
+    const d = L.defaultState();
+    c.days['d1'] = { subjects: ['X'], marks: {}, sickAt: '2026-01-01' };
+    d.days['d1'] = { subjects: ['X'], marks: {}, sick: true, sickAt: '2026-03-01' };
+    eq('nyere setting vinner', L.mergeState(c, d).days['d1'].sick, true);
   },
 
   function logic_module_loads() {
