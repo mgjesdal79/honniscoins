@@ -801,6 +801,9 @@ function renderQuestsTab(host) {
     return `${Number(d)}.${Number(m)}`;
   };
 
+  // Arbeids-frist for skjemaet (closure): ny quest = i dag, redigering = questens frist.
+  let due = editing ? editing.due || null : today;
+
   const queueRows = done
     .map(
       (q) => `<div class="qcard done">
@@ -843,12 +846,18 @@ function renderQuestsTab(host) {
     <div class="card" style="padding:12px">
       <input class="inp wide" id="qTitle" placeholder="Tittel (f.eks. Rydde garasjen)" style="width:100%;margin-bottom:8px" value="${editing ? escapeHtml(editing.title) : ''}">
       <textarea class="inp wide" id="qDesc" placeholder="Beskrivelse (valgfri)" rows="2" style="width:100%;margin-bottom:8px;resize:vertical">${editing ? escapeHtml(editing.desc || '') : ''}</textarea>
-      <div class="qrow" style="margin-bottom:8px">
-        <label class="lbl" style="flex:1">Poeng
-          <input class="inp" id="qPoints" type="number" min="0" value="${editing ? editing.points : ''}" placeholder="0" style="width:100%"></label>
-        <label class="lbl" style="flex:1">Frist
-          <input class="inp" id="qDue" type="date" value="${editing ? editing.due || '' : ''}" style="width:100%"></label>
+      <label class="lbl" style="margin-bottom:8px;display:block">Poeng
+        <input class="inp" id="qPoints" type="number" min="0" value="${editing ? editing.points : ''}" placeholder="0" style="width:100%"></label>
+      <div class="lbl" style="margin-bottom:6px">Frist</div>
+      <div class="datestep" style="margin-bottom:6px">
+        <button class="arrow" type="button" id="qDuePrev">‹</button>
+        <div class="datemid">
+          <b id="qDueWd"></b><span id="qDueDm" class="d"></span>
+          <input type="date" id="qDue" class="dateover">
+        </div>
+        <button class="arrow" type="button" id="qDueNext">›</button>
       </div>
+      <button class="link" id="qDueClear" type="button" style="margin-bottom:12px"></button>
       <div class="qrow">
         <button class="btn qbtn" id="qSave">${editing ? '💾 Lagre endringer' : '➕ Legg til quest'}</button>
         ${editing ? '<button class="btn ghost qbtn" id="qCancel">Avbryt</button>' : ''}
@@ -889,13 +898,57 @@ function renderQuestsTab(host) {
         routeToView();
       })
   );
+  // Frist-velger: dagens dato som standard, pil ±1 dag, eller trykk for kalender.
+  const WD_FULL7 = ['Søndag', 'Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag'];
+  const localDate = (iso) => {
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  };
+  const stepDay = (iso, delta) => {
+    const d = localDate(iso);
+    d.setDate(d.getDate() + delta);
+    return isoDate(d);
+  };
+  const refreshDue = () => {
+    const wdEl = document.getElementById('qDueWd');
+    const dmEl = document.getElementById('qDueDm');
+    const clr = document.getElementById('qDueClear');
+    if (due) {
+      const d = localDate(due);
+      const [, m, dd] = due.split('-');
+      wdEl.textContent = WD_FULL7[d.getDay()];
+      dmEl.textContent = ` · ${Number(dd)}.${Number(m)}.${d.getFullYear()}`;
+      clr.textContent = 'Fjern frist';
+    } else {
+      wdEl.textContent = 'Ingen frist';
+      dmEl.textContent = ' · trykk for å velge';
+      clr.textContent = 'Sett frist (i dag)';
+    }
+    document.getElementById('qDue').value = due || '';
+  };
+  refreshDue();
+  document.getElementById('qDuePrev').onclick = () => {
+    due = stepDay(due || today, -1);
+    refreshDue();
+  };
+  document.getElementById('qDueNext').onclick = () => {
+    due = stepDay(due || today, 1);
+    refreshDue();
+  };
+  document.getElementById('qDue').onchange = (e) => {
+    due = e.target.value || null;
+    refreshDue();
+  };
+  document.getElementById('qDueClear').onclick = () => {
+    due = due ? null : today;
+    refreshDue();
+  };
+
   document.getElementById('qSave').onclick = () => {
     const title = document.getElementById('qTitle').value.trim();
     if (!title) return;
     const desc = document.getElementById('qDesc').value.trim();
     const points = Number(document.getElementById('qPoints').value) || 0;
-    const dueRaw = document.getElementById('qDue').value;
-    const due = dueRaw || null;
     const ctx = { now: nowIso(), id: newId() };
     if (App.editQuestId) {
       App.state = updateQuest(App.state, { id: App.editQuestId, patch: { title, desc, points, due }, actor: 'parent' }, ctx);
