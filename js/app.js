@@ -155,11 +155,17 @@ function setSonPage(key) {
   routeToView();
 }
 
-function renderSon() {
-  const brand = `<div class="brand">
+// Topp-logo med alltid synlig saldo.
+function brandHtml() {
+  const bal = computeBalance(App.state);
+  return `<div class="brand">
       <img src="icon-192.png" alt="" width="34" height="34" style="border-radius:9px">
-      <b>Honniscoins</b>
+      <b>Honniscoins:</b><span class="brandbal">${bal} 🪙</span>
     </div>`;
+}
+
+function renderSon() {
+  const brand = brandHtml();
   const openQuests = activeQuests(App.state).filter((q) => q.status === 'open').length;
   const badgeFor = (key) => (key === 'sidequests' && openQuests ? `<span class="navbadge">${openQuests}</span>` : '');
   const dots = SON_PAGES.map((p) => `<span class="dot ${p.key === App.sonPage ? 'on' : ''}"></span>`).join('');
@@ -571,6 +577,7 @@ function renderParentHome() {
     })
     .join('');
   el.innerHTML = `
+    ${brandHtml()}
     <div class="topbar"><span class="muted">👨‍👩‍👦 Forelder</span>
       <button class="link" id="switchUser">Bytt bruker</button></div>
     <div class="tabbar">${bar}</div>
