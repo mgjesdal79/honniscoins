@@ -144,7 +144,7 @@ function renderWho() {
 
 const SON_PAGES = [
   { key: 'uken', icon: '📅', label: 'Uken' },
-  { key: 'poeng', icon: '💰', label: 'Poeng' },
+  { key: 'poeng', icon: '💵', label: 'Poeng' },
   { key: 'sidequests', icon: '⭐', label: 'Sidequests' },
   { key: 'shop', icon: '🛒', label: 'Shop' },
 ];
