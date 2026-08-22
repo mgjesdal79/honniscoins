@@ -116,13 +116,39 @@
   .bonuspt{color:var(--good)}
   .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;min-height:50vh}
   .empty b{font-size:1.2rem}.empty .muted{max-width:260px}
+
+  /* --- sidequests --- */
+  .navbadge{position:absolute;top:-6px;right:-10px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--accent);color:#fff;font-size:.62rem;font-weight:800;line-height:16px;text-align:center}
+  .pagenav .pg .i{position:relative}
+  .tabbar .t{position:relative}
+  .qbanner{background:#2a2410;border:1px solid var(--gold);color:var(--gold);border-radius:12px;padding:10px 12px;font-weight:700;font-size:.85rem;text-align:center;margin-bottom:12px}
+  .qcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px}
+  .qcard.over{border-color:var(--bad)}
+  .qcard.done{border-color:var(--gold);background:linear-gradient(160deg,#241f0e,var(--surface))}
+  .qcard.approved{opacity:.72}
+  .qtop{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .qtitle{font-size:1rem;font-weight:800}
+  .qpts{color:var(--gold);font-weight:800;font-size:.9rem;white-space:nowrap}
+  .qdesc{color:var(--muted);font-size:.82rem;margin:4px 0 0}
+  .qmeta{margin:8px 0}
+  .qdue{font-size:.76rem;font-weight:700;color:var(--muted)}
+  .qdue.over{color:var(--bad)}
+  .qdue.soon{color:var(--gold)}
+  .qdue.wait{color:var(--gold)}
+  .qdue.ok{color:var(--good)}
+  .qbtn{width:auto;padding:10px 14px;font-size:.9rem}
+  .qrow{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+  .qrow .qbtn{flex:1}
+  .btn.danger{color:var(--bad);border-color:#5a2020}
+  textarea.inp{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:8px 10px;color:#fff;font-family:var(--font);font-size:1rem}
+  label.lbl{display:flex;flex-direction:column;gap:4px;font-size:.74rem;color:var(--muted);font-weight:700}
 </style>
 </head>
 <body>
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.08.21 (b11 · Shop i bunn-nav)';
+    window.APP_VERSION = '2026.08.22 (b12 · Sidequests)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>

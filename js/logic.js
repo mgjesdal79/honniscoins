@@ -37,6 +37,7 @@ export function defaultState() {
     days: {},
     weekLocks: {},
     payouts: [],
+    quests: [],
     log: [],
   };
 }
@@ -57,12 +58,13 @@ export function computeSpent(state) {
   return (state.payouts || []).reduce((a, p) => a + (p.coins || 0), 0);
 }
 
-// Saldo = medaljepoeng + oppmøte-bonus + ukesbonus (sølv/gull) − utbetalinger.
+// Saldo = medaljepoeng + oppmøte-bonus + ukesbonus + godkjente quests − utbetalinger.
 export function computeBalance(state) {
   return (
     computeEarned(state) +
     streakBonusTotal(state) +
-    weeklyStreakBonusTotal(state) -
+    weeklyStreakBonusTotal(state) +
+    questPointsTotal(state) -
     computeSpent(state)
   );
 }
@@ -424,6 +426,7 @@ export function migrate(state, todayIso) {
     if (!s.settings.bonus.goldTiers) s.settings.bonus.goldTiers = [...def.goldTiers];
   }
   if (!s.weekLocks) s.weekLocks = {};
+  if (!Array.isArray(s.quests)) s.quests = [];
   const stamp = (todayIso || '2000-01-01') + 'T00:00:00.000Z';
   for (const d of Object.keys(s.days || {})) {
     const day = s.days[d];
@@ -441,6 +444,135 @@ export function migrate(state, todayIso) {
 // Total streak-bonus over hele historikken (inngår i saldo).
 export function streakBonusTotal(state) {
   return attendanceStreakInfo(state).bonusTotal;
+}
+
+// --- Sidequests ----------------------------------------------------------
+// status: 'open' -> (sønn commit) 'done' -> (forelder) 'approved'.
+// Send tilbake / angre setter status tilbake til 'open'. Sletting = removed-tombstone.
+// `points` er ett tall nå; framtidig trappetrinn blir `tiers` + valgt trinn ved commit.
+
+// Aktive (ikke-slettede) quests.
+export function activeQuests(state) {
+  return (state.quests || []).filter((q) => !q.removed);
+}
+
+// Forfalt = frist passert og ikke godkjent (fortsatt gjørbar – kun et merke).
+export function isQuestOverdue(quest, todayIso) {
+  return !!(quest && !quest.removed && quest.due && quest.status !== 'approved' && quest.due < todayIso);
+}
+
+// Poeng fra godkjente quests (inngår i saldo). Ventende (done) teller ikke.
+export function questPointsTotal(state) {
+  return activeQuests(state)
+    .filter((q) => q.status === 'approved')
+    .reduce((a, q) => a + (Number(q.points) || 0), 0);
+}
+
+// Poeng som venter på godkjenning (kun visning).
+export function questPointsPending(state) {
+  return activeQuests(state)
+    .filter((q) => q.status === 'done')
+    .reduce((a, q) => a + (Number(q.points) || 0), 0);
+}
+
+function findQuestIdx(s, id) {
+  return (s.quests || []).findIndex((q) => q.id === id);
+}
+
+// Opprett quest (forelder). ctx.id blir quest-id.
+export function addQuest(state, { title, desc = '', points, due = null, actor = 'parent' }, ctx) {
+  const s = clone(state);
+  if (!Array.isArray(s.quests)) s.quests = [];
+  s.quests.push({
+    id: ctx.id,
+    title,
+    desc,
+    points: Number(points) || 0,
+    due: due || null,
+    status: 'open',
+    createdAt: ctx.now,
+    createdBy: actor,
+    doneAt: null,
+    approvedAt: null,
+    updatedAt: ctx.now,
+    removed: false,
+  });
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: 'create', quest: ctx.id, title });
+  return s;
+}
+
+// Rediger felt på en quest (forelder).
+export function updateQuest(state, { id, patch, actor = 'parent' }, ctx) {
+  const s = clone(state);
+  const i = findQuestIdx(s, id);
+  if (i < 0) return s;
+  const q = s.quests[i];
+  if ('title' in patch) q.title = patch.title;
+  if ('desc' in patch) q.desc = patch.desc;
+  if ('points' in patch) q.points = Number(patch.points) || 0;
+  if ('due' in patch) q.due = patch.due || null;
+  q.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: 'edit', quest: id, title: q.title });
+  return s;
+}
+
+// Slett quest (tombstone som overlever fletting).
+export function deleteQuest(state, { id, actor = 'parent' }, ctx) {
+  const s = clone(state);
+  const i = findQuestIdx(s, id);
+  if (i < 0) return s;
+  s.quests[i].removed = true;
+  s.quests[i].updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: 'delete', quest: id, title: s.quests[i].title });
+  return s;
+}
+
+// Sønn markerer ferdig (commit): open -> done.
+export function commitQuest(state, { id, actor = 'son' }, ctx) {
+  const s = clone(state);
+  const i = findQuestIdx(s, id);
+  if (i < 0) return s;
+  s.quests[i].status = 'done';
+  s.quests[i].doneAt = ctx.now;
+  s.quests[i].updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: 'done', quest: id, title: s.quests[i].title });
+  return s;
+}
+
+// Sønn angrer ferdigmelding: done -> open.
+export function uncommitQuest(state, { id, actor = 'son' }, ctx) {
+  const s = clone(state);
+  const i = findQuestIdx(s, id);
+  if (i < 0) return s;
+  s.quests[i].status = 'open';
+  s.quests[i].doneAt = null;
+  s.quests[i].updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: 'undo', quest: id, title: s.quests[i].title });
+  return s;
+}
+
+// Forelder godkjenner: done -> approved (poeng teller nå).
+export function approveQuest(state, { id, actor = 'parent' }, ctx) {
+  const s = clone(state);
+  const i = findQuestIdx(s, id);
+  if (i < 0) return s;
+  s.quests[i].status = 'approved';
+  s.quests[i].approvedAt = ctx.now;
+  s.quests[i].updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: 'approve', quest: id, title: s.quests[i].title, points: s.quests[i].points });
+  return s;
+}
+
+// Forelder sender tilbake: done -> open (nullstiller ferdigmelding).
+export function rejectQuest(state, { id, note = '', actor = 'parent' }, ctx) {
+  const s = clone(state);
+  const i = findQuestIdx(s, id);
+  if (i < 0) return s;
+  s.quests[i].status = 'open';
+  s.quests[i].doneAt = null;
+  s.quests[i].updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: 'reject', quest: id, title: s.quests[i].title, note });
+  return s;
 }
 
 // Medaljepoeng for én enkelt dag.
@@ -594,9 +726,22 @@ export function mergeState(local, remote) {
   // append-only lister: union på id
   out.log = unionById(local.log, remote.log);
   out.payouts = unionById(local.payouts, remote.payouts);
+  // quests: LWW per id på updatedAt (statusendringer/sletting vinner nyest)
+  if (local.quests || remote.quests) out.quests = mergeQuestList(local.quests, remote.quests);
   // fremtidige felt flettes allerede (bygges ikke nå):
-  for (const key of ['shopItems', 'purchases', 'quests']) {
+  for (const key of ['shopItems', 'purchases']) {
     if (local[key] || remote[key]) out[key] = unionById(local[key], remote[key]);
   }
   return out;
+}
+
+// LWW per quest på updatedAt. Nye quests (kun én side) tas med.
+function mergeQuestList(a = [], b = []) {
+  const map = new Map();
+  for (const q of a || []) map.set(q.id, clone(q));
+  for (const q of b || []) {
+    const cur = map.get(q.id);
+    if (!cur || (q.updatedAt || '') > (cur.updatedAt || '')) map.set(q.id, clone(q));
+  }
+  return [...map.values()];
 }

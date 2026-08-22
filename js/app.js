@@ -6,6 +6,8 @@ import {
   weekdaysOf, daySubjectsMatchTimetable, resyncSubjects,
   isDayLocked, isWeekClosed, canSonEditDay, lockDay, closeWeek, reopenWeek, weekStartIso,
   weeklyMedalCounts, weeklyStreakBonus, silverStreakInfo, goldStreakInfo,
+  activeQuests, isQuestOverdue, questPointsPending,
+  addQuest, updateQuest, deleteQuest, commitQuest, uncommitQuest, approveQuest, rejectQuest,
 } from './logic.js';
 
 const el = document.getElementById('app');
@@ -20,6 +22,7 @@ const App = {
   parentTab: 'uke',
   sonPage: localStorage.getItem('honniscoins:sonPage') || 'uken',
   mondayDismissed: false,
+  editQuestId: null,
 };
 
 // --- hjelpere ------------------------------------------------------------
@@ -157,11 +160,13 @@ function renderSon() {
       <img src="icon-192.png" alt="" width="34" height="34" style="border-radius:9px">
       <b>Honniscoins</b>
     </div>`;
+  const openQuests = activeQuests(App.state).filter((q) => q.status === 'open').length;
+  const badgeFor = (key) => (key === 'sidequests' && openQuests ? `<span class="navbadge">${openQuests}</span>` : '');
   const dots = SON_PAGES.map((p) => `<span class="dot ${p.key === App.sonPage ? 'on' : ''}"></span>`).join('');
   const nav = SON_PAGES.map(
     (p) =>
       `<button class="pg ${p.key === App.sonPage ? 'on' : ''}" data-page="${p.key}">
-        <span class="i">${p.icon}</span><span class="l">${p.label}</span></button>`
+        <span class="i">${p.icon}${badgeFor(p.key)}</span><span class="l">${p.label}</span></button>`
   ).join('');
   el.innerHTML = `
     ${brand}
@@ -349,6 +354,7 @@ function renderPoengPage(host) {
   const wb = weeklyStreakBonus(s, today);
   const sv = silverStreakInfo(s, today.slice(0, 7), today);
   const gd = goldStreakInfo(s, today.slice(0, 7), today);
+  const qPending = questPointsPending(s);
 
   const statGrid = (info) => `
     <div class="grid3">
@@ -361,6 +367,7 @@ function renderPoengPage(host) {
     <div class="balance">
       <div class="coins">${bal} <small>Honniscoins</small></div>
       <div class="kr">≈ ${formatKr(bal, s.settings.krPerCoin)} · denne uka +${wTot}</div>
+      ${qPending ? `<div class="kr">⭐ ${qPending} 🪙 fra sidequests venter på godkjenning</div>` : ''}
     </div>
 
     <div class="sec">Ukesbonus (denne uka)</div>
@@ -385,13 +392,88 @@ function renderPoengPage(host) {
     ${statGrid(gd)}`;
 }
 
+// Frist-tekst for en quest sett fra sønnen: forfalt (rødt), i dag, om N dager, dato.
+function questDueLabel(due, todayIso) {
+  if (!due) return '<span class="muted">Ingen frist</span>';
+  const [, m, d] = due.split('-');
+  const dm = `${Number(d)}.${Number(m)}`;
+  if (due < todayIso) return `<span class="qdue over">⏰ Forfalt · ${dm}</span>`;
+  if (due === todayIso) return `<span class="qdue soon">⏰ I dag!</span>`;
+  const days = Math.round((new Date(due) - new Date(todayIso)) / 86400000);
+  const cls = days <= 2 ? 'soon' : '';
+  return `<span class="qdue ${cls}">⏰ ${days} ${days === 1 ? 'dag' : 'dager'} igjen · ${dm}</span>`;
+}
+
 function renderSidequestsPage(host) {
-  host.innerHTML = `
-    <div class="empty">
-      <div style="font-size:2.4rem">⭐</div>
-      <b>Sidequests</b>
-      <div class="muted">Kommer snart! Her blir det ekstraoppdrag du kan gjøre for bonus-coins.</div>
+  const s = App.state;
+  const today = isoDate(new Date());
+  const quests = activeQuests(s);
+  const open = quests.filter((q) => q.status === 'open');
+  const done = quests.filter((q) => q.status === 'done');
+  const approved = quests.filter((q) => q.status === 'approved');
+  const pending = questPointsPending(s);
+
+  if (!quests.length) {
+    host.innerHTML = `
+      <div class="empty">
+        <div style="font-size:2.4rem">⭐</div>
+        <b>Ingen sidequests ennå</b>
+        <div class="muted">Her dukker ekstraoppdrag opp. Fullfør dem for bonus-coins!</div>
+      </div>`;
+    return;
+  }
+
+  const questCard = (q, kind) => {
+    const overdue = isQuestOverdue(q, today);
+    const pts = `<span class="qpts">+${q.points} 🪙</span>`;
+    const desc = q.desc ? `<div class="qdesc">${escapeHtml(q.desc)}</div>` : '';
+    if (kind === 'open') {
+      return `<div class="qcard ${overdue ? 'over' : ''}">
+        <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b>${pts}</div>
+        ${desc}
+        <div class="qmeta">${questDueLabel(q.due, today)}</div>
+        <button class="btn qbtn" data-commit="${q.id}">🔒 Marker som ferdig</button>
+      </div>`;
+    }
+    if (kind === 'done') {
+      return `<div class="qcard done">
+        <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b>${pts}</div>
+        ${desc}
+        <div class="qmeta"><span class="qdue wait">⏳ Sendt til godkjenning</span></div>
+        <button class="btn ghost qbtn" data-uncommit="${q.id}">Angre</button>
+      </div>`;
+    }
+    return `<div class="qcard approved">
+      <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b>${pts}</div>
+      <div class="qmeta"><span class="qdue ok">✅ Godkjent · lagt i potten</span></div>
     </div>`;
+  };
+
+  const section = (title, list, kind) =>
+    list.length ? `<div class="sec">${title}</div>${list.map((q) => questCard(q, kind)).join('')}` : '';
+
+  host.innerHTML = `
+    ${pending ? `<div class="qbanner">⏳ ${pending} 🪙 venter på godkjenning</div>` : ''}
+    ${section(`Å gjøre (${open.length})`, open, 'open')}
+    ${section('Venter på godkjenning', done, 'done')}
+    ${section('Godkjent', approved, 'approved')}`;
+
+  host.querySelectorAll('[data-commit]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        App.state = commitQuest(App.state, { id: b.dataset.commit, actor: 'son' }, { now: nowIso(), id: newId() });
+        save();
+        renderSon();
+      })
+  );
+  host.querySelectorAll('[data-uncommit]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        App.state = uncommitQuest(App.state, { id: b.dataset.uncommit, actor: 'son' }, { now: nowIso(), id: newId() });
+        save();
+        renderSon();
+      })
+  );
 }
 
 function renderShopPage(host) {
@@ -473,15 +555,20 @@ function renderPin() {
 let editWeekday = 'mon';
 
 function renderParentHome() {
+  const pendingQuests = activeQuests(App.state).filter((q) => q.status === 'done').length;
   const tabs = [
     ['uke', 'Uke'],
     ['dag', 'Dag'],
     ['timeplan', 'Timeplan'],
+    ['quests', 'Quests'],
     ['poeng', 'Poeng'],
     ['logg', 'Logg'],
   ];
   const bar = tabs
-    .map(([k, l]) => `<button class="t ${App.parentTab === k ? 'on' : ''}" data-tab="${k}">${l}</button>`)
+    .map(([k, l]) => {
+      const badge = k === 'quests' && pendingQuests ? `<span class="navbadge">${pendingQuests}</span>` : '';
+      return `<button class="t ${App.parentTab === k ? 'on' : ''}" data-tab="${k}">${l}${badge}</button>`;
+    })
     .join('');
   el.innerHTML = `
     <div class="topbar"><span class="muted">👨‍👩‍👦 Forelder</span>
@@ -500,6 +587,7 @@ function renderParentHome() {
   if (App.parentTab === 'uke') return renderUkeTab(host);
   if (App.parentTab === 'dag') return renderDayBody(host);
   if (App.parentTab === 'timeplan') return renderTimeplanTab(host);
+  if (App.parentTab === 'quests') return renderQuestsTab(host);
   if (App.parentTab === 'poeng') return renderPoengTab(host);
   if (App.parentTab === 'logg') return renderLoggTab(host);
 }
@@ -697,6 +785,135 @@ function renderTimeplanTab(host) {
   };
 }
 
+// Forelder: godkjenningskø + opprett/rediger + aktive quests.
+function renderQuestsTab(host) {
+  const s = App.state;
+  const today = isoDate(new Date());
+  const quests = activeQuests(s);
+  const done = quests.filter((q) => q.status === 'done');
+  const open = quests.filter((q) => q.status === 'open');
+  const approved = quests.filter((q) => q.status === 'approved');
+  const editing = App.editQuestId ? quests.find((q) => q.id === App.editQuestId) : null;
+
+  const dueTxt = (due) => {
+    if (!due) return 'ingen frist';
+    const [, m, d] = due.split('-');
+    return `${Number(d)}.${Number(m)}`;
+  };
+
+  const queueRows = done
+    .map(
+      (q) => `<div class="qcard done">
+        <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b><span class="qpts">+${q.points} 🪙</span></div>
+        ${q.desc ? `<div class="qdesc">${escapeHtml(q.desc)}</div>` : ''}
+        <div class="qmeta muted" style="font-size:.74rem">Frist: ${dueTxt(q.due)}</div>
+        <div class="qrow">
+          <button class="btn qbtn" data-approve="${q.id}">✅ Godkjenn</button>
+          <button class="btn ghost qbtn" data-reject="${q.id}">↩︎ Send tilbake</button>
+        </div>
+      </div>`
+    )
+    .join('');
+
+  const activeRows = [...open, ...approved]
+    .map((q) => {
+      const overdue = isQuestOverdue(q, today);
+      const status =
+        q.status === 'approved'
+          ? '<span class="qdue ok">✅ Godkjent</span>'
+          : overdue
+          ? '<span class="qdue over">⏰ Forfalt</span>'
+          : `<span class="muted" style="font-size:.74rem">Frist: ${dueTxt(q.due)}</span>`;
+      return `<div class="qcard ${q.status === 'approved' ? 'approved' : ''}">
+        <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b><span class="qpts">+${q.points} 🪙</span></div>
+        ${q.desc ? `<div class="qdesc">${escapeHtml(q.desc)}</div>` : ''}
+        <div class="qmeta">${status}</div>
+        <div class="qrow">
+          <button class="btn ghost qbtn" data-edit="${q.id}">✏️ Rediger</button>
+          <button class="btn ghost qbtn danger" data-del="${q.id}">🗑️ Slett</button>
+        </div>
+      </div>`;
+    })
+    .join('');
+
+  host.innerHTML = `
+    ${done.length ? `<div class="sec">Til godkjenning (${done.length})</div>${queueRows}` : ''}
+
+    <div class="sec">${editing ? 'Rediger quest' : 'Ny quest'}</div>
+    <div class="card" style="padding:12px">
+      <input class="inp wide" id="qTitle" placeholder="Tittel (f.eks. Rydde garasjen)" style="width:100%;margin-bottom:8px" value="${editing ? escapeHtml(editing.title) : ''}">
+      <textarea class="inp wide" id="qDesc" placeholder="Beskrivelse (valgfri)" rows="2" style="width:100%;margin-bottom:8px;resize:vertical">${editing ? escapeHtml(editing.desc || '') : ''}</textarea>
+      <div class="qrow" style="margin-bottom:8px">
+        <label class="lbl" style="flex:1">Poeng
+          <input class="inp" id="qPoints" type="number" min="0" value="${editing ? editing.points : ''}" placeholder="0" style="width:100%"></label>
+        <label class="lbl" style="flex:1">Frist
+          <input class="inp" id="qDue" type="date" value="${editing ? editing.due || '' : ''}" style="width:100%"></label>
+      </div>
+      <div class="qrow">
+        <button class="btn qbtn" id="qSave">${editing ? '💾 Lagre endringer' : '➕ Legg til quest'}</button>
+        ${editing ? '<button class="btn ghost qbtn" id="qCancel">Avbryt</button>' : ''}
+      </div>
+    </div>
+
+    ${open.length + approved.length ? `<div class="sec">Aktive quests</div>${activeRows}` : ''}`;
+
+  host.querySelectorAll('[data-approve]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        App.state = approveQuest(App.state, { id: b.dataset.approve, actor: 'parent' }, { now: nowIso(), id: newId() });
+        save();
+        routeToView();
+      })
+  );
+  host.querySelectorAll('[data-reject]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        App.state = rejectQuest(App.state, { id: b.dataset.reject, actor: 'parent' }, { now: nowIso(), id: newId() });
+        save();
+        routeToView();
+      })
+  );
+  host.querySelectorAll('[data-edit]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        App.editQuestId = b.dataset.edit;
+        routeToView();
+      })
+  );
+  host.querySelectorAll('[data-del]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        App.state = deleteQuest(App.state, { id: b.dataset.del, actor: 'parent' }, { now: nowIso(), id: newId() });
+        if (App.editQuestId === b.dataset.del) App.editQuestId = null;
+        save();
+        routeToView();
+      })
+  );
+  document.getElementById('qSave').onclick = () => {
+    const title = document.getElementById('qTitle').value.trim();
+    if (!title) return;
+    const desc = document.getElementById('qDesc').value.trim();
+    const points = Number(document.getElementById('qPoints').value) || 0;
+    const dueRaw = document.getElementById('qDue').value;
+    const due = dueRaw || null;
+    const ctx = { now: nowIso(), id: newId() };
+    if (App.editQuestId) {
+      App.state = updateQuest(App.state, { id: App.editQuestId, patch: { title, desc, points, due }, actor: 'parent' }, ctx);
+      App.editQuestId = null;
+    } else {
+      App.state = addQuest(App.state, { title, desc, points, due, actor: 'parent' }, ctx);
+    }
+    save();
+    routeToView();
+  };
+  const cancel = document.getElementById('qCancel');
+  if (cancel)
+    cancel.onclick = () => {
+      App.editQuestId = null;
+      routeToView();
+    };
+}
+
 function renderPoengTab(host) {
   const s = App.state,
     v = s.settings.medalValues;
@@ -823,6 +1040,18 @@ function renderLoggTab(host) {
         txt = `🔒 Avsluttet uka (fra ${fmtDayLabel(e.week).dm})`;
       } else if (e.type === 'weekopen') {
         txt = `🔓 Åpnet uka igjen (fra ${fmtDayLabel(e.week).dm})`;
+      } else if (e.type === 'quest') {
+        const t = e.title ? `«${escapeHtml(e.title)}»` : 'quest';
+        const map = {
+          create: `⭐ Opprettet ${t}`,
+          edit: `✏️ Redigerte ${t}`,
+          delete: `🗑️ Slettet ${t}`,
+          done: `🔒 Meldte ferdig ${t}`,
+          undo: `↩︎ Angret ferdigmelding ${t}`,
+          approve: `✅ Godkjente ${t}${e.points ? ` · <b>+${e.points}</b>` : ''}`,
+          reject: `↩︎ Sendte tilbake ${t}${e.note ? ' · «' + escapeHtml(e.note) + '»' : ''}`,
+        };
+        txt = map[e.action] || `Quest ${t}`;
       } else if (e.type === 'resync') {
         const dl = fmtDayLabel(e.day);
         txt =
