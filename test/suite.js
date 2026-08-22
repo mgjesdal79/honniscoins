@@ -394,6 +394,96 @@ export function runTests() {
       eq('dropped talt', s2.log[0].dropped, 1);
     },
 
+    // --- sidequests ---
+    function quests_default_and_migrate() {
+      eq('defaultState har quests', L.defaultState().quests, []);
+      const s = L.defaultState();
+      delete s.quests;
+      eq('migrate fyller quests', L.migrate(s, '2026-08-22').quests, []);
+    },
+    function addQuest_creates_open() {
+      const s0 = L.defaultState();
+      const s = L.addQuest(s0, { title: 'Rydde', desc: 'garasjen', points: 15, due: '2026-08-24', actor: 'parent' }, { now: 't1', id: 'q1' });
+      const q = s.quests[0];
+      eq('id', q.id, 'q1');
+      eq('status open', q.status, 'open');
+      eq('points', q.points, 15);
+      eq('due', q.due, '2026-08-24');
+      eq('logg create', s.log[0].action, 'create');
+      eq('input urørt', s0.quests, []);
+    },
+    function commit_and_approve_adds_points() {
+      let s = L.defaultState();
+      s = L.addQuest(s, { title: 'Søpla', points: 5, due: null }, { now: 't1', id: 'q1' });
+      eq('åpen teller ikke', L.questPointsTotal(s), 0);
+      s = L.commitQuest(s, { id: 'q1', actor: 'son' }, { now: 't2', id: 'l1' });
+      eq('done -> venter', s.quests[0].status, 'done');
+      eq('venter teller ikke i saldo', L.questPointsTotal(s), 0);
+      eq('venter-poeng', L.questPointsPending(s), 5);
+      eq('saldo før godkjenning', L.computeBalance(s), 0);
+      s = L.approveQuest(s, { id: 'q1', actor: 'parent' }, { now: 't3', id: 'l2' });
+      eq('approved', s.quests[0].status, 'approved');
+      eq('godkjent teller', L.questPointsTotal(s), 5);
+      eq('saldo etter godkjenning', L.computeBalance(s), 5);
+      eq('approvedAt satt', s.quests[0].approvedAt, 't3');
+    },
+    function uncommit_returns_to_open() {
+      let s = L.defaultState();
+      s = L.addQuest(s, { title: 'X', points: 3 }, { now: 't1', id: 'q1' });
+      s = L.commitQuest(s, { id: 'q1' }, { now: 't2', id: 'l1' });
+      s = L.uncommitQuest(s, { id: 'q1' }, { now: 't3', id: 'l2' });
+      eq('tilbake til open', s.quests[0].status, 'open');
+      eq('doneAt nullstilt', s.quests[0].doneAt, null);
+    },
+    function reject_returns_to_open() {
+      let s = L.defaultState();
+      s = L.addQuest(s, { title: 'X', points: 3 }, { now: 't1', id: 'q1' });
+      s = L.commitQuest(s, { id: 'q1' }, { now: 't2', id: 'l1' });
+      s = L.rejectQuest(s, { id: 'q1', note: 'ikke ferdig', actor: 'parent' }, { now: 't3', id: 'l2' });
+      eq('sendt tilbake -> open', s.quests[0].status, 'open');
+      eq('teller ikke', L.questPointsTotal(s), 0);
+      eq('logg reject', s.log.find((e) => e.action === 'reject').note, 'ikke ferdig');
+    },
+    function update_and_delete_quest() {
+      let s = L.defaultState();
+      s = L.addQuest(s, { title: 'X', points: 3 }, { now: 't1', id: 'q1' });
+      s = L.updateQuest(s, { id: 'q1', patch: { title: 'Y', points: 9 } }, { now: 't2', id: 'l1' });
+      eq('tittel endret', s.quests[0].title, 'Y');
+      eq('poeng endret', s.quests[0].points, 9);
+      s = L.deleteQuest(s, { id: 'q1' }, { now: 't3', id: 'l2' });
+      eq('tombstone', s.quests[0].removed, true);
+      eq('aktive filtrerer bort', L.activeQuests(s).length, 0);
+    },
+    function overdue_derived() {
+      const q = { id: 'q1', due: '2026-08-20', status: 'open' };
+      ok('forfalt', L.isQuestOverdue(q, '2026-08-22') === true);
+      ok('ikke forfalt før frist', L.isQuestOverdue(q, '2026-08-19') === false);
+      ok('godkjent er aldri forfalt', L.isQuestOverdue({ ...q, status: 'approved' }, '2026-08-22') === false);
+      ok('uten frist -> ikke forfalt', L.isQuestOverdue({ id: 'q', status: 'open', due: null }, '2026-08-22') === false);
+    },
+    function merge_quests_lww() {
+      const a = L.defaultState();
+      const b = L.defaultState();
+      a.quests = [{ id: 'q1', title: 'X', status: 'done', points: 5, updatedAt: '2026-01-01' }];
+      b.quests = [
+        { id: 'q1', title: 'X', status: 'approved', points: 5, updatedAt: '2026-02-01' },
+        { id: 'q2', title: 'Ny', status: 'open', points: 2, updatedAt: '2026-01-05' },
+      ];
+      const m = L.mergeState(a, b);
+      const q1 = m.quests.find((q) => q.id === 'q1');
+      eq('nyere status vinner', q1.status, 'approved');
+      eq('ny quest tas med', m.quests.length, 2);
+      // motsatt rekkefølge gir samme resultat
+      eq('rekkefølge-uavhengig', L.mergeState(b, a).quests.find((q) => q.id === 'q1').status, 'approved');
+    },
+    function merge_quest_delete_wins() {
+      const a = L.defaultState();
+      const b = L.defaultState();
+      a.quests = [{ id: 'q1', title: 'X', status: 'open', points: 5, updatedAt: '2026-02-01', removed: true }];
+      b.quests = [{ id: 'q1', title: 'X', status: 'open', points: 5, updatedAt: '2026-01-01' }];
+      eq('nyere sletting vinner', L.mergeState(a, b).quests[0].removed, true);
+    },
+
     function logic_module_loads() {
       ok('logic module loads', L.APP_LOGIC_VERSION === 1);
     },

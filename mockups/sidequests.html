@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Honniscoins – Sidequests-skisse</title>
+<style>
+  :root{
+    --bg:#000;--surface:#0b1a33;--surface-2:#0f2547;--line:#1c3a63;
+    --text:#fff;--muted:#9fb3cf;--accent:#3b6fe0;
+    --gold:#ffce3a;--good:#3ddc97;--bad:#ff8080;--radius:16px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#05070d;color:var(--text);font-family:var(--font);padding:26px}
+  h1{font-size:1.2rem;margin:0 0 4px}
+  .lead{color:var(--muted);font-size:.85rem;margin:0 0 22px;max-width:760px}
+  .frames{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+  .phone{width:330px;background:#050505;border:1px solid var(--line);border-radius:26px;padding:14px 14px 10px;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+  .cap{font-size:.74rem;color:var(--muted);text-align:center;margin:2px 0 10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase}
+  .brand{display:flex;align-items:center;justify-content:center;gap:8px;margin:2px 0 8px}
+  .brand .logo{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--gold),#ff9d2f);display:flex;align-items:center;justify-content:center;font-size:.9rem}
+  .brand b{font-size:1rem}
+  .topbar{display:flex;justify-content:space-between;align-items:center;font-size:.72rem;color:var(--muted);margin-bottom:8px}
+  .sec{font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:16px 2px 8px;font-weight:800;display:flex;align-items:center;gap:6px}
+  .badge{background:var(--accent);color:#fff;border-radius:20px;padding:0 7px;font-size:.66rem;font-weight:800;line-height:1.5}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
+  .qhead{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .qtitle{font-weight:700;font-size:.98rem}
+  .qdesc{color:var(--muted);font-size:.8rem;margin:3px 0 9px}
+  .pts{flex:none;background:#152c1f;color:var(--good);border:1px solid var(--good);border-radius:10px;padding:3px 9px;font-weight:800;font-size:.82rem;white-space:nowrap}
+  .meta{display:flex;align-items:center;gap:8px;font-size:.74rem;color:var(--muted);margin-bottom:10px}
+  .due{display:inline-flex;align-items:center;gap:4px}
+  .due.warn{color:var(--gold)}
+  .due.over{color:var(--bad);font-weight:800}
+  .btn{display:block;width:100%;background:var(--accent);color:#fff;border:none;border-radius:11px;padding:11px;font-weight:800;font-size:.92rem;font-family:var(--font);cursor:pointer}
+  .btn.good{background:var(--good);color:#05231a}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text)}
+  .btn.sm{padding:9px;font-size:.82rem}
+  .brow{display:flex;gap:8px}
+  .brow .btn{flex:1}
+  .statusline{display:flex;align-items:center;gap:7px;font-size:.82rem;font-weight:700}
+  .statusline.wait{color:var(--gold)}
+  .statusline.ok{color:var(--good)}
+  .undo{background:none;border:none;color:var(--muted);text-decoration:underline;font-size:.74rem;cursor:pointer;padding:0}
+  .over-tag{background:#331014;color:var(--bad);border:1px solid var(--bad);border-radius:8px;padding:1px 7px;font-size:.66rem;font-weight:800}
+  .pagenav{display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px;margin-top:12px}
+  .pagenav .pg{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 3px;border-radius:10px;background:transparent;color:var(--muted);font-size:.62rem;font-weight:800}
+  .pagenav .pg .i{font-size:1.1rem}
+  .pagenav .pg.on{background:var(--accent);color:#fff}
+  .pagenav .pg .n{position:relative}
+  .pagenav .pg .n .b{position:absolute;top:-4px;right:-12px;background:var(--bad);color:#fff;border-radius:20px;font-size:.56rem;padding:0 4px;font-weight:800}
+  .tabbar{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px;margin:2px 0 8px}
+  .tabbar .t{flex:1;padding:8px 2px;border-radius:9px;font-size:.7rem;font-weight:800;color:var(--muted);background:transparent;text-align:center}
+  .tabbar .t.on{background:var(--accent);color:#fff}
+  .tabbar .t .b{background:var(--bad);color:#fff;border-radius:20px;font-size:.58rem;padding:0 4px;margin-left:3px}
+  .inp{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:9px 10px;color:#fff;font-family:var(--font);font-size:.85rem;margin-bottom:8px}
+  .inrow{display:flex;gap:8px}
+  .inrow .inp{margin-bottom:8px}
+  .hint{color:var(--muted);font-size:.72rem;margin:-2px 2px 10px}
+  .note{max-width:760px;color:var(--muted);font-size:.82rem;margin-top:26px;line-height:1.5}
+  .note b{color:#fff}
+</style>
+</head>
+<body>
+  <h1>Honniscoins · Sidequests-skisse</h1>
+  <p class="lead">Enkeltoppgaver hjemme. Forelder oppretter (tittel, beskrivelse, poeng, frist). Sønn committer når han er ferdig → forelder godkjenner (poeng inn i potten) eller sender tilbake.</p>
+
+  <div class="frames">
+
+    <!-- 1) SØNN: Sidequests-liste -->
+    <div class="phone">
+      <div class="cap">Sønn · Sidequests</div>
+      <div class="brand"><span class="logo">🪙</span><b>Honniscoins</b></div>
+      <div class="topbar"><span>🧒 Sønn</span><span>Bytt bruker</span></div>
+
+      <div class="sec">⭐ Å gjøre</div>
+
+      <div class="card">
+        <div class="qhead"><div class="qtitle">Rydde garasjen</div><div class="pts">+15 🪙</div></div>
+        <div class="qdesc">Sorter verktøy, kost gulvet og sett sykler på plass.</div>
+        <div class="meta"><span class="due over">⏰ Forfalt · frist 20.8</span> <span class="over-tag">FORFALT</span></div>
+        <button class="btn">🔒 Marker som ferdig</button>
+      </div>
+
+      <div class="card">
+        <div class="qhead"><div class="qtitle">Støvsuge stua</div><div class="pts">+8 🪙</div></div>
+        <div class="qdesc">Husk under sofaen.</div>
+        <div class="meta"><span class="due warn">⏰ 2 dager igjen · 24.8</span></div>
+        <button class="btn">🔒 Marker som ferdig</button>
+      </div>
+
+      <div class="sec">⏳ Venter på godkjenning</div>
+      <div class="card">
+        <div class="qhead"><div class="qtitle">Ta ut søpla</div><div class="pts">+5 🪙</div></div>
+        <div class="statusline wait">⏳ Sendt til godkjenning</div>
+        <div style="margin-top:8px"><button class="undo">Angre – ikke ferdig likevel</button></div>
+      </div>
+
+      <div class="sec">✅ Godkjent (denne uka)</div>
+      <div class="card" style="opacity:.75">
+        <div class="qhead"><div class="qtitle">Vaske badet</div><div class="pts">+12 🪙</div></div>
+        <div class="statusline ok">✅ Godkjent · lagt i potten</div>
+      </div>
+
+      <div class="pagenav">
+        <div class="pg"><span class="i">📅</span>Uken</div>
+        <div class="pg"><span class="i">🪙</span>Poeng</div>
+        <div class="pg on"><span class="i">⭐</span><span class="n">Sidequests<span class="b">1</span></span></div>
+        <div class="pg"><span class="i">🛒</span>Shop</div>
+      </div>
+    </div>
+
+    <!-- 2) SØNN: quest committed detalj -->
+    <div class="phone">
+      <div class="cap">Sønn · «Marker ferdig» trykket</div>
+      <div class="brand"><span class="logo">🪙</span><b>Honniscoins</b></div>
+      <div class="topbar"><span>🧒 Sønn</span><span>Bytt bruker</span></div>
+
+      <div class="card" style="border-color:var(--gold)">
+        <div class="qhead"><div class="qtitle">Støvsuge stua</div><div class="pts">+8 🪙</div></div>
+        <div class="qdesc">Husk under sofaen.</div>
+        <div class="statusline wait">⏳ Sendt til godkjenning</div>
+        <div class="hint" style="margin:8px 2px 10px">Mamma/pappa får den nå. Poengene legges i potten når den er godkjent.</div>
+        <button class="undo">Angre – ikke ferdig likevel</button>
+      </div>
+
+      <div class="sec">Slik ser potten ut</div>
+      <div class="card">
+        <div style="font-size:1.7rem;font-weight:800">128 <small style="font-size:.8rem;color:var(--muted)">Honniscoins</small></div>
+        <div style="color:var(--muted);font-size:.78rem">+8 venter på godkjenning</div>
+      </div>
+
+      <div class="note" style="margin-top:14px;font-size:.76rem">
+        Ventende poeng vises som «venter», men <b>teller ikke</b> i saldoen før forelder har godkjent.
+      </div>
+    </div>
+
+    <!-- 3) FORELDER: Quests-fane -->
+    <div class="phone">
+      <div class="cap">Forelder · Quests-fane</div>
+      <div class="topbar"><span>👨‍👩‍👦 Forelder</span><span>Bytt bruker</span></div>
+      <div class="tabbar">
+        <div class="t">Uke</div><div class="t">Dag</div>
+        <div class="t on">Quests<span class="b">1</span></div>
+        <div class="t">Poeng</div><div class="t">Logg</div>
+      </div>
+
+      <div class="sec">⏳ Til godkjenning <span class="badge">1</span></div>
+      <div class="card" style="border-color:var(--gold)">
+        <div class="qhead"><div class="qtitle">Ta ut søpla</div><div class="pts">+5 🪙</div></div>
+        <div class="meta"><span>Ferdigmeldt i dag 15:20</span></div>
+        <div class="brow">
+          <button class="btn good sm">✅ Godkjenn</button>
+          <button class="btn ghost sm">↩︎ Send tilbake</button>
+        </div>
+      </div>
+
+      <div class="sec">➕ Ny sidequest</div>
+      <div class="card">
+        <input class="inp" placeholder="Tittel (f.eks. Rydde rommet)">
+        <input class="inp" placeholder="Beskrivelse">
+        <div class="inrow">
+          <input class="inp" placeholder="Poeng" style="flex:1" value="10">
+          <input class="inp" placeholder="Frist" style="flex:1.4" value="24.8.2026">
+        </div>
+        <button class="btn sm">Opprett quest</button>
+        <div class="hint" style="margin:8px 2px 0">Poengtrapp (flere trinn per quest) kommer senere.</div>
+      </div>
+
+      <div class="sec">Aktive quests</div>
+      <div class="card" style="padding:10px 12px">
+        <div class="qhead"><div class="qtitle" style="font-size:.9rem">Rydde garasjen <span class="over-tag">FORFALT</span></div><div class="pts">+15</div></div>
+        <div class="meta" style="margin:6px 0 0"><span>Frist 20.8</span> · <span class="undo">Rediger</span> · <span class="undo">Slett</span></div>
+      </div>
+      <div class="card" style="padding:10px 12px">
+        <div class="qhead"><div class="qtitle" style="font-size:.9rem">Støvsuge stua</div><div class="pts">+8</div></div>
+        <div class="meta" style="margin:6px 0 0"><span>Frist 24.8</span> · <span class="undo">Rediger</span> · <span class="undo">Slett</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="note">
+    <b>Statusflyt:</b> åpen → sønn «Marker ferdig» (⏳ venter) → forelder <b>Godkjenn</b> (poeng i potten ✅) eller <b>Send tilbake</b> (→ åpen igjen). Frist passert = rødt «Forfalt», men fortsatt mulig å gjøre/godkjenne.<br>
+    <b>Badge-tall</b> på Sidequests (sønn) = antall åpne å gjøre. På Quests (forelder) = antall som venter på godkjenning.<br>
+    <b>Arkitektur:</b> ny <code>quests</code>-liste (LWW per quest ved fletting). Poeng teller kun ved <code>status = godkjent</code>. Ett poengtall nå; trappetrinn er en ren utvidelse senere (felt <code>tiers</code> + valgt trinn), uten datamigrering.
+  </div>
+</body>
+</html>
