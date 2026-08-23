@@ -64,8 +64,40 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
 - **Spec:** `docs/superpowers/specs/2026-08-22-honniscoins-sidequests-design.md`.
   Mockup: `mockups/sidequests.html`.
 
+## Lekser (skolelekser per dag)
+- **Konsept:** forelder registrerer lekser per dag (fag, tekst, poeng, evt. «hele uka»). Sønn
+  «committer» når ferdig → forelder godkjenner (poeng i potten) eller sender tilbake. Samme
+  livssyklus som Sidequests.
+- **Datamodell:** topp-nivå `homework: []`. Hver: `{id, date, subject, text, points, status,
+  wholeWeek, hidden, source, docendoUid, edited, doneAt, approvedAt, createdAt, createdBy,
+  updatedAt, removed}`. `status ∈ {open, done, approved}`. `source ∈ {manual, docendo}`.
+- **Poeng teller KUN ved `status==='approved' && !hidden`** (`homeworkPointsTotal`, inngår i
+  `computeBalance`). Ventende (`done`) vises separat via `homeworkPointsPending`, teller ikke i
+  saldo. `wholeWeek` er kun et visnings-merke («🗓 hele uka») — leksa ligger som en ordinær lekse
+  på sin dag, IKKE en pinnet seksjon.
+- **Innstillinger:** `settings.homeworkPoints` (default 5, brukes som standard-poeng ved add),
+  `settings.docendoIcalId` (default `519a0908-ed7d-47ed-8667-dea07343b693`, for Fase 2).
+- **Livssyklus (logic.js, rene fn):** `addHomework`/`updateHomework`/`deleteHomework` (forelder;
+  `updateHomework` setter `edited:true`), `commitHomework`/`uncommitHomework` (sønn: open↔done),
+  `approveHomework`/`rejectHomework` (forelder: done→approved / done→open), `hideHomework`
+  (skjul/vis uten sletting). Avledet: `activeHomework` (!removed), `homeworkForWeek(state, iso)`
+  (!hidden, sortert dato→fag). Sletting = `removed:true`-tombstone. Alle logger `type:'homework'`.
+- **Fletting:** `homework` flettes **LWW per id** på `updatedAt` (`mergeHomeworkList`) — som
+  quests, ikke union — så statusendringer og sletting vinner nyest.
+- **UI:** sønn i **Uken**-siden (`homeworkSectionHtml`, dag/uke-toggle, «🗓 hele uka»-merke);
+  forelder i **Dag**-fanen (`parentHomeworkHtml`: godkjenningskø + opprett/rediger-skjema med
+  «Gjelder hele uka»-avkryssing + liste med rediger/skjul/slett). Poeng-siden viser
+  `homeworkPointsPending` («📚 X 🪙 fra lekser venter på godkjenning»).
+- **Docendo-import = Fase 2 (utsatt):** auto-import fra Docendo ICS-feed (proxy-edge-function +
+  `parseIcs`/`homeworkFromIcs`/`mergeHomeworkImport` + «Hent lekser»-knapp) er planlagt, ikke
+  bygget. Lekser legges foreløpig inn manuelt (evt. seedet i rom via engangs-skript).
+- **Spec:** `docs/superpowers/specs/2026-08-23-honniscoins-lekser-design.md`.
+  Plan: `docs/superpowers/plans/2026-08-23-honniscoins-lekser.md` (Fase 1 = Task 1–11 manuelt,
+  Fase 2 = Task 12–15 Docendo). Mockup: `mockups/lekser-v2.html`.
+
 ## Testing
-- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 161 tester per nå (inkl. sidequests).
+- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 195 tester per nå (inkl. sidequests
+  og lekser).
 - **Kjør:** `/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc -m test/run-jsc.js`
   (jsc støtter ES-moduler; ingen node/deno/bun i miljøet).
 - Nettleser: `test/tests.html` (tynn renderer av samme suite).
