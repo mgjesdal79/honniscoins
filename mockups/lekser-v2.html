@@ -50,6 +50,7 @@
   .hwtop{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
   .subj{font-weight:800;font-size:.9rem}
   .daytag{font-size:.66rem;color:var(--muted);font-weight:700;background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:1px 6px}
+  .weektag{font-size:.64rem;color:#c3b9ff;font-weight:800;background:#171438;border:1px solid #3a2f7a;border-radius:7px;padding:1px 6px;white-space:nowrap}
   .pts{flex:none;background:#152c1f;color:var(--good);border:1px solid var(--good);border-radius:10px;padding:2px 8px;font-weight:800;font-size:.76rem;white-space:nowrap}
   .hwtext{color:var(--muted);font-size:.79rem;margin:5px 0 9px;line-height:1.4}
   .btn{display:block;width:100%;background:var(--accent);color:#fff;border:none;border-radius:11px;padding:9px;font-weight:800;font-size:.86rem;font-family:var(--font);cursor:pointer}
@@ -94,8 +95,9 @@
   <p class="lead">
     Oppdatert etter tilbakemelding: <b>sticky topp</b> (ukenr + dagstripe blir stående – scroll i
     rammen for å se det), <b>default dag-for-dag</b> med <b>toggle til «Hele uka (fag)»</b>,
-    <b>«gjelder hele uka»</b>-lekser (lilla, 📌), og <b>redigerbare importerte lekser</b> der dine
-    endringer beskyttes mot ny import («endret»-merke).
+    lekser som gjelder hele uka ligger som <b>vanlig lekse på sin dag</b> med et lite
+    <b>«🗓 hele uka»</b>-merke (ikke egen pinned-seksjon), og <b>redigerbare importerte lekser</b>
+    der dine endringer beskyttes mot ny import («endret»-merke).
   </p>
 
   <div class="frames">
@@ -118,14 +120,12 @@
           <div class="seg"><span class="s on">📅 Dag for dag</span><span class="s">📚 Hele uka (fag)</span></div>
         </div>
 
-        <div class="sec"><span class="pin">📌 Gjelder hele uka</span></div>
-        <div class="hwcard week">
-          <div class="hwtop"><span class="subj">KRLE <span class="pin">📌</span></span><span class="pts">+10 🪙</span></div>
+        <div class="sec">📚 Mandag 24. <span class="badge">3</span></div>
+        <div class="hwcard">
+          <div class="hwtop"><span class="subj">KRLE <span class="weektag">🗓 hele uka</span></span><span class="pts">+10 🪙</span></div>
           <div class="hwtext">Gjør ferdig forklaringene på kulturarv-ordene <b>innen fredag</b>.</div>
           <button class="btn good sm">✓ Gjort</button>
         </div>
-
-        <div class="sec">📚 Mandag 24. <span class="badge">2</span></div>
         <div class="hwcard">
           <div class="hwtop"><span class="subj">Tysk</span><span class="pts">+5 🪙</span></div>
           <div class="hwtext">Kunne hilse og presentere seg selv. Øv på tall 0–20. Ha med PC og pennal.</div>
@@ -159,8 +159,9 @@
           <div class="seg"><span class="s">📅 Dag for dag</span><span class="s on">📚 Hele uka (fag)</span></div>
         </div>
 
-        <div class="hwcard week">
-          <div class="hwtop"><span class="subj">KRLE <span class="pin">📌 hele uka</span></span><span class="pts">+10 🪙</span></div>
+        <div class="subjhead"><span class="dot"></span>KRLE</div>
+        <div class="hwcard">
+          <div class="hwtop"><span class="subj">KRLE <span class="weektag">🗓 hele uka</span></span><span class="pts">+10 🪙</span></div>
           <div class="hwtext">Gjør ferdig forklaringene på kulturarv-ordene innen fredag.</div>
           <button class="btn good sm">✓ Gjort</button>
         </div>
@@ -222,7 +223,7 @@
           <input class="inp" value="Tysk">
           <textarea class="inp">Kunne hilse og presentere seg selv. Øv på tall 0–20. Ha med PC og pennal.</textarea>
           <div class="ptsinp" style="margin-bottom:10px">Poeng + <input value="5"> 🪙</div>
-          <div class="chk"><span class="box"></span>📌 Gjelder hele uka</div>
+          <div class="chk"><span class="box"></span>🗓 Gjelder hele uka (vises med «hele uka»-merke)</div>
           <div class="brow"><button class="btn sm">💾 Lagre</button><button class="btn ghost sm">Avbryt</button></div>
           <div class="note" style="margin:9px 0 0">Når du lagrer, merkes leksen «endret» – ny import fra Docendo lar den stå urørt.</div>
         </div>
