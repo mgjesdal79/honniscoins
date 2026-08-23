@@ -31,6 +31,8 @@ export function defaultState() {
       krPerCoin: 1,
       timetable: { mon: [], tue: [], wed: [], thu: [], fri: [] },
       bonus: JSON.parse(JSON.stringify(DEFAULT_BONUS)),
+      homeworkPoints: 5,
+      docendoIcalId: '519a0908-ed7d-47ed-8667-dea07343b693',
       schemaVersion: 2,
       updatedAt: null,
     },
@@ -38,6 +40,7 @@ export function defaultState() {
     weekLocks: {},
     payouts: [],
     quests: [],
+    homework: [],
     log: [],
   };
 }
@@ -64,7 +67,8 @@ export function computeBalance(state) {
     computeEarned(state) +
     streakBonusTotal(state) +
     weeklyStreakBonusTotal(state) +
-    questPointsTotal(state) -
+    questPointsTotal(state) +
+    homeworkPointsTotal(state) -
     computeSpent(state)
   );
 }
@@ -427,6 +431,9 @@ export function migrate(state, todayIso) {
   }
   if (!s.weekLocks) s.weekLocks = {};
   if (!Array.isArray(s.quests)) s.quests = [];
+  if (!Array.isArray(s.homework)) s.homework = [];
+  if (s.settings.homeworkPoints == null) s.settings.homeworkPoints = 5;
+  if (!s.settings.docendoIcalId) s.settings.docendoIcalId = '519a0908-ed7d-47ed-8667-dea07343b693';
   const stamp = (todayIso || '2000-01-01') + 'T00:00:00.000Z';
   for (const d of Object.keys(s.days || {})) {
     const day = s.days[d];
@@ -728,6 +735,8 @@ export function mergeState(local, remote) {
   out.payouts = unionById(local.payouts, remote.payouts);
   // quests: LWW per id på updatedAt (statusendringer/sletting vinner nyest)
   if (local.quests || remote.quests) out.quests = mergeQuestList(local.quests, remote.quests);
+  // homework: LWW per id på updatedAt (som quests)
+  if (local.homework || remote.homework) out.homework = mergeHomeworkList(local.homework, remote.homework);
   // fremtidige felt flettes allerede (bygges ikke nå):
   for (const key of ['shopItems', 'purchases']) {
     if (local[key] || remote[key]) out[key] = unionById(local[key], remote[key]);
@@ -742,6 +751,165 @@ function mergeQuestList(a = [], b = []) {
   for (const q of b || []) {
     const cur = map.get(q.id);
     if (!cur || (q.updatedAt || '') > (cur.updatedAt || '')) map.set(q.id, clone(q));
+  }
+  return [...map.values()];
+}
+
+// --- Lekser (homework) ---------------------------------------------------
+// status: 'open' -> (sønn) 'done' -> (forelder) 'approved'.
+// Poeng teller kun ved 'approved' og hidden !== true. Sletting = removed-tombstone.
+// source: 'manual' | 'docendo'. Redigert lekse (edited=true) beskyttes mot re-import.
+
+export function activeHomework(state) {
+  return (state.homework || []).filter((h) => !h.removed);
+}
+
+export function homeworkPointsTotal(state) {
+  return activeHomework(state)
+    .filter((h) => h.status === 'approved' && !h.hidden)
+    .reduce((a, h) => a + (Number(h.points) || 0), 0);
+}
+
+export function homeworkPointsPending(state) {
+  return activeHomework(state)
+    .filter((h) => h.status === 'done' && !h.hidden)
+    .reduce((a, h) => a + (Number(h.points) || 0), 0);
+}
+
+// Ikke-skjulte lekser i uka som `iso` ligger i, sortert på dato deretter fag.
+export function homeworkForWeek(state, iso) {
+  const ws = weekStartIso(iso);
+  return activeHomework(state)
+    .filter((h) => !h.hidden && h.date && weekStartIso(h.date) === ws)
+    .sort((a, b) => (a.date === b.date ? String(a.subject || '').localeCompare(String(b.subject || '')) : a.date < b.date ? -1 : 1));
+}
+
+function findHomeworkIdx(s, id) {
+  return (s.homework || []).findIndex((h) => h.id === id);
+}
+
+// Opprett lekse (forelder eller import). ctx.id blir lekse-id.
+export function addHomework(state, { date, subject = '', text = '', points, wholeWeek = false, source = 'manual', docendoUid = null, actor = 'parent' }, ctx) {
+  const s = clone(state);
+  if (!Array.isArray(s.homework)) s.homework = [];
+  const pts = points == null ? (s.settings.homeworkPoints ?? 5) : Number(points) || 0;
+  s.homework.push({
+    id: ctx.id,
+    date,
+    subject,
+    text,
+    points: pts,
+    status: 'open',
+    wholeWeek: !!wholeWeek,
+    hidden: false,
+    source,
+    docendoUid,
+    edited: false,
+    doneAt: null,
+    approvedAt: null,
+    createdAt: ctx.now,
+    createdBy: actor,
+    updatedAt: ctx.now,
+    removed: false,
+  });
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'homework', action: 'create', hw: ctx.id, subject, date });
+  return s;
+}
+
+// Rediger lekse (forelder). Setter edited=true (beskyttes mot re-import).
+export function updateHomework(state, { id, patch, actor = 'parent' }, ctx) {
+  const s = clone(state);
+  const i = findHomeworkIdx(s, id);
+  if (i < 0) return s;
+  const h = s.homework[i];
+  if ('subject' in patch) h.subject = patch.subject;
+  if ('text' in patch) h.text = patch.text;
+  if ('points' in patch) h.points = Number(patch.points) || 0;
+  if ('date' in patch) h.date = patch.date;
+  if ('wholeWeek' in patch) h.wholeWeek = !!patch.wholeWeek;
+  h.edited = true;
+  h.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'homework', action: 'edit', hw: id, subject: h.subject });
+  return s;
+}
+
+// Slett lekse (tombstone som overlever fletting).
+export function deleteHomework(state, { id, actor = 'parent' }, ctx) {
+  const s = clone(state);
+  const i = findHomeworkIdx(s, id);
+  if (i < 0) return s;
+  s.homework[i].removed = true;
+  s.homework[i].updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'homework', action: 'delete', hw: id, subject: s.homework[i].subject });
+  return s;
+}
+
+// Skjul/vis lekse (opt-out uten sletting).
+export function hideHomework(state, { id, hidden, actor = 'parent' }, ctx) {
+  const s = clone(state);
+  const i = findHomeworkIdx(s, id);
+  if (i < 0) return s;
+  s.homework[i].hidden = !!hidden;
+  s.homework[i].updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'homework', action: hidden ? 'hide' : 'show', hw: id, subject: s.homework[i].subject });
+  return s;
+}
+
+// Sønn markerer ferdig: open -> done.
+export function commitHomework(state, { id, actor = 'son' }, ctx) {
+  const s = clone(state);
+  const i = findHomeworkIdx(s, id);
+  if (i < 0) return s;
+  s.homework[i].status = 'done';
+  s.homework[i].doneAt = ctx.now;
+  s.homework[i].updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'homework', action: 'done', hw: id, subject: s.homework[i].subject });
+  return s;
+}
+
+// Sønn angrer: done -> open.
+export function uncommitHomework(state, { id, actor = 'son' }, ctx) {
+  const s = clone(state);
+  const i = findHomeworkIdx(s, id);
+  if (i < 0) return s;
+  s.homework[i].status = 'open';
+  s.homework[i].doneAt = null;
+  s.homework[i].updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'homework', action: 'undo', hw: id, subject: s.homework[i].subject });
+  return s;
+}
+
+// Forelder godkjenner: done -> approved (poeng teller nå).
+export function approveHomework(state, { id, actor = 'parent' }, ctx) {
+  const s = clone(state);
+  const i = findHomeworkIdx(s, id);
+  if (i < 0) return s;
+  s.homework[i].status = 'approved';
+  s.homework[i].approvedAt = ctx.now;
+  s.homework[i].updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'homework', action: 'approve', hw: id, subject: s.homework[i].subject, points: s.homework[i].points });
+  return s;
+}
+
+// Forelder sender tilbake: done -> open.
+export function rejectHomework(state, { id, note = '', actor = 'parent' }, ctx) {
+  const s = clone(state);
+  const i = findHomeworkIdx(s, id);
+  if (i < 0) return s;
+  s.homework[i].status = 'open';
+  s.homework[i].doneAt = null;
+  s.homework[i].updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'homework', action: 'reject', hw: id, subject: s.homework[i].subject, note });
+  return s;
+}
+
+// LWW per lekse på updatedAt. Nye lekser (kun én side) tas med.
+function mergeHomeworkList(a = [], b = []) {
+  const map = new Map();
+  for (const h of a || []) map.set(h.id, clone(h));
+  for (const h of b || []) {
+    const cur = map.get(h.id);
+    if (!cur || (h.updatedAt || '') > (cur.updatedAt || '')) map.set(h.id, clone(h));
   }
   return [...map.values()];
 }

@@ -8,6 +8,9 @@ import {
   weeklyMedalCounts, weeklyStreakBonus, silverStreakInfo, goldStreakInfo,
   activeQuests, isQuestOverdue, questPointsPending,
   addQuest, updateQuest, deleteQuest, commitQuest, uncommitQuest, approveQuest, rejectQuest,
+  homeworkForWeek, homeworkPointsPending, activeHomework,
+  addHomework, updateHomework, deleteHomework, hideHomework,
+  commitHomework, uncommitHomework, approveHomework, rejectHomework,
 } from './logic.js';
 
 const el = document.getElementById('app');
@@ -23,6 +26,8 @@ const App = {
   sonPage: localStorage.getItem('honniscoins:sonPage') || 'uken',
   mondayDismissed: false,
   editQuestId: null,
+  homeworkView: 'day', // 'day' | 'week' – sønn Uken-lekser
+  editHwId: null,      // forelder redigerer lekse
 };
 
 // --- hjelpere ------------------------------------------------------------
@@ -220,6 +225,59 @@ function weekHasContent(s, iso) {
 }
 
 // Uken: mandag-prompt + ukestrip (5 dager) + stor aktiv dag + lås.
+// Sønn: HTML for lekse-seksjonen i Uken. view = 'day' | 'week'.
+function homeworkSectionHtml(s, date, view) {
+  const week = homeworkForWeek(s, date);
+  if (week.length === 0) return '';
+  const toggle = `<div class="hwseg">
+      <button class="s ${view === 'day' ? 'on' : ''}" data-hwview="day">📅 Dag for dag</button>
+      <button class="s ${view === 'week' ? 'on' : ''}" data-hwview="week">📚 Hele uka (fag)</button>
+    </div>`;
+
+  const card = (h, showDay) => {
+    const weekTag = h.wholeWeek ? `<span class="weektag">🗓 hele uka</span>` : '';
+    const dayTag = showDay ? `<span class="hwdaytag">${WD_SHORT[weekdayKey(h.date)]} ${fmtDayLabel(h.date).dm}</span>` : '';
+    let action = '';
+    if (h.status === 'open') action = `<button class="btn good" data-hwdone="${h.id}">✓ Gjort</button>`;
+    else if (h.status === 'done') action = `<div class="muted">⏳ Sendt til godkjenning <button class="link" data-hwundo="${h.id}">Angre</button></div>`;
+    else action = `<div class="muted">✅ Godkjent · lagt i potten</div>`;
+    const cls = h.status === 'done' ? ' done' : h.status === 'approved' ? ' approved' : '';
+    return `<div class="hwcard${cls}">
+        <div class="hwtop"><span class="hwsubj">${escapeHtml(h.subject)}${weekTag}${dayTag}</span><span class="hwpts">+${h.points} 🪙</span></div>
+        ${h.text ? `<div class="hwtext">${escapeHtml(h.text)}</div>` : ''}
+        ${action}
+      </div>`;
+  };
+
+  let body = '';
+  if (view === 'day') {
+    const forDay = week.filter((h) => h.date === date);
+    body = forDay.length
+      ? forDay.map((h) => card(h, false)).join('')
+      : `<div class="muted" style="margin:2px">Ingen lekser denne dagen 🎉</div>`;
+  } else {
+    const bySubject = {};
+    for (const h of week) (bySubject[h.subject || '—'] ||= []).push(h);
+    body = Object.keys(bySubject).sort((a, b) => a.localeCompare(b)).map((subj) =>
+      `<div class="hwsubjhead">📚 ${escapeHtml(subj)}</div>` + bySubject[subj].map((h) => card(h, true)).join('')
+    ).join('');
+  }
+
+  return `<div class="hwsec">📚 Lekser</div>${toggle}${body}`;
+}
+
+function bindHomeworkSon(host) {
+  host.querySelectorAll('[data-hwview]').forEach((b) => (b.onclick = () => { App.homeworkView = b.dataset.hwview; renderSon(); }));
+  host.querySelectorAll('[data-hwdone]').forEach((b) => (b.onclick = () => {
+    App.state = commitHomework(App.state, { id: b.dataset.hwdone }, { now: nowIso(), id: newId() });
+    save(); renderSon();
+  }));
+  host.querySelectorAll('[data-hwundo]').forEach((b) => (b.onclick = () => {
+    App.state = uncommitHomework(App.state, { id: b.dataset.hwundo }, { now: nowIso(), id: newId() });
+    save(); renderSon();
+  }));
+}
+
 function renderUkenPage(host) {
   const s = App.state;
   const today = isoDate(new Date());
@@ -295,6 +353,7 @@ function renderUkenPage(host) {
       </div>
       <div style="margin-top:14px">${lockBtn}</div>
       ${closeWeekBtn}
+      ${homeworkSectionHtml(s, date, App.homeworkView)}
     </div>`;
 
   // ukesnavigasjon + dagsvalg
@@ -347,6 +406,7 @@ function renderUkenPage(host) {
       App.mondayDismissed = true;
       renderSon();
     };
+  bindHomeworkSon(host);
 }
 
 // Poeng: saldo + ukesbonus + bronse/sølv/gull-streaks.
@@ -361,6 +421,7 @@ function renderPoengPage(host) {
   const sv = silverStreakInfo(s, today.slice(0, 7), today);
   const gd = goldStreakInfo(s, today.slice(0, 7), today);
   const qPending = questPointsPending(s);
+  const hwPending = homeworkPointsPending(s);
 
   const statGrid = (info) => `
     <div class="grid3">
@@ -374,6 +435,7 @@ function renderPoengPage(host) {
       <div class="coins">${bal} <small>Honniscoins</small></div>
       <div class="kr">≈ ${formatKr(bal, s.settings.krPerCoin)} · denne uka +${wTot}</div>
       ${qPending ? `<div class="kr">⭐ ${qPending} 🪙 fra sidequests venter på godkjenning</div>` : ''}
+      ${hwPending ? `<div class="kr">📚 ${hwPending} 🪙 fra lekser venter på godkjenning</div>` : ''}
     </div>
 
     <div class="sec">Ukesbonus (denne uka)</div>
@@ -652,6 +714,104 @@ function renderUkeTab(host) {
   );
 }
 
+// Forelder: HTML for lekse-administrasjon på valgt dag.
+function parentHomeworkHtml(s, date) {
+  const all = activeHomework(s).filter((h) => h.date === date);
+  const pending = activeHomework(s).filter((h) => h.status === 'done' && !h.hidden);
+
+  const pendingHtml = pending.length
+    ? `<div class="hwsec">⏳ Lekser til godkjenning <span class="badge">${pending.length}</span></div>` +
+      pending.map((h) => `<div class="hwcard done">
+        <div class="hwtop"><span class="hwsubj">${escapeHtml(h.subject)}</span><span class="hwpts">+${h.points} 🪙</span></div>
+        ${h.text ? `<div class="hwtext">${escapeHtml(h.text)}</div>` : ''}
+        <div style="display:flex;gap:8px">
+          <button class="btn good" data-hwapprove="${h.id}" style="flex:1">✓ Godkjenn</button>
+          <button class="btn ghost" data-hwreject="${h.id}" style="flex:1">↩︎ Send tilbake</button>
+        </div></div>`).join('')
+    : '';
+
+  const editing = App.editHwId ? all.find((h) => h.id === App.editHwId) : null;
+  const editForm = editing
+    ? `<div class="hwsec">✏️ Rediger lekse ${editing.edited ? '<span class="hwedited">endret – beskyttet</span>' : ''}</div>
+       <div class="hwcard">
+         <input class="inp" id="hwSubject" value="${escapeHtml(editing.subject)}" placeholder="Fag">
+         <textarea class="inp" id="hwText" placeholder="Beskrivelse">${escapeHtml(editing.text)}</textarea>
+         <label class="muted" style="display:block;margin:2px 0 8px">Poeng <input class="inp" id="hwPoints" type="number" value="${editing.points}" style="width:80px;display:inline-block"></label>
+         <label class="muted" style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="checkbox" id="hwWeek" ${editing.wholeWeek ? 'checked' : ''}> 🗓 Gjelder hele uka</label>
+         <div style="display:flex;gap:8px">
+           <button class="btn" id="hwSave" style="flex:1">💾 Lagre</button>
+           <button class="btn ghost" id="hwCancel" style="flex:1">Avbryt</button>
+         </div>
+       </div>`
+    : `<div class="hwsec">➕ Legg til lekse</div>
+       <div class="hwcard">
+         <input class="inp" id="hwNewSubject" placeholder="Fag (f.eks. Tysk)">
+         <textarea class="inp" id="hwNewText" placeholder="Hva skal gjøres?"></textarea>
+         <label class="muted" style="display:block;margin:2px 0 8px">Poeng <input class="inp" id="hwNewPoints" type="number" value="${s.settings.homeworkPoints ?? 5}" style="width:80px;display:inline-block"></label>
+         <label class="muted" style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="checkbox" id="hwNewWeek"> 🗓 Gjelder hele uka</label>
+         <button class="btn" id="hwAdd">➕ Legg til på ${fmtDayLabel(date).dm}</button>
+       </div>`;
+
+  const listHtml = all.length
+    ? `<div class="hwsec">📚 Lekser · ${fmtDayLabel(date).dm}</div>` +
+      all.map((h) => `<div class="hwcard${h.hidden ? ' approved' : ''}">
+        <div class="hwtop"><span class="hwsubj">${escapeHtml(h.subject)}${h.wholeWeek ? '<span class="weektag">🗓 hele uka</span>' : ''}${h.hidden ? '<span class="hwdaytag">skjult</span>' : ''}</span><span class="hwpts">+${h.points} 🪙</span></div>
+        ${h.text ? `<div class="hwtext">${escapeHtml(h.text)}</div>` : ''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn ghost" data-hwedit="${h.id}">✏️ Rediger</button>
+          <button class="btn ghost" data-hwhide="${h.id}" data-hidden="${h.hidden ? '1' : '0'}">${h.hidden ? '👁 Vis' : '🙈 Skjul'}</button>
+          <button class="btn ghost" data-hwdel="${h.id}">🗑 Slett</button>
+        </div></div>`).join('')
+    : `<div class="muted" style="margin:2px">Ingen lekser på denne dagen ennå.</div>`;
+
+  return `<div class="hwsec" style="margin-top:20px">📚 LEKSER</div>${pendingHtml}${editForm}${listHtml}`;
+}
+
+// Bind forelder-lekse-hendelser (kalles etter innsetting i DOM).
+function bindParentHomework(host, date) {
+  const add = host.querySelector('#hwAdd');
+  if (add) add.onclick = () => {
+    const subject = host.querySelector('#hwNewSubject').value.trim();
+    const text = host.querySelector('#hwNewText').value.trim();
+    const points = host.querySelector('#hwNewPoints').value;
+    const wholeWeek = host.querySelector('#hwNewWeek').checked;
+    if (!subject && !text) return;
+    App.state = addHomework(App.state, { date, subject, text, points, wholeWeek }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  };
+  const save1 = host.querySelector('#hwSave');
+  if (save1) save1.onclick = () => {
+    const patch = {
+      subject: host.querySelector('#hwSubject').value.trim(),
+      text: host.querySelector('#hwText').value.trim(),
+      points: host.querySelector('#hwPoints').value,
+      wholeWeek: host.querySelector('#hwWeek').checked,
+    };
+    App.state = updateHomework(App.state, { id: App.editHwId, patch }, { now: nowIso(), id: newId() });
+    App.editHwId = null;
+    save(); routeToView();
+  };
+  const cancel = host.querySelector('#hwCancel');
+  if (cancel) cancel.onclick = () => { App.editHwId = null; routeToView(); };
+  host.querySelectorAll('[data-hwedit]').forEach((b) => (b.onclick = () => { App.editHwId = b.dataset.hwedit; routeToView(); }));
+  host.querySelectorAll('[data-hwdel]').forEach((b) => (b.onclick = () => {
+    App.state = deleteHomework(App.state, { id: b.dataset.hwdel }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  host.querySelectorAll('[data-hwhide]').forEach((b) => (b.onclick = () => {
+    App.state = hideHomework(App.state, { id: b.dataset.hwhide, hidden: b.dataset.hidden !== '1' }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  host.querySelectorAll('[data-hwapprove]').forEach((b) => (b.onclick = () => {
+    App.state = approveHomework(App.state, { id: b.dataset.hwapprove }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  host.querySelectorAll('[data-hwreject]').forEach((b) => (b.onclick = () => {
+    App.state = rejectHomework(App.state, { id: b.dataset.hwreject }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+}
+
 // Foreldrenes «Dag»-fane: samme fag-liste, men med lås/åpne + åpne-uke-kontroll.
 function renderDayBody(host) {
   const s = App.state,
@@ -708,7 +868,8 @@ function renderDayBody(host) {
     <div class="row" style="border:none;margin-top:10px">
       <div class="lbl muted" style="font-size:.8rem">${weekClosed ? '🔒 Uka er avsluttet' : 'Uka er åpen'}</div>
       <button class="link" id="weekToggle">${weekClosed ? 'Åpne uka igjen' : 'Lås hele uka'}</button>
-    </div>`;
+    </div>
+    ${parentHomeworkHtml(s, date)}`;
 
   document.getElementById('prevDay').onclick = () => {
     App.currentDate = stepWeekday(date, -1);
@@ -739,6 +900,7 @@ function renderDayBody(host) {
     routeToView();
   };
   bindLessons(host, date, disabled);
+  bindParentHomework(host, date);
 }
 
 function renderTimeplanTab(host) {
@@ -1112,6 +1274,21 @@ function renderLoggTab(host) {
           reject: `↩︎ Sendte tilbake ${t}${e.note ? ' · «' + escapeHtml(e.note) + '»' : ''}`,
         };
         txt = map[e.action] || `Quest ${t}`;
+      } else if (e.type === 'homework') {
+        const t = e.subject ? `«${escapeHtml(e.subject)}»` : 'lekse';
+        const map = {
+          create: `📚 La til lekse ${t}`,
+          edit: `✏️ Redigerte lekse ${t}`,
+          delete: `🗑️ Slettet lekse ${t}`,
+          hide: `🙈 Skjulte lekse ${t}`,
+          show: `👁 Viste lekse ${t}`,
+          done: `🔒 Meldte ferdig ${t}`,
+          undo: `↩︎ Angret ferdigmelding ${t}`,
+          approve: `✅ Godkjente lekse ${t}${e.points ? ` · <b>+${e.points}</b>` : ''}`,
+          reject: `↩︎ Sendte tilbake lekse ${t}${e.note ? ' · «' + escapeHtml(e.note) + '»' : ''}`,
+          'import-add': `📥 Importerte lekse ${t}`,
+        };
+        txt = map[e.action] || `Lekse ${t}`;
       } else if (e.type === 'resync') {
         const dl = fmtDayLabel(e.day);
         txt =

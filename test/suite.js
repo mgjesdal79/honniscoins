@@ -484,6 +484,92 @@ export function runTests() {
       eq('nyere sletting vinner', L.mergeState(a, b).quests[0].removed, true);
     },
 
+    // --- Lekser (homework) ---
+    function homework_defaultState_and_migrate() {
+      const s = L.defaultState();
+      ok('homework liste', Array.isArray(s.homework) && s.homework.length === 0);
+      eq('homeworkPoints', s.settings.homeworkPoints, 5);
+      ok('docendoIcalId', typeof s.settings.docendoIcalId === 'string');
+      const m = L.migrate({ settings: {}, days: {}, log: [] }, '2026-08-24');
+      ok('migrate homework', Array.isArray(m.homework));
+      eq('migrate points', m.settings.homeworkPoints, 5);
+      ok('migrate ical', typeof m.settings.docendoIcalId === 'string');
+    },
+    function homework_selection_and_points() {
+      const withHw = (items) => { const s = L.defaultState(); s.homework = items; return s; };
+      eq('activeHomework', L.activeHomework(withHw([{ id: 'a', removed: false }, { id: 'b', removed: true }])).length, 1);
+      eq('pointsTotal', L.homeworkPointsTotal(withHw([
+        { id: 'a', status: 'approved', points: 10, hidden: false },
+        { id: 'b', status: 'approved', points: 5, hidden: true },
+        { id: 'c', status: 'done', points: 7, hidden: false },
+      ])), 10);
+      eq('pointsPending', L.homeworkPointsPending(withHw([
+        { id: 'a', status: 'done', points: 5, hidden: false },
+        { id: 'b', status: 'done', points: 3, hidden: true },
+      ])), 5);
+      eq('balance inkl approved', L.computeBalance(withHw([{ id: 'a', status: 'approved', points: 8, hidden: false }])), 8);
+      const wk = L.homeworkForWeek(withHw([
+        { id: 'a', date: '2026-08-25', hidden: false, removed: false },
+        { id: 'b', date: '2026-08-24', hidden: false, removed: false },
+        { id: 'c', date: '2026-08-24', hidden: true, removed: false },
+        { id: 'd', date: '2026-09-01', hidden: false, removed: false },
+      ]), '2026-08-24');
+      eq('homeworkForWeek sortert+filtrert', wk.map((h) => h.id).join(','), 'b,a');
+    },
+    function homework_parent_lifecycle() {
+      const CTX = (n, id) => ({ now: n, id });
+      let s = L.addHomework(L.defaultState(), { date: '2026-08-24', subject: 'Tysk', text: 'Øv tall' }, CTX('t', 'h1'));
+      const h = s.homework[0];
+      eq('add status', h.status, 'open');
+      eq('add points default', h.points, 5);
+      eq('add source', h.source, 'manual');
+      eq('add wholeWeek', h.wholeWeek, false);
+      eq('add log', s.log[s.log.length - 1].type, 'homework');
+      s = L.addHomework(L.defaultState(), { date: '2026-08-24', subject: 'KRLE', text: 'x', points: 10, wholeWeek: true }, CTX('t', 'h2'));
+      eq('add points eksplisitt', s.homework[0].points, 10);
+      eq('add wholeWeek true', s.homework[0].wholeWeek, true);
+      s = L.updateHomework(s, { id: 'h2', patch: { text: 'y', points: 7, wholeWeek: false } }, CTX('t2', 'l'));
+      eq('update text', s.homework[0].text, 'y');
+      eq('update points', s.homework[0].points, 7);
+      eq('update edited', s.homework[0].edited, true);
+      const del = L.deleteHomework(s, { id: 'h2' }, CTX('t3', 'l2'));
+      eq('delete tombstone', del.homework[0].removed, true);
+      eq('delete active tom', L.activeHomework(del).length, 0);
+      const hid = L.hideHomework(s, { id: 'h2', hidden: true }, CTX('t3', 'l3'));
+      eq('hide', hid.homework[0].hidden, true);
+    },
+    function homework_son_and_approval() {
+      const CTX = (n, id) => ({ now: n, id });
+      const open = () => L.addHomework(L.defaultState(), { date: '2026-08-24', subject: 'Tysk', text: 'a' }, CTX('t', 'h1'));
+      let s = L.commitHomework(open(), { id: 'h1' }, CTX('t2', 'l1'));
+      eq('commit done', s.homework[0].status, 'done');
+      eq('commit doneAt', s.homework[0].doneAt, 't2');
+      let u = L.uncommitHomework(s, { id: 'h1' }, CTX('t3', 'l2'));
+      eq('uncommit open', u.homework[0].status, 'open');
+      let a = L.approveHomework(s, { id: 'h1' }, CTX('t3', 'l3'));
+      eq('approve status', a.homework[0].status, 'approved');
+      eq('approve poeng', L.homeworkPointsTotal(a), 5);
+      let r = L.rejectHomework(s, { id: 'h1' }, CTX('t3', 'l4'));
+      eq('reject open', r.homework[0].status, 'open');
+      eq('reject doneAt null', r.homework[0].doneAt, null);
+    },
+    function homework_merge_lww() {
+      const a = L.defaultState();
+      a.homework = [{ id: 'h1', status: 'open', points: 5, updatedAt: '2026-08-24T09:00:00Z', removed: false }];
+      const b = L.defaultState();
+      b.homework = [
+        { id: 'h1', status: 'done', points: 5, updatedAt: '2026-08-24T10:00:00Z', removed: false },
+        { id: 'h2', status: 'open', points: 5, updatedAt: '2026-08-24T08:00:00Z', removed: false },
+      ];
+      const m = L.mergeState(a, b);
+      const byId = Object.fromEntries(m.homework.map((h) => [h.id, h]));
+      eq('nyere vinner', byId.h1.status, 'done');
+      ok('ny lekse tas med', !!byId.h2);
+      const c = L.defaultState();
+      c.homework = [{ id: 'h1', updatedAt: '2026-08-24T11:00:00Z', removed: true }];
+      eq('tombstone bevart', L.mergeState(a, c).homework.find((h) => h.id === 'h1').removed, true);
+    },
+
     function logic_module_loads() {
       ok('logic module loads', L.APP_LOGIC_VERSION === 1);
     },
