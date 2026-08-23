@@ -17,7 +17,11 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
 - `js/app.js` – DOM/rendering. `App`-objekt holder `role`/`currentDate`/`sonPage`/`parentTab`.
 - `index.html` – all CSS + `APP_VERSION` + `EDGE_FUNCTION_URL`. Bump `APP_VERSION` ved hver deploy.
 - Fletting: LWW per felt (`updatedAt`/`sickAt`/`lockedAt`/`weekLocks[].at`), union-by-id for
-  append-only lister (`log`, `payouts`, framtidige `shopItems`/`purchases`/`quests`).
+  append-only lister (`log`, `payouts`, framtidige `shopItems`/`purchases`). **`quests`** flettes
+  derimot **LWW per id** på `updatedAt` (`mergeQuestList`) — ikke union — så statusendringer og
+  sletting vinner nyest.
+- Topp-logo (`brandHtml()` i app.js) viser **alltid saldo**: «Honniscoins: X 🪙», både for sønn
+  (over bunn-nav) og forelder (over faner). Regnes via `computeBalance` ved hver render.
 
 ## Domenemodell (viktig)
 - **Lås = commit, styrer ALT.** Kun `days[date].locked` gir poeng: medaljer, oppmøte-streak,
@@ -32,13 +36,36 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   Syk pauser (bryter ikke). Viser Nå / All-time / Denne måneden (+ ⏳ pågående).
 - **Migrering** (`migrate`, kjøres i `loadState`): fyller `settings.bonus`/`weekLocks` og låser
   eksisterende dager med innhold, så gamle opptjente poeng ikke forsvinner.
-- **Sønn-sider (pager):** Uken / Poeng / Sidequests / Shop — bunn-nav + sveip + prikker
-  (`SON_PAGES` i app.js). Sidequests og Shop er placeholders foreløpig.
-- **Forelder-faner:** Uke / Dag / Timeplan / Poeng / Logg. Dag-fanen har lås/åpne-dag og
-  lås/åpne-uke.
+- **Sønn-sider (pager):** Uken / Poeng (💵) / Sidequests (⭐) / Shop (🛒) — bunn-nav + sveip +
+  prikker (`SON_PAGES` i app.js). Sidequests-ikonet har badge = antall åpne quests. Shop er
+  fortsatt placeholder.
+- **Forelder-faner:** Uke / Dag / Timeplan / **Quests** / Poeng / Logg. Dag-fanen har lås/åpne-dag
+  og lås/åpne-uke. Quests-fanen har badge = antall quests til godkjenning.
+
+## Sidequests (enkeltoppgaver hjemme)
+- **Konsept:** forelder oppretter oppgave (tittel, beskrivelse, poeng, frist). Sønn «committer»
+  når ferdig → forelder godkjenner (poeng i potten) eller sender tilbake.
+- **Datamodell:** topp-nivå `quests: []`. Hver: `{id, title, desc, points, due, status, createdAt,
+  createdBy, doneAt, approvedAt, updatedAt, removed}`. `status ∈ {open, done, approved}`.
+- **Poeng teller KUN ved `status==='approved'`** (`questPointsTotal`, inngår i `computeBalance`).
+  Ventende (`done`) vises separat via `questPointsPending`, teller ikke i saldo.
+- **Livssyklus (logic.js, rene fn):** `addQuest`/`updateQuest`/`deleteQuest` (forelder),
+  `commitQuest`/`uncommitQuest` (sønn: open↔done), `approveQuest`/`rejectQuest` (forelder:
+  done→approved / done→open). `isQuestOverdue` = avledet (`due < i dag` og ikke approved).
+  Sletting = `removed:true`-tombstone (overlever fletting). Alle logger `type:'quest'`.
+- **Ett poengtall nå** — arkitekturen åpner for trappetrinn senere (`tiers` + valgt trinn ved
+  commit) uten migrering.
+- **UI:** sønn `renderSidequestsPage` (seksjoner Å gjøre / Venter på godkjenning / Godkjent);
+  forelder `renderQuestsTab` (godkjenningskø + opprett/rediger-skjema + aktive quests).
+- **Frist-velger (forelder):** datostepper med standard = i dag, `‹`/`›` = ±1 dag, trykk midtfeltet
+  (transparent `input[type=date]` over) åpner kalender, «Fjern frist»/«Sett frist (i dag)» veksler.
+  Arbeids-frist holdes i closure-var `due` og oppdaterer kun visningen (nullstiller ikke
+  tittel/beskrivelse/poeng).
+- **Spec:** `docs/superpowers/specs/2026-08-22-honniscoins-sidequests-design.md`.
+  Mockup: `mockups/sidequests.html`.
 
 ## Testing
-- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 127 tester per nå.
+- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 161 tester per nå (inkl. sidequests).
 - **Kjør:** `/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc -m test/run-jsc.js`
   (jsc støtter ES-moduler; ingen node/deno/bun i miljøet).
 - Nettleser: `test/tests.html` (tynn renderer av samme suite).
