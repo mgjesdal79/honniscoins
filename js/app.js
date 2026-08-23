@@ -732,10 +732,9 @@ function parentHomeworkHtml(s, date) {
         </div></div>`).join('')
     : '';
 
-  const editing = App.editHwId ? all.find((h) => h.id === App.editHwId) : null;
-  const editForm = editing
-    ? `<div class="hwsec">✏️ Rediger lekse ${editing.edited ? '<span class="hwedited">endret – beskyttet</span>' : ''}</div>
-       <div class="hwcard">
+  // Rediger-skjema rendres INLINE der leksa står (ingen scroll til toppen).
+  const editFormFor = (editing) => `<div class="hwcard" id="hwEditForm" style="border-color:var(--accent)">
+         <div class="hwsubjhead" style="margin:0 0 8px">✏️ Rediger lekse ${editing.edited ? '<span class="hwedited">endret – beskyttet</span>' : ''}</div>
          <input class="inp" id="hwSubject" value="${escapeHtml(editing.subject)}" placeholder="Fag">
          <textarea class="inp" id="hwText" placeholder="Beskrivelse">${escapeHtml(editing.text)}</textarea>
          <label class="muted" style="display:block;margin:2px 0 8px">Poeng <input class="inp" id="hwPoints" type="number" value="${editing.points}" style="width:80px;display:inline-block"></label>
@@ -744,8 +743,9 @@ function parentHomeworkHtml(s, date) {
            <button class="btn" id="hwSave" style="flex:1">💾 Lagre</button>
            <button class="btn ghost" id="hwCancel" style="flex:1">Avbryt</button>
          </div>
-       </div>`
-    : `<div class="hwsec">➕ Legg til lekse</div>
+       </div>`;
+
+  const addForm = `<div class="hwsec">➕ Legg til lekse</div>
        <div class="hwcard">
          <input class="inp" id="hwNewSubject" placeholder="Fag (f.eks. Tysk)">
          <textarea class="inp" id="hwNewText" placeholder="Hva skal gjøres?"></textarea>
@@ -756,7 +756,9 @@ function parentHomeworkHtml(s, date) {
 
   const listHtml = all.length
     ? `<div class="hwsec">📚 Lekser · ${fmtDayLabel(date).dm}</div>` +
-      all.map((h) => `<div class="hwcard${h.hidden ? ' approved' : ''}">
+      all.map((h) => h.id === App.editHwId
+        ? editFormFor(h)
+        : `<div class="hwcard${h.hidden ? ' approved' : ''}">
         <div class="hwtop"><span class="hwsubj">${escapeHtml(h.subject)}${h.wholeWeek ? '<span class="weektag">🗓 hele uka</span>' : ''}${h.hidden ? '<span class="hwdaytag">skjult</span>' : ''}</span><span class="hwpts">+${h.points} 🪙</span></div>
         ${h.text ? `<div class="hwtext">${escapeHtml(h.text)}</div>` : ''}
         <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -766,7 +768,7 @@ function parentHomeworkHtml(s, date) {
         </div></div>`).join('')
     : `<div class="muted" style="margin:2px">Ingen lekser på denne dagen ennå.</div>`;
 
-  return `<div class="hwsec" style="margin-top:20px">📚 LEKSER</div>${pendingHtml}${editForm}${listHtml}`;
+  return `<div class="hwsec" style="margin-top:20px">📚 LEKSER</div>${pendingHtml}${addForm}${listHtml}`;
 }
 
 // Bind forelder-lekse-hendelser (kalles etter innsetting i DOM).
@@ -795,7 +797,12 @@ function bindParentHomework(host, date) {
   };
   const cancel = host.querySelector('#hwCancel');
   if (cancel) cancel.onclick = () => { App.editHwId = null; routeToView(); };
-  host.querySelectorAll('[data-hwedit]').forEach((b) => (b.onclick = () => { App.editHwId = b.dataset.hwedit; routeToView(); }));
+  host.querySelectorAll('[data-hwedit]').forEach((b) => (b.onclick = () => {
+    App.editHwId = b.dataset.hwedit;
+    routeToView();
+    const f = document.getElementById('hwEditForm');
+    if (f) f.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }));
   host.querySelectorAll('[data-hwdel]').forEach((b) => (b.onclick = () => {
     App.state = deleteHomework(App.state, { id: b.dataset.hwdel }, { now: nowIso(), id: newId() });
     save(); routeToView();
