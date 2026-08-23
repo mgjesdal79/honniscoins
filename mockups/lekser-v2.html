@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Honniscoins – Lekser-skisse v2</title>
+<style>
+  :root{
+    --bg:#000;--surface:#0b1a33;--surface-2:#0f2547;--line:#1c3a63;
+    --text:#fff;--muted:#9fb3cf;--accent:#3b6fe0;
+    --gold:#ffce3a;--good:#3ddc97;--bad:#ff8080;--radius:16px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#05070d;color:var(--text);font-family:var(--font);padding:26px}
+  h1{font-size:1.2rem;margin:0 0 4px}
+  .lead{color:var(--muted);font-size:.85rem;margin:0 0 22px;max-width:860px;line-height:1.5}
+  .lead b{color:var(--text)}
+  .frames{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+  .phone{width:340px;background:#050505;border:1px solid var(--line);border-radius:26px;padding:14px 14px 10px;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+  .cap{font-size:.74rem;color:var(--muted);text-align:center;margin:2px 0 10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase}
+  /* rullbar skjerm for å vise sticky */
+  .screen{max-height:560px;overflow-y:auto;border-radius:16px;position:relative}
+  .screen::-webkit-scrollbar{width:0}
+
+  .stickytop{position:sticky;top:0;z-index:5;background:#050505;padding-bottom:8px;border-bottom:1px solid #0e1f3a}
+  .brand{display:flex;align-items:center;justify-content:center;gap:8px;margin:2px 0 8px}
+  .brand .logo{width:24px;height:24px;border-radius:8px;background:linear-gradient(135deg,var(--gold),#ff9d2f);display:flex;align-items:center;justify-content:center;font-size:.85rem}
+  .brand b{font-size:.95rem}.brand .bal{color:var(--gold);font-weight:800}
+  .topbar{display:flex;justify-content:space-between;align-items:center;font-size:.7rem;color:var(--muted);margin-bottom:6px}
+  .weeknav{display:flex;align-items:center;justify-content:space-between;margin:2px 0 6px}
+  .weeknav .arrow{width:30px;height:30px;border-radius:9px;background:var(--surface);border:1px solid var(--line);font-size:1rem;color:#fff}
+  .weeknav .wlabel{font-size:.76rem;color:var(--muted);font-weight:700}
+  .weekstrip{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+  .wd{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 2px;border-radius:11px;background:var(--surface);border:1px solid var(--line)}
+  .wd .n{font-size:.66rem;font-weight:700;color:var(--muted)}
+  .wd .b{font-size:.68rem;font-weight:800}
+  .wd.on{background:var(--accent);border-color:var(--accent)}.wd.on .n{color:#fff}
+  .wd .hw{position:absolute;top:-5px;right:-3px;font-size:.6rem}
+
+  /* toggle segment */
+  .seg{display:flex;gap:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:3px;margin:8px 0 4px}
+  .seg .s{flex:1;text-align:center;padding:6px 2px;border-radius:8px;font-size:.72rem;font-weight:800;color:var(--muted)}
+  .seg .s.on{background:var(--accent);color:#fff}
+
+  .sec{font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:14px 2px 7px;font-weight:800;display:flex;align-items:center;gap:6px}
+  .badge{background:var(--accent);color:#fff;border-radius:20px;padding:0 7px;font-size:.64rem;font-weight:800;line-height:1.5}
+
+  .hwcard{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:10px 12px;margin-bottom:9px}
+  .hwtop{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .subj{font-weight:800;font-size:.9rem}
+  .daytag{font-size:.66rem;color:var(--muted);font-weight:700;background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:1px 6px}
+  .pts{flex:none;background:#152c1f;color:var(--good);border:1px solid var(--good);border-radius:10px;padding:2px 8px;font-weight:800;font-size:.76rem;white-space:nowrap}
+  .hwtext{color:var(--muted);font-size:.79rem;margin:5px 0 9px;line-height:1.4}
+  .btn{display:block;width:100%;background:var(--accent);color:#fff;border:none;border-radius:11px;padding:9px;font-weight:800;font-size:.86rem;font-family:var(--font);cursor:pointer}
+  .btn.good{background:var(--good);color:#05231a}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text)}
+  .btn.sm{padding:8px;font-size:.79rem}
+  .brow{display:flex;gap:8px}.brow .btn{flex:1}
+  .statusline{display:flex;align-items:center;gap:7px;font-size:.79rem;font-weight:700}
+  .statusline.wait{color:var(--gold)}.statusline.ok{color:var(--good)}
+  .undo{background:none;border:none;color:var(--muted);text-decoration:underline;font-size:.73rem;cursor:pointer;padding:0}
+  .hwcard.done{border-color:var(--gold);background:linear-gradient(160deg,#241f0e,var(--surface))}
+  .hwcard.approved{opacity:.6}
+  .hwcard.week{border-color:#5a4bd6;background:linear-gradient(160deg,#171438,var(--surface))}
+  .pin{color:#a99bff;font-weight:800}
+  .banner{background:#2a2410;border:1px solid var(--gold);color:var(--gold);border-radius:11px;padding:8px 11px;font-weight:700;font-size:.79rem;text-align:center;margin:8px 0 4px}
+
+  .subjhead{display:flex;align-items:center;gap:7px;margin:14px 2px 7px;font-weight:800;font-size:.92rem}
+  .subjhead .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+
+  .pagenav{display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px;margin-top:12px;position:sticky;bottom:0}
+  .pagenav .pg{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 3px;border-radius:10px;background:transparent;color:var(--muted);font-size:.58rem;font-weight:800}
+  .pagenav .pg .i{font-size:1.02rem}
+  .pagenav .pg.on{background:var(--accent);color:#fff}
+
+  .tabbar{display:flex;gap:3px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px;margin:2px 0 10px}
+  .tabbar .t{flex:1;padding:7px 1px;border-radius:9px;font-size:.64rem;font-weight:800;color:var(--muted);background:transparent;text-align:center}
+  .tabbar .t.on{background:var(--accent);color:#fff}
+  .inp{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:9px 10px;color:#fff;font-family:var(--font);font-size:.84rem;margin-bottom:8px}
+  textarea.inp{resize:vertical;min-height:64px}
+  .ptsinp{display:flex;align-items:center;gap:6px;font-size:.75rem;color:var(--muted);font-weight:700}
+  .ptsinp input{width:52px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:5px 7px;color:#fff;text-align:right;font-family:var(--font)}
+  .chk{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--muted);font-weight:700;margin:2px 0 10px}
+  .chk .box{width:34px;height:20px;border-radius:20px;background:var(--accent);position:relative}
+  .chk .box::after{content:"";position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:#fff}
+  .edited{font-size:.64rem;color:#a99bff;font-weight:800;background:#171438;border:1px solid #3a2f7a;border-radius:7px;padding:1px 6px}
+  .note{color:#5f7396;font-size:.72rem;margin:12px 2px 2px;line-height:1.4}
+  .scrollhint{text-align:center;color:#3a4d6b;font-size:.66rem;margin:6px 0}
+</style>
+</head>
+<body>
+  <h1>Honniscoins – Lekser (skisse v2)</h1>
+  <p class="lead">
+    Oppdatert etter tilbakemelding: <b>sticky topp</b> (ukenr + dagstripe blir stående – scroll i
+    rammen for å se det), <b>default dag-for-dag</b> med <b>toggle til «Hele uka (fag)»</b>,
+    <b>«gjelder hele uka»</b>-lekser (lilla, 📌), og <b>redigerbare importerte lekser</b> der dine
+    endringer beskyttes mot ny import («endret»-merke).
+  </p>
+
+  <div class="frames">
+
+    <!-- 1: SØNN – DAG-VISNING (default), sticky topp -->
+    <div class="phone">
+      <div class="cap">Sønn · Dag-for-dag (default)</div>
+      <div class="screen">
+        <div class="stickytop">
+          <div class="brand"><span class="logo">🪙</span><b>Honniscoins:</b> <span class="bal">128 🪙</span></div>
+          <div class="topbar"><span>🧒 Sønn</span><span>Bytt bruker</span></div>
+          <div class="weeknav"><button class="arrow">‹</button><span class="wlabel">Uke 35 · 24.–28. aug</span><button class="arrow">›</button></div>
+          <div class="weekstrip">
+            <div class="wd on"><span class="n">Man</span><span class="b">24</span><span class="hw">📚</span></div>
+            <div class="wd"><span class="n">Tir</span><span class="b">25</span><span class="hw">📚</span></div>
+            <div class="wd"><span class="n">Ons</span><span class="b">26</span><span class="hw">📚</span></div>
+            <div class="wd"><span class="n">Tor</span><span class="b">27</span></div>
+            <div class="wd"><span class="n">Fre</span><span class="b">28</span><span class="hw">📚</span></div>
+          </div>
+          <div class="seg"><span class="s on">📅 Dag for dag</span><span class="s">📚 Hele uka (fag)</span></div>
+        </div>
+
+        <div class="sec"><span class="pin">📌 Gjelder hele uka</span></div>
+        <div class="hwcard week">
+          <div class="hwtop"><span class="subj">KRLE <span class="pin">📌</span></span><span class="pts">+10 🪙</span></div>
+          <div class="hwtext">Gjør ferdig forklaringene på kulturarv-ordene <b>innen fredag</b>.</div>
+          <button class="btn good sm">✓ Gjort</button>
+        </div>
+
+        <div class="sec">📚 Mandag 24. <span class="badge">2</span></div>
+        <div class="hwcard">
+          <div class="hwtop"><span class="subj">Tysk</span><span class="pts">+5 🪙</span></div>
+          <div class="hwtext">Kunne hilse og presentere seg selv. Øv på tall 0–20. Ha med PC og pennal.</div>
+          <button class="btn good sm">✓ Gjort</button>
+        </div>
+        <div class="hwcard done">
+          <div class="hwtop"><span class="subj">Engelsk</span><span class="pts">+5 🪙</span></div>
+          <div class="hwtext">Les videre i «Coraline». Ta med headset.</div>
+          <div class="statusline wait">⏳ Sendt til godkjenning <button class="undo">Angre</button></div>
+        </div>
+
+        <div class="scrollhint">↑ scroll – toppen blir stående ↑</div>
+
+        <div class="pagenav">
+          <div class="pg on"><span class="i">📅</span>Uken</div>
+          <div class="pg"><span class="i">💵</span>Poeng</div>
+          <div class="pg"><span class="i">⭐</span>Sidequests</div>
+          <div class="pg"><span class="i">🛒</span>Shop</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2: SØNN – HELE UKA (FAG) -->
+    <div class="phone">
+      <div class="cap">Sønn · Hele uka (fag)</div>
+      <div class="screen">
+        <div class="stickytop">
+          <div class="brand"><span class="logo">🪙</span><b>Honniscoins:</b> <span class="bal">128 🪙</span></div>
+          <div class="topbar"><span>🧒 Sønn</span><span>Bytt bruker</span></div>
+          <div class="weeknav"><button class="arrow">‹</button><span class="wlabel">Uke 35 · 24.–28. aug</span><button class="arrow">›</button></div>
+          <div class="seg"><span class="s">📅 Dag for dag</span><span class="s on">📚 Hele uka (fag)</span></div>
+        </div>
+
+        <div class="hwcard week">
+          <div class="hwtop"><span class="subj">KRLE <span class="pin">📌 hele uka</span></span><span class="pts">+10 🪙</span></div>
+          <div class="hwtext">Gjør ferdig forklaringene på kulturarv-ordene innen fredag.</div>
+          <button class="btn good sm">✓ Gjort</button>
+        </div>
+
+        <div class="subjhead"><span class="dot"></span>Tysk</div>
+        <div class="hwcard">
+          <div class="hwtop"><span class="subj">Tysk <span class="daytag">Man 24.</span></span><span class="pts">+5 🪙</span></div>
+          <div class="hwtext">Hilse og presentere seg selv. Tall 0–20. PC + pennal.</div>
+          <button class="btn good sm">✓ Gjort</button>
+        </div>
+
+        <div class="subjhead"><span class="dot"></span>Matematikk</div>
+        <div class="hwcard">
+          <div class="hwtop"><span class="subj">Matematikk <span class="daytag">Tir 25.</span></span><span class="pts">+5 🪙</span></div>
+          <div class="hwtext">Kartleggingstest (M7). Ta med kalkulator.</div>
+          <button class="btn good sm">✓ Gjort</button>
+        </div>
+        <div class="hwcard approved">
+          <div class="hwtop"><span class="subj">Matematikk <span class="daytag">Ons 26.</span></span><span class="pts">+5 🪙</span></div>
+          <div class="statusline ok">✅ Godkjent · lagt i potten</div>
+        </div>
+
+        <div class="subjhead"><span class="dot"></span>Naturfag</div>
+        <div class="hwcard">
+          <div class="hwtop"><span class="subj">Naturfag <span class="daytag">Tor 27.</span></span><span class="pts">+5 🪙</span></div>
+          <div class="hwtext">Biotiske og abiotiske faktorer – kunne forklare og vise eksempler.</div>
+          <button class="btn good sm">✓ Gjort</button>
+        </div>
+
+        <div class="scrollhint">gruppert per fag · dag vises som liten tag</div>
+
+        <div class="pagenav">
+          <div class="pg on"><span class="i">📅</span>Uken</div>
+          <div class="pg"><span class="i">💵</span>Poeng</div>
+          <div class="pg"><span class="i">⭐</span>Sidequests</div>
+          <div class="pg"><span class="i">🛒</span>Shop</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3: FORELDER – REDIGER IMPORTERT LEKSE -->
+    <div class="phone">
+      <div class="cap">Forelder · Rediger importert lekse</div>
+      <div class="screen">
+        <div class="stickytop">
+          <div class="brand"><span class="logo">🪙</span><b>Honniscoins:</b> <span class="bal">128 🪙</span></div>
+          <div class="topbar"><span>👨‍👩‍👦 Forelder</span><span>Bytt bruker</span></div>
+          <div class="tabbar">
+            <div class="t">Uke</div><div class="t on">Dag</div><div class="t">Timeplan</div>
+            <div class="t">Quests</div><div class="t">Poeng</div><div class="t">Logg</div>
+          </div>
+          <div class="weeknav"><button class="arrow">‹</button><span class="wlabel">Mandag 24. aug</span><button class="arrow">›</button></div>
+        </div>
+
+        <button class="btn" style="margin-bottom:6px">📚 Hent lekser fra Docendo</button>
+
+        <div class="sec">✏️ Redigerer lekse <span class="edited">endret – beskyttet</span></div>
+        <div class="hwcard">
+          <input class="inp" value="Tysk">
+          <textarea class="inp">Kunne hilse og presentere seg selv. Øv på tall 0–20. Ha med PC og pennal.</textarea>
+          <div class="ptsinp" style="margin-bottom:10px">Poeng + <input value="5"> 🪙</div>
+          <div class="chk"><span class="box"></span>📌 Gjelder hele uka</div>
+          <div class="brow"><button class="btn sm">💾 Lagre</button><button class="btn ghost sm">Avbryt</button></div>
+          <div class="note" style="margin:9px 0 0">Når du lagrer, merkes leksen «endret» – ny import fra Docendo lar den stå urørt.</div>
+        </div>
+
+        <div class="sec">📚 Alle lekser · Mandag 24.</div>
+        <div class="hwcard">
+          <div class="hwtop"><span class="subj">Engelsk</span><span class="ptsinp">+ <input value="5"> 🪙</span></div>
+          <div class="hwtext">Les videre i «Coraline». Ta med headset.</div>
+          <div class="brow" style="margin-top:8px"><button class="btn ghost sm">✏️ Rediger</button><button class="btn ghost sm">👁 Skjul</button></div>
+        </div>
+
+        <div class="scrollhint">↑ topp + faner blir stående ved scroll ↑</div>
+
+        <div class="pagenav">
+          <div class="pg on"><span class="i">👨‍👩‍👦</span>Forelder</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
