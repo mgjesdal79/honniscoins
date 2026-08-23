@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Honniscoins – Lekser-skisse</title>
+<style>
+  :root{
+    --bg:#000;--surface:#0b1a33;--surface-2:#0f2547;--line:#1c3a63;
+    --text:#fff;--muted:#9fb3cf;--accent:#3b6fe0;
+    --gold:#ffce3a;--good:#3ddc97;--bad:#ff8080;--radius:16px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#05070d;color:var(--text);font-family:var(--font);padding:26px}
+  h1{font-size:1.2rem;margin:0 0 4px}
+  .lead{color:var(--muted);font-size:.85rem;margin:0 0 22px;max-width:820px;line-height:1.5}
+  .lead b{color:var(--text)}
+  .frames{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+  .phone{width:340px;background:#050505;border:1px solid var(--line);border-radius:26px;padding:14px 14px 10px;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+  .cap{font-size:.74rem;color:var(--muted);text-align:center;margin:2px 0 10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase}
+  .brand{display:flex;align-items:center;justify-content:center;gap:8px;margin:2px 0 8px}
+  .brand .logo{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--gold),#ff9d2f);display:flex;align-items:center;justify-content:center;font-size:.9rem}
+  .brand b{font-size:1rem}
+  .brand .bal{color:var(--gold);font-weight:800}
+  .topbar{display:flex;justify-content:space-between;align-items:center;font-size:.72rem;color:var(--muted);margin-bottom:8px}
+  .sec{font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:16px 2px 8px;font-weight:800;display:flex;align-items:center;gap:6px}
+  .badge{background:var(--accent);color:#fff;border-radius:20px;padding:0 7px;font-size:.66rem;font-weight:800;line-height:1.5}
+
+  /* ukestripe */
+  .weeknav{display:flex;align-items:center;justify-content:space-between;margin:2px 0 8px}
+  .weeknav .arrow{width:32px;height:32px;border-radius:9px;background:var(--surface);border:1px solid var(--line);font-size:1rem;color:#fff}
+  .weeknav .wlabel{font-size:.78rem;color:var(--muted);font-weight:700}
+  .weekstrip{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:14px}
+  .wd{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 2px;border-radius:12px;background:var(--surface);border:1px solid var(--line)}
+  .wd .n{font-size:.7rem;font-weight:700;color:var(--muted)}
+  .wd .b{font-size:.7rem;font-weight:800}
+  .wd.on{background:var(--accent);border-color:var(--accent)}
+  .wd.on .n{color:#fff}
+  .wd .hw{position:absolute;top:-5px;right:-4px;font-size:.62rem}
+
+  .ahead{font-size:1.05rem;margin:2px 2px 10px;display:flex;align-items:center;gap:8px;font-weight:700}
+  .lesson{display:flex;justify-content:space-between;align-items:center;padding:10px 4px;border-bottom:1px solid #10233f}
+  .lesson .name{font-size:.92rem}
+  .medals{display:flex;gap:6px}
+  .m{width:30px;height:30px;border-radius:8px;background:var(--surface);border:1px solid var(--line);font-size:.85rem;display:flex;align-items:center;justify-content:center}
+  .m.sel{background:var(--gold);border-color:var(--gold)}
+
+  /* lekse-kort */
+  .hwcard{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:11px 12px;margin-bottom:9px}
+  .hwtop{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .subj{font-weight:800;font-size:.92rem}
+  .pts{flex:none;background:#152c1f;color:var(--good);border:1px solid var(--good);border-radius:10px;padding:2px 8px;font-weight:800;font-size:.78rem;white-space:nowrap}
+  .hwtext{color:var(--muted);font-size:.8rem;margin:5px 0 9px;line-height:1.4}
+  .btn{display:block;width:100%;background:var(--accent);color:#fff;border:none;border-radius:11px;padding:10px;font-weight:800;font-size:.88rem;font-family:var(--font);cursor:pointer}
+  .btn.good{background:var(--good);color:#05231a}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text)}
+  .btn.sm{padding:8px;font-size:.8rem}
+  .brow{display:flex;gap:8px}
+  .brow .btn{flex:1}
+  .statusline{display:flex;align-items:center;gap:7px;font-size:.8rem;font-weight:700}
+  .statusline.wait{color:var(--gold)}
+  .statusline.ok{color:var(--good)}
+  .undo{background:none;border:none;color:var(--muted);text-decoration:underline;font-size:.74rem;cursor:pointer;padding:0}
+  .hwcard.done{border-color:var(--gold);background:linear-gradient(160deg,#241f0e,var(--surface))}
+  .hwcard.approved{opacity:.6}
+  .hwcard.hidden{opacity:.45;border-style:dashed}
+
+  .banner{background:#2a2410;border:1px solid var(--gold);color:var(--gold);border-radius:11px;padding:9px 11px;font-weight:700;font-size:.8rem;text-align:center;margin-bottom:10px}
+
+  /* nav / faner */
+  .pagenav{display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px;margin-top:12px}
+  .pagenav .pg{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 3px;border-radius:10px;background:transparent;color:var(--muted);font-size:.6rem;font-weight:800}
+  .pagenav .pg .i{font-size:1.05rem}
+  .pagenav .pg.on{background:var(--accent);color:#fff}
+  .tabbar{display:flex;gap:3px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px;margin:2px 0 10px}
+  .tabbar .t{flex:1;padding:7px 1px;border-radius:9px;font-size:.66rem;font-weight:800;color:var(--muted);background:transparent;text-align:center}
+  .tabbar .t.on{background:var(--accent);color:#fff}
+  .tabbar .t .b{background:var(--bad);color:#fff;border-radius:20px;font-size:.56rem;padding:0 4px;margin-left:2px}
+
+  .inp{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:9px 10px;color:#fff;font-family:var(--font);font-size:.85rem;margin-bottom:8px}
+  .ptsinp{display:flex;align-items:center;gap:6px;font-size:.76rem;color:var(--muted);font-weight:700}
+  .ptsinp input{width:56px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:5px 7px;color:#fff;text-align:right;font-family:var(--font)}
+  .acts{display:flex;gap:12px;margin-top:9px}
+  .acts button{background:none;border:none;color:var(--muted);text-decoration:underline;font-size:.74rem;cursor:pointer;padding:0}
+  .acts button.del{color:var(--bad)}
+  .note{color:#5f7396;font-size:.72rem;margin:14px 2px 2px;line-height:1.4}
+</style>
+</head>
+<body>
+  <h1>Honniscoins – Lekser (skisse)</h1>
+  <p class="lead">
+    Lekser hentes fra <b>Docendo-kalenderen</b> (åpen ICS-feed) via en liten server-henter, og
+    <b>integreres i «Uken»</b>. Auto med opt-out: alt med elevforberedelse blir en lekse, du kan
+    skjule/slette. Sønn huker av «Gjort» → <b>du godkjenner</b> → poeng i potten. Data i skissen er
+    ekte forberedelsestekst fra uka 24.–28. aug.
+  </p>
+
+  <div class="frames">
+
+    <!-- 1: SØNN – UKEN med lekser -->
+    <div class="phone">
+      <div class="cap">Sønn · Uken (med lekser)</div>
+      <div class="brand"><span class="logo">🪙</span><b>Honniscoins:</b> <span class="bal">128 🪙</span></div>
+      <div class="topbar"><span>🧒 Sønn</span><span>Bytt bruker</span></div>
+
+      <div class="weeknav"><button class="arrow">‹</button><span class="wlabel">Uke 35 · 24.–28. aug</span><button class="arrow">›</button></div>
+      <div class="weekstrip">
+        <div class="wd on"><span class="n">Man</span><span class="b">24</span><span class="hw">📚</span></div>
+        <div class="wd"><span class="n">Tir</span><span class="b">25</span><span class="hw">📚</span></div>
+        <div class="wd"><span class="n">Ons</span><span class="b">26</span><span class="hw">📚</span></div>
+        <div class="wd"><span class="n">Tor</span><span class="b">27</span></div>
+        <div class="wd"><span class="n">Fre</span><span class="b">28</span><span class="hw">📚</span></div>
+      </div>
+
+      <div class="ahead">📅 Mandag 24. — dagens timer</div>
+      <div class="lesson"><span class="name">Tysk</span><div class="medals"><span class="m">🥉</span><span class="m sel">🥈</span><span class="m">🥇</span></div></div>
+      <div class="lesson"><span class="name">Engelsk</span><div class="medals"><span class="m">🥉</span><span class="m">🥈</span><span class="m">🥇</span></div></div>
+      <div class="lesson"><span class="name">Samfunnsfag</span><div class="medals"><span class="m">🥉</span><span class="m">🥈</span><span class="m">🥇</span></div></div>
+
+      <div class="sec">📚 Lekser i dag <span class="badge">2</span></div>
+
+      <div class="hwcard">
+        <div class="hwtop"><span class="subj">Tysk</span><span class="pts">+5 🪙</span></div>
+        <div class="hwtext">Kunne hilse, presentere seg selv og fortelle litt om seg selv. Øv på tall 0–20. Ha med PC og pennal.</div>
+        <button class="btn good sm">✓ Gjort</button>
+      </div>
+
+      <div class="hwcard">
+        <div class="hwtop"><span class="subj">Engelsk</span><span class="pts">+5 🪙</span></div>
+        <div class="hwtext">Les videre i «Coraline». Ta med headset om du vil lytte til boka.</div>
+        <button class="btn good sm">✓ Gjort</button>
+      </div>
+
+      <div class="pagenav">
+        <div class="pg on"><span class="i">📅</span>Uken</div>
+        <div class="pg"><span class="i">💵</span>Poeng</div>
+        <div class="pg"><span class="i">⭐</span>Sidequests</div>
+        <div class="pg"><span class="i">🛒</span>Shop</div>
+      </div>
+    </div>
+
+    <!-- 2: SØNN – etter å ha huket av -->
+    <div class="phone">
+      <div class="cap">Sønn · etter «Gjort»</div>
+      <div class="brand"><span class="logo">🪙</span><b>Honniscoins:</b> <span class="bal">128 🪙</span></div>
+      <div class="topbar"><span>🧒 Sønn</span><span>Bytt bruker</span></div>
+
+      <div class="banner">⏳ 5 🪙 venter på godkjenning</div>
+
+      <div class="sec">📚 Lekser · Mandag 24.</div>
+
+      <div class="hwcard done">
+        <div class="hwtop"><span class="subj">Tysk</span><span class="pts">+5 🪙</span></div>
+        <div class="hwtext">Kunne hilse, presentere seg selv … Ha med PC og pennal.</div>
+        <div class="statusline wait">⏳ Sendt til godkjenning <button class="undo">Angre</button></div>
+      </div>
+
+      <div class="hwcard">
+        <div class="hwtop"><span class="subj">Engelsk</span><span class="pts">+5 🪙</span></div>
+        <div class="hwtext">Les videre i «Coraline». Ta med headset om du vil lytte til boka.</div>
+        <button class="btn good sm">✓ Gjort</button>
+      </div>
+
+      <div class="sec">📚 Onsdag 26. (kommende)</div>
+      <div class="hwcard">
+        <div class="hwtop"><span class="subj">KRLE</span><span class="pts">+5 🪙</span></div>
+        <div class="hwtext">Kunne forklare hva kulturarv er, og hvordan kristendommen har påvirket norsk kulturarv. Gjør ferdig forklaringene innen fredag.</div>
+        <button class="btn good sm">✓ Gjort</button>
+      </div>
+      <div class="hwcard approved">
+        <div class="hwtop"><span class="subj">Naturfag</span><span class="pts">+5 🪙</span></div>
+        <div class="statusline ok">✅ Godkjent · lagt i potten</div>
+      </div>
+
+      <div class="pagenav">
+        <div class="pg on"><span class="i">📅</span>Uken</div>
+        <div class="pg"><span class="i">💵</span>Poeng</div>
+        <div class="pg"><span class="i">⭐</span>Sidequests</div>
+        <div class="pg"><span class="i">🛒</span>Shop</div>
+      </div>
+    </div>
+
+    <!-- 3: FORELDER – DAG-fanen -->
+    <div class="phone">
+      <div class="cap">Forelder · Dag-fanen</div>
+      <div class="brand"><span class="logo">🪙</span><b>Honniscoins:</b> <span class="bal">128 🪙</span></div>
+      <div class="topbar"><span>👨‍👩‍👦 Forelder</span><span>Bytt bruker</span></div>
+      <div class="tabbar">
+        <div class="t">Uke</div><div class="t on">Dag</div><div class="t">Timeplan</div>
+        <div class="t">Quests</div><div class="t">Poeng</div><div class="t">Logg</div>
+      </div>
+
+      <div class="weeknav"><button class="arrow">‹</button><span class="wlabel">Mandag 24. aug</span><button class="arrow">›</button></div>
+
+      <button class="btn" style="margin-bottom:6px">📚 Hent lekser fra Docendo</button>
+      <div class="note" style="margin-top:0">Henter denne + neste uke. Trygt å kjøre flere ganger – oppdaterer bare, sletter ikke det sønn har gjort.</div>
+
+      <div class="sec">📚 Lekser · til godkjenning <span class="badge" style="background:var(--bad)">1</span></div>
+      <div class="hwcard done">
+        <div class="hwtop"><span class="subj">Tysk</span><span class="ptsinp">+ <input value="5"> 🪙</span></div>
+        <div class="hwtext">Kunne hilse, presentere seg selv … Ha med PC og pennal.</div>
+        <div class="statusline wait">⏳ Sønn meldte ferdig</div>
+        <div class="brow" style="margin-top:9px"><button class="btn good sm">✅ Godkjenn</button><button class="btn ghost sm">↩︎ Send tilbake</button></div>
+      </div>
+
+      <div class="sec">📚 Alle lekser · Mandag 24.</div>
+      <div class="hwcard">
+        <div class="hwtop"><span class="subj">Engelsk</span><span class="ptsinp">+ <input value="5"> 🪙</span></div>
+        <div class="hwtext">Les videre i «Coraline». Ta med headset.</div>
+        <div class="acts"><button>👁 Skjul (ikke lekse)</button><button class="del">🗑 Slett</button></div>
+      </div>
+      <div class="hwcard hidden">
+        <div class="hwtop"><span class="subj">Spansk</span><span class="ptsinp">+ <input value="0"> 🪙</span></div>
+        <div class="hwtext">«Lars borte – vikar» — skjult, teller ikke som lekse.</div>
+        <div class="acts"><button>↩︎ Vis igjen</button></div>
+      </div>
+
+      <div class="sec">➕ Legg til manuelt</div>
+      <div class="hwcard">
+        <input class="inp" placeholder="Fag (f.eks. Matte)">
+        <input class="inp" placeholder="Hva skal gjøres?">
+        <div class="brow"><span class="ptsinp" style="flex:1">Poeng + <input value="5"> 🪙</span><button class="btn sm" style="flex:1">Legg til</button></div>
+      </div>
+
+      <div class="note">Ideer å vurdere: dedup av dobbelttimer (samme lekse to ganger), «godkjenn alle»-knapp, og at «skjul» huskes ved neste import.</div>
+    </div>
+
+  </div>
+</body>
+</html>
