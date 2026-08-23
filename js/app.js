@@ -238,7 +238,7 @@ function homeworkSectionHtml(s, date, view) {
     const weekTag = h.wholeWeek ? `<span class="weektag">🗓 hele uka</span>` : '';
     const dayTag = showDay ? `<span class="hwdaytag">${WD_SHORT[weekdayKey(h.date)]} ${fmtDayLabel(h.date).dm}</span>` : '';
     let action = '';
-    if (h.status === 'open') action = `<button class="btn good" data-hwdone="${h.id}">✓ Gjort</button>`;
+    if (h.status === 'open') action = `<button class="btn good" data-hwdone="${h.id}">Marker som gjort</button>`;
     else if (h.status === 'done') action = `<div class="muted">⏳ Sendt til godkjenning <button class="link" data-hwundo="${h.id}">Angre</button></div>`;
     else action = `<div class="muted">✅ Godkjent · lagt i potten</div>`;
     const cls = h.status === 'done' ? ' done' : h.status === 'approved' ? ' approved' : '';
@@ -303,10 +303,12 @@ function renderUkenPage(host) {
       const dl = fmtDayLabel(d);
       const dLocked = isDayLocked(s, d);
       const active = d === date;
-      const badge = dLocked ? `🔒 +${dailyTotal(s, d)}` : '·';
+      const dT = dailyTotal(s, d);
+      const badge = dLocked ? `🔒 +${dT}` : dT > 0 ? `~${dT}` : '·';
+      const bCls = !dLocked && dT > 0 ? ' prev' : '';
       return `<button class="wd ${active ? 'on' : ''} ${dLocked ? 'locked' : ''}" data-day="${d}">
         <span class="n">${WD_SHORT[weekdayKey(d)]}</span>
-        <span class="b">${badge}</span></button>`;
+        <span class="b${bCls}">${badge}</span></button>`;
     })
     .join('');
 

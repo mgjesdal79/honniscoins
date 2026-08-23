@@ -22,6 +22,7 @@
   button{font-family:var(--font);cursor:pointer}
   .btn{background:var(--accent);color:#fff;border:none;border-radius:12px;padding:14px;font-weight:700;font-size:1rem;width:100%}
   .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text)}
+  .btn.good{background:var(--good);color:#04120b}
   .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
   .muted{color:var(--muted)}
   .who{display:flex;flex-direction:column;justify-content:center;gap:14px;text-align:center;min-height:80vh}
@@ -90,6 +91,8 @@
   .weekstrip .wd{display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 2px;border-radius:12px;background:var(--surface);border:1px solid var(--line);color:var(--text)}
   .weekstrip .wd .n{font-size:.72rem;font-weight:700;color:var(--muted)}
   .weekstrip .wd .b{font-size:.72rem;font-weight:800}
+  .weekstrip .wd .b.prev{color:var(--muted);font-weight:700}
+  .weekstrip .wd.on .b.prev{color:#dbe6ff}
   .weekstrip .wd.locked{border-color:var(--good)}
   .weekstrip .wd.locked .b{color:var(--good)}
   .weekstrip .wd.on{background:var(--accent);border-color:var(--accent)}
@@ -170,7 +173,7 @@
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.08.23 (b17 · Lekser)';
+    window.APP_VERSION = '2026.08.23 (b18 · dag-poeng + gjort-knapp)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>
