@@ -39,6 +39,8 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
 - **Sønn-sider (pager):** Uken / Poeng (💵) / Sidequests (⭐) / Shop (🛒) — bunn-nav + sveip +
   prikker (`SON_PAGES` i app.js). Sidequests-ikonet har badge = antall åpne quests. Shop er
   fortsatt placeholder.
+- **Uke-stripe-badge (`renderUkenPage`):** låst dag = «🔒 +X» (grønn), ulåst dag med opptjente
+  poeng = «~X» (dempet, klasse `.b.prev`), tom/ingen poeng = «·». Ikke bare «·» overalt.
 - **Forelder-faner:** Uke / Dag / Timeplan / **Quests** / Poeng / Logg. Dag-fanen har lås/åpne-dag
   og lås/åpne-uke. Quests-fanen har badge = antall quests til godkjenning.
 
@@ -85,9 +87,16 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
 - **Fletting:** `homework` flettes **LWW per id** på `updatedAt` (`mergeHomeworkList`) — som
   quests, ikke union — så statusendringer og sletting vinner nyest.
 - **UI:** sønn i **Uken**-siden (`homeworkSectionHtml`, dag/uke-toggle, «🗓 hele uka»-merke);
-  forelder i **Dag**-fanen (`parentHomeworkHtml`: godkjenningskø + opprett/rediger-skjema med
-  «Gjelder hele uka»-avkryssing + liste med rediger/skjul/slett). Poeng-siden viser
-  `homeworkPointsPending` («📚 X 🪙 fra lekser venter på godkjenning»).
+  forelder i **Dag**-fanen (`parentHomeworkHtml`: godkjenningskø + «Legg til»-skjema øverst +
+  liste med rediger/skjul/slett). Poeng-siden viser `homeworkPointsPending`
+  («📚 X 🪙 fra lekser venter på godkjenning»).
+- **Sønnens «gjør ferdig»-knapp:** tekst «Marker som gjort» (imperativ, ikke «✓ Gjort» som
+  leste som status) + grønn `.btn.good` (klassen manglet før → falt tilbake til blå nav-stil).
+- **Inline redigering (forelder):** «✏️ Rediger» rendrer rediger-skjemaet DER leksa står i lista
+  (`editFormFor(h)` når `h.id === App.editHwId`), ikke øverst i seksjonen — unngår scroll til
+  toppen. Skjemaet har `id="hwEditForm"` + accent-ramme og `scrollIntoView` ved åpning. Samme
+  input-id-er (`hwSubject`/`hwText`/`hwPoints`/`hwWeek`/`hwSave`/`hwCancel`) som før, så
+  `bindParentHomework` er uendret. (Sidequests i Quests-fanen har fortsatt skjema-på-toppen.)
 - **Docendo-import = Fase 2 (utsatt):** auto-import fra Docendo ICS-feed (proxy-edge-function +
   `parseIcs`/`homeworkFromIcs`/`mergeHomeworkImport` + «Hent lekser»-knapp) er planlagt, ikke
   bygget. Lekser legges foreløpig inn manuelt (evt. seedet i rom via engangs-skript).
