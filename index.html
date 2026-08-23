@@ -148,13 +148,29 @@
   .datemid{position:relative;flex:1;text-align:center;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:10px 6px}
   .datemid b{font-size:.95rem}.datemid .d{color:var(--muted);font-size:.82rem}
   .dateover{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:none;background:transparent}
+  /* Lekser */
+  .hwsec{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:16px 2px 8px;font-weight:800;display:flex;align-items:center;gap:6px}
+  .hwseg{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:3px;margin:10px 0 4px}
+  .hwseg .s{flex:1;text-align:center;padding:7px 2px;border-radius:8px;font-size:.78rem;font-weight:800;color:var(--muted);background:transparent;border:none;font-family:inherit;cursor:pointer}
+  .hwseg .s.on{background:var(--accent);color:#fff}
+  .hwcard{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:10px 12px;margin-bottom:9px}
+  .hwcard.done{border-color:var(--gold)}
+  .hwcard.approved{opacity:.6}
+  .hwtop{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .hwsubj{font-weight:800;font-size:.95rem}
+  .hwtext{color:var(--muted);font-size:.85rem;margin:5px 0 9px;line-height:1.4}
+  .hwpts{flex:none;background:#152c1f;color:var(--good);border:1px solid var(--good);border-radius:10px;padding:2px 8px;font-weight:800;font-size:.78rem;white-space:nowrap}
+  .weektag{font-size:.66rem;color:#c3b9ff;font-weight:800;background:#171438;border:1px solid #3a2f7a;border-radius:7px;padding:1px 6px;white-space:nowrap;margin-left:6px}
+  .hwdaytag{font-size:.68rem;color:var(--muted);font-weight:700;background:var(--surface-2,#0f2547);border:1px solid var(--line);border-radius:7px;padding:1px 6px;margin-left:6px}
+  .hwedited{font-size:.66rem;color:#c3b9ff;font-weight:800;background:#171438;border:1px solid #3a2f7a;border-radius:7px;padding:1px 6px}
+  .hwsubjhead{display:flex;align-items:center;gap:7px;margin:14px 2px 7px;font-weight:800;font-size:.95rem}
 </style>
 </head>
 <body>
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.08.22 (b16 · Poeng-ikon = seddel)';
+    window.APP_VERSION = '2026.08.23 (b17 · Lekser)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>
