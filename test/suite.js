@@ -591,6 +591,14 @@ export function runTests() {
       eq('rec1 score', recs[1].score, 1);
       eq('EFFORT_SCORE', L.EFFORT_SCORE, { bronse: 1, solv: 2, gull: 3 });
     },
+    function periodFiltering() {
+      eq('all -> åpen', L.periodBounds('all', '2026-09-15'), { from: null, to: null });
+      eq('month -> fra 01', L.periodBounds('month', '2026-09-15'), { from: '2026-09-01', to: '2026-09-15' });
+      eq('d90 -> 90 dager', L.periodBounds('d90', '2026-09-15'), { from: '2026-06-18', to: '2026-09-15' });
+      const recs = [{ date: '2026-06-01' }, { date: '2026-09-10' }, { date: '2026-09-20' }];
+      eq('filter month', L.filterRecordsByPeriod(recs, { from: '2026-09-01', to: '2026-09-15' }).map((r) => r.date), ['2026-09-10']);
+      eq('filter all', L.filterRecordsByPeriod(recs, { from: null, to: null }).length, 3);
+    },
   ];
 
   for (const t of tests) {

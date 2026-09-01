@@ -949,3 +949,19 @@ export function effortRecords(state) {
   }
   return out;
 }
+
+// Periode-grenser for statistikk. 'all' | 'month' | 'd90'. todayIso = 'YYYY-MM-DD'.
+export function periodBounds(period, todayIso) {
+  if (period === 'month') return { from: todayIso.slice(0, 8) + '01', to: todayIso };
+  if (period === 'd90') {
+    const d = parseIso(todayIso);
+    d.setDate(d.getDate() - 89); // 90 dager inklusiv i dag
+    return { from: isoDate(d), to: todayIso };
+  }
+  return { from: null, to: null }; // 'all'
+}
+
+export function filterRecordsByPeriod(records, bounds) {
+  const { from, to } = bounds || {};
+  return (records || []).filter((r) => (!from || r.date >= from) && (!to || r.date <= to));
+}
