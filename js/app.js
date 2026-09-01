@@ -1495,6 +1495,9 @@ function svgWrap(w, h, inner) {
 }
 
 function routeToView() {
+  // Kun statistikk-fanen (forelder) bryter ut av mobil-bredden – ses på laptop.
+  const wide = App.role === 'parent' && App.parentUnlocked && App.parentTab === 'stat';
+  document.body.classList.toggle('statwide', wide);
   if (!App.role) return renderWho();
   if (App.role === 'son') return renderSon();
   return renderParent();

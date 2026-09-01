@@ -126,6 +126,10 @@
   .pagenav .pg .i{position:relative}
   .tabbar .t{position:relative}
   /* Statistikk (forelder, laptop-orientert) */
+  /* Statistikk-fanen bryter ut av mobil-bredden på laptop/store skjermer */
+  @media (min-width:820px){
+    body.statwide{max-width:1160px;padding-left:28px;padding-right:28px}
+  }
   #ptab .statperiod{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px}
   .statchip{font:600 .8rem var(--font);border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:6px 14px;cursor:pointer}
   .statchip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -139,11 +143,11 @@
   .stats{font-size:.74rem;margin-bottom:8px}
   .statempty{padding:26px 16px;text-align:center;line-height:1.5}
   .statsvg{display:block;width:100%;height:auto;overflow:visible}
-  .statsvg .axl{fill:var(--muted);font-size:11px}
-  .statsvg .axv{fill:var(--text);font-size:12px;font-weight:600}
-  .statsvg .axn{fill:var(--muted);font-size:10px}
-  .statsvg .axc{font-size:11px;font-weight:600}
-  .statsvg .axs{font-size:12px;font-weight:600}
+  .statsvg .axl{fill:var(--muted);font-size:13px}
+  .statsvg .axv{fill:var(--text);font-size:14px;font-weight:600}
+  .statsvg .axn{fill:var(--muted);font-size:11px}
+  .statsvg .axc{font-size:13px;font-weight:600}
+  .statsvg .axs{font-size:14px;font-weight:600}
   .statsvg text{font-family:var(--font)}
   /* dataviz-farger, tilpasset mørkt tema */
   .statgrid{--s1:#3987e5;--s2:#eb6834;--good:#0ca30c;--bad:#e34948;
@@ -198,7 +202,7 @@
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.09.01 (b20 · fag-statistikk)';
+    window.APP_VERSION = '2026.09.01 (b21 · statistikk full bredde)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>
