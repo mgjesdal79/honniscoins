@@ -688,7 +688,7 @@ git commit -m "feat(stat): registrer Statistikk-fane + periode-velger + tomtilst
 - Modify: `js/app.js` (erstatt stubbene fra Task 8)
 - Verifiser: `jsc -m js/app.js` + manuell nettleser-sjekk
 
-Alle byggere returnerer en SVG-streng. Farger hentes fra CSS-variabler definert i Task 10 (`var(--...)`), så lys/mørk følger appen. `esc` finnes allerede i app.js for tekst-escaping (bruk den på fagnavn); hvis ikke, bruk `String(x)`.
+Alle byggere returnerer en SVG-streng. Farger hentes fra CSS-variabler definert i Task 10 (`var(--...)`), så lys/mørk følger appen. `escapeHtml(s)` finnes allerede i app.js (linje 44) for tekst-escaping – bruk den på fagnavn.
 
 - [ ] **Step 1: Erstatt stubbene med ekte byggere**
 
@@ -713,7 +713,7 @@ function svgBySubject(bySub) {
   }
   bySub.subjects.forEach((d, i) => {
     const cy = T + rowH * i + rowH / 2, w = iw * (d.avg / 3);
-    g += `<text x="${L - 8}" y="${cy + 4}" text-anchor="end" class="axv">${esc(d.subjectLabel)}</text>`;
+    g += `<text x="${L - 8}" y="${cy + 4}" text-anchor="end" class="axv">${escapeHtml(d.subjectLabel)}</text>`;
     g += `<rect x="${L}" y="${cy - bh / 2}" width="${Math.max(w, 2)}" height="${bh}" rx="5" fill="${effortColor(d.avg)}"/>`;
     g += `<text x="${L + w + 8}" y="${cy + 4}" class="axv">${d.avg.toFixed(1)}</text>`;
     g += `<text x="${W - 6}" y="${cy + 4}" text-anchor="end" class="axn">n=${d.n}</text>`;
@@ -794,7 +794,7 @@ function svgTrend(trend) {
       g += `<circle cx="${pt[0]}" cy="${pt[1]}" r="3" fill="${col}"/>`;
       prev = pt; lastPt = pt;
     });
-    if (lastPt) g += `<text x="${lastPt[0] + 7}" y="${lastPt[1] + 4}" fill="${col}" class="axs">${esc(s.label)}</text>`;
+    if (lastPt) g += `<text x="${lastPt[0] + 7}" y="${lastPt[1] + 4}" fill="${col}" class="axs">${escapeHtml(s.label)}</text>`;
   });
   return svgWrap(W, H, g);
 }
@@ -807,7 +807,7 @@ function svgDistribution(dist) {
   let g = '';
   dist.forEach((d, i) => {
     const cy = T + rowH * i + rowH / 2;
-    g += `<text x="${L - 8}" y="${cy + 4}" text-anchor="end" class="axv">${esc(d.subjectLabel)}</text>`;
+    g += `<text x="${L - 8}" y="${cy + 4}" text-anchor="end" class="axv">${escapeHtml(d.subjectLabel)}</text>`;
     let x = L;
     parts.forEach(([k, col]) => {
       const w = iw * d[k];
@@ -824,14 +824,10 @@ function svgWrap(w, h, inner) {
 }
 ```
 
-- [ ] **Step 2: Bekreft at `esc` finnes**
+- [ ] **Step 2: Bekreft at `escapeHtml` finnes**
 
-Run: `grep -n "function esc" js/app.js`
-Expected: én treff. Hvis INGEN treff, legg til øverst blant hjelperne i app.js:
-
-```js
-function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
-```
+Run: `grep -n "function escapeHtml" js/app.js`
+Expected: én treff (linje 44). Den brukes til fagnavn-escaping i byggerne. (Ingen ny hjelper trengs.)
 
 - [ ] **Step 3: Parse-sjekk**
 
