@@ -657,6 +657,22 @@ export function runTests() {
       eq('matte verdier', matte.values, [2, 2]);
       eq('tom', L.statTrend([], []), { months: [], series: [] });
     },
+    function statMedalDistribution_basics() {
+      const recs = [
+        { subjectKey: 'matte', subjectLabel: 'Matte', medal: 'gull', score: 3 },
+        { subjectKey: 'matte', subjectLabel: 'Matte', medal: 'solv', score: 2 },
+        { subjectKey: 'matte', subjectLabel: 'Matte', medal: 'bronse', score: 1 },
+        { subjectKey: 'matte', subjectLabel: 'Matte', medal: 'gull', score: 3 },
+      ];
+      const r = L.statMedalDistribution(recs);
+      eq('ett fag', r.length, 1);
+      eq('n', r[0].n, 4);
+      eq('gull andel', r[0].gull, 0.5);
+      eq('solv andel', r[0].solv, 0.25);
+      eq('bronse andel', r[0].bronse, 0.25);
+      eq('label', r[0].subjectLabel, 'Matte');
+      eq('tom', L.statMedalDistribution([]), []);
+    },
   ];
 
   for (const t of tests) {

@@ -1061,3 +1061,30 @@ export function statTrend(records, focusKeys) {
   }
   return { months, series };
 }
+
+// Andeler gull/solv/bronse per fag (fravær/null er allerede ute av records).
+// Sortert som statBySubject (snitt synkende) for visuell konsistens med Visning 1.
+export function statMedalDistribution(records) {
+  const order = statBySubject(records).subjects.map((s) => s.subjectKey);
+  const map = new Map(); // key -> { labels:Map, gull, solv, bronse, n }
+  for (const r of records || []) {
+    let e = map.get(r.subjectKey);
+    if (!e) { e = { labels: new Map(), gull: 0, solv: 0, bronse: 0, n: 0 }; map.set(r.subjectKey, e); }
+    if (r.medal === 'gull') e.gull++;
+    else if (r.medal === 'solv') e.solv++;
+    else if (r.medal === 'bronse') e.bronse++;
+    e.n++;
+    e.labels.set(r.subjectLabel, (e.labels.get(r.subjectLabel) || 0) + 1);
+  }
+  return order.map((key) => {
+    const e = map.get(key);
+    return {
+      subjectKey: key,
+      subjectLabel: pickLabel(e.labels),
+      n: e.n,
+      gull: e.gull / e.n,
+      solv: e.solv / e.n,
+      bronse: e.bronse / e.n,
+    };
+  });
+}
