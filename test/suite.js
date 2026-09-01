@@ -626,6 +626,20 @@ export function runTests() {
       eq('pos2', r[1], { position: 2, avg: 2, n: 1 });
       eq('tom', L.statByPosition([]), []);
     },
+    function statHeatmap_basics() {
+      const recs = [
+        { weekday: 'mon', position: 0, score: 3 },
+        { weekday: 'mon', position: 0, score: 1 }, // snitt 2
+        { weekday: 'fri', position: 1, score: 1 },
+      ];
+      const r = L.statHeatmap(recs);
+      eq('positions', r.positions, [0, 1]);
+      eq('weekdays', r.weekdays, ['mon', 'tue', 'wed', 'thu', 'fri']);
+      eq('mon x pos0', r.cell.mon[0], { avg: 2, n: 2 });
+      eq('mon x pos1 tom', r.cell.mon[1], null);
+      eq('fri x pos1', r.cell.fri[1], { avg: 1, n: 1 });
+      eq('tom', L.statHeatmap([]), { positions: [], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], cell: { mon: {}, tue: {}, wed: {}, thu: {}, fri: {} } });
+    },
   ];
 
   for (const t of tests) {

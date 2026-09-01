@@ -1006,3 +1006,27 @@ export function statByPosition(records) {
     .map(([position, e]) => ({ position, avg: e.sum / e.n, n: e.n }))
     .sort((a, b) => a.position - b.position);
 }
+
+export function statHeatmap(records) {
+  const acc = {}; // wd -> pos -> {sum,n}
+  for (const k of WEEKDAY_KEYS) acc[k] = {};
+  let maxPos = -1;
+  for (const r of records || []) {
+    if (!acc[r.weekday]) continue; // helg e.l. finnes normalt ikke
+    let e = acc[r.weekday][r.position];
+    if (!e) { e = { sum: 0, n: 0 }; acc[r.weekday][r.position] = e; }
+    e.sum += r.score; e.n += 1;
+    if (r.position > maxPos) maxPos = r.position;
+  }
+  const positions = [];
+  for (let p = 0; p <= maxPos; p++) positions.push(p);
+  const cell = {};
+  for (const wd of WEEKDAY_KEYS) {
+    cell[wd] = {};
+    for (const p of positions) {
+      const e = acc[wd][p];
+      cell[wd][p] = e ? { avg: e.sum / e.n, n: e.n } : null;
+    }
+  }
+  return { positions, weekdays: [...WEEKDAY_KEYS], cell };
+}
