@@ -28,7 +28,11 @@
   body{margin:0;background:var(--plane);color:var(--ink);
     font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;
     padding:24px 16px 80px}
-  .wrap{max-width:860px;margin:0 auto}
+  .wrap{max-width:1120px;margin:0 auto}
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-top:6px}
+  .grid .card{margin:0}
+  .grid .span2{grid-column:1 / -1}
+  @media (max-width:760px){.grid{grid-template-columns:1fr}}
   h1{font-size:22px;margin:0 0 4px}
   .lead{color:var(--ink2);margin:0 0 6px}
   .note{background:#fff3cd;color:#664d03;border:1px solid #ffe69c;
@@ -48,6 +52,10 @@
   .n{fill:var(--muted);font-size:10px}
   .legend{display:flex;flex-wrap:wrap;gap:10px 16px;font-size:12px;color:var(--ink2);margin-top:10px}
   .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  .period{display:flex;gap:8px;margin:2px 0 6px}
+  .period button{font:13px system-ui;border:1px solid var(--ring);background:var(--surface-1);
+    color:var(--ink2);border-radius:999px;padding:6px 14px;cursor:pointer}
+  .period button.on{background:var(--s1);border-color:var(--s1);color:#fff;font-weight:600}
   .foot{color:var(--muted);font-size:12px;text-align:center;margin-top:28px}
   .pick{font-size:12px;color:var(--muted);margin-top:4px}
   b.k{color:var(--ink)}
@@ -56,11 +64,16 @@
 <body>
 <div class="wrap">
   <h1>Fag-statistikk for forelder</h1>
-  <p class="lead">Fem mulige visninger. Alle bygger på medaljen sønnen gir seg selv per time
-    (🥇 gull = 3, 🥈 sølv = 2, 🥉 bronse = 1, fravær/0 = 0), koblet til fag + hvilken time på dagen + ukedag.</p>
+  <p class="lead">Fem visninger. Alle bygger på medaljen sønnen gir seg selv per time
+    (🥇 gull = 3, 🥈 sølv = 2, 🥉 bronse = 1), koblet til fag + hvilken time på dagen + ukedag.
+    Fravær og ikke-vurderte timer holdes helt utenfor.</p>
+  <div class="period" role="group" aria-label="Periode">
+    <button>Denne måneden</button><button>Siste 90 dager</button><button class="on">Alt</button>
+  </div>
   <div class="note">⚠️ <b>Alt her er oppdiktede tall</b> for å vise formen. Poenget er å velge hvilke
     visninger som er nyttige – ikke å lese av noe ekte ennå.</div>
 
+  <div class="grid">
   <div class="card" id="c1">
     <span class="tag">Visning 1</span>
     <h2>Innsats per fag</h2>
@@ -76,7 +89,7 @@
     <svg id="svg2" viewBox="0 0 800 300" role="img" aria-label="Snitt-innsats etter timenummer"></svg>
   </div>
 
-  <div class="card" id="c3">
+  <div class="card span2" id="c3">
     <span class="tag">Visning 3</span>
     <h2>Ukedag × time (heatmap)</h2>
     <p class="q">Finnes det ett fast «svakt punkt» i uka – f.eks. fredag siste time?</p>
@@ -84,7 +97,7 @@
     <div class="legend" id="leg3"></div>
   </div>
 
-  <div class="card" id="c4">
+  <div class="card span2" id="c4">
     <span class="tag">Visning 4</span>
     <h2>Utvikling over tid</h2>
     <p class="q">Blir han bedre/dårligere? Månedlig snitt – totalt + valgte fag.</p>
@@ -98,6 +111,7 @@
     <p class="q">Ikke bare snittet – hvordan fordeler medaljene seg? (100 % stablet)</p>
     <svg id="svg5" viewBox="0 0 800 340" role="img" aria-label="Medaljefordeling per fag"></svg>
     <div class="legend" id="leg5"></div>
+  </div>
   </div>
 
   <p class="foot">Mockup · Honniscoins · falske data</p>
@@ -237,17 +251,17 @@ const overall = 1.9;
   const svg=document.getElementById("svg5");
   const W=800,H=340,L=92,R=16,T=10,B=28;
   const iw=W-L-R, ih=H-T-B;
-  // gull, solv, bronse, null(0)
+  // gull, solv, bronse (fravær holdes helt utenfor)
   const rows=[
-    {fag:"Musikk",  d:[.62,.24,.11,.03]},
-    {fag:"Gym",     d:[.55,.30,.12,.03]},
-    {fag:"Naturfag",d:[.40,.34,.20,.06]},
-    {fag:"Engelsk", d:[.33,.36,.24,.07]},
-    {fag:"Norsk",   d:[.24,.36,.30,.10]},
-    {fag:"Samfunn", d:[.18,.34,.34,.14]},
-    {fag:"Matte",   d:[.14,.28,.40,.18]},
+    {fag:"Musikk",  d:[.64,.25,.11]},
+    {fag:"Gym",     d:[.57,.31,.12]},
+    {fag:"Naturfag",d:[.43,.36,.21]},
+    {fag:"Engelsk", d:[.35,.39,.26]},
+    {fag:"Norsk",   d:[.27,.40,.33]},
+    {fag:"Samfunn", d:[.21,.39,.40]},
+    {fag:"Matte",   d:[.17,.34,.49]},
   ];
-  const cols=[C("--gull"),C("--solv"),C("--bronse"),C("--null")];
+  const cols=[C("--gull"),C("--solv"),C("--bronse")];
   const rowH=ih/rows.length, bh=Math.min(28,rowH*0.62);
   rows.forEach((r,i)=>{
     const cy=T+rowH*i+rowH/2;
@@ -262,7 +276,7 @@ const overall = 1.9;
     });
   });
   const leg=document.getElementById("leg5");
-  const names=["🥇 Gull","🥈 Sølv","🥉 Bronse","Fravær/0"];
+  const names=["🥇 Gull","🥈 Sølv","🥉 Bronse"];
   leg.innerHTML=names.map((nm,k)=>`<span><i style="background:${cols[k]}"></i>${nm}</span>`).join("");
 })();
 </script>
