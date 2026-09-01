@@ -11,6 +11,8 @@ import {
   homeworkForWeek, homeworkPointsPending, activeHomework,
   addHomework, updateHomework, deleteHomework, hideHomework,
   commitHomework, uncommitHomework, approveHomework, rejectHomework,
+  effortRecords, periodBounds, filterRecordsByPeriod,
+  statBySubject, statByPosition, statHeatmap, statTrend, statMedalDistribution,
 } from './logic.js';
 
 const el = document.getElementById('app');
@@ -23,6 +25,7 @@ const App = {
   parentUnlocked: false,
   currentDate: nearestWeekday(isoDate(new Date())),
   parentTab: 'uke',
+  statPeriod: 'all', // 'all' | 'month' | 'd90' – Statistikk-fanen
   sonPage: localStorage.getItem('honniscoins:sonPage') || 'uken',
   mondayDismissed: false,
   editQuestId: null,
@@ -633,6 +636,7 @@ function renderParentHome() {
     ['quests', 'Quests'],
     ['poeng', 'Poeng'],
     ['logg', 'Logg'],
+    ['stat', 'Statistikk'],
   ];
   const bar = tabs
     .map(([k, l]) => {
@@ -661,6 +665,7 @@ function renderParentHome() {
   if (App.parentTab === 'quests') return renderQuestsTab(host);
   if (App.parentTab === 'poeng') return renderPoengTab(host);
   if (App.parentTab === 'logg') return renderLoggTab(host);
+  if (App.parentTab === 'stat') return renderStatistikkTab(host);
 }
 
 // Ukesoppsummering: saldo + streak øverst, så man–fre med status og dagstotal.
@@ -1310,6 +1315,62 @@ function renderLoggTab(host) {
 }
 
 // --- ruter + oppstart ----------------------------------------------------
+
+// --- Statistikk (forelder, kun visning) ----------------------------------
+
+function renderStatistikkTab(host) {
+  const today = isoDate(new Date());
+  const bounds = periodBounds(App.statPeriod, today);
+  const recs = filterRecordsByPeriod(effortRecords(App.state), bounds);
+
+  const periods = [['month', 'Denne måneden'], ['d90', 'Siste 90 dager'], ['all', 'Alt']];
+  const chips = periods
+    .map(([k, l]) => `<button class="statchip ${App.statPeriod === k ? 'on' : ''}" data-p="${k}">${l}</button>`)
+    .join('');
+
+  if (!recs.length) {
+    host.innerHTML = `
+      <div class="statperiod">${chips}</div>
+      <div class="card statempty">📊 Ingen data ennå for valgt periode.<br>
+        <span class="muted">Lås noen dager med medaljer først – kun låste dager teller.</span></div>`;
+    bindStatChips(host);
+    return;
+  }
+
+  const bySub = statBySubject(recs);
+  const byPos = statByPosition(recs);
+  const heat = statHeatmap(recs);
+  const trend = statTrend(recs);
+  const dist = statMedalDistribution(recs);
+
+  host.innerHTML = `
+    <div class="statperiod">${chips}</div>
+    <div class="statgrid">
+      ${statCard('Innsats per fag', 'Snitt-medalje per fag (🥇3 🥈2 🥉1)', svgBySubject(bySub))}
+      ${statCard('Innsats etter når på dagen', 'Snitt per timenummer', svgByPosition(byPos))}
+      ${statCard('Ukedag × time', 'Snitt per ukedag og timenummer', svgHeatmap(heat), true)}
+      ${statCard('Utvikling over tid', 'Månedlig snitt: totalt + mest brukte fag', svgTrend(trend), true)}
+      ${statCard('Medaljefordeling per fag', 'Andel gull/sølv/bronse', svgDistribution(dist))}
+    </div>`;
+  bindStatChips(host);
+}
+
+function statCard(title, sub, svg, wide) {
+  return `<div class="card statc ${wide ? 'span2' : ''}">
+    <div class="stath">${title}</div><div class="muted stats">${sub}</div>${svg}</div>`;
+}
+
+function bindStatChips(host) {
+  host.querySelectorAll('.statchip[data-p]').forEach(
+    (b) => (b.onclick = () => { App.statPeriod = b.dataset.p; routeToView(); })
+  );
+}
+
+function svgBySubject() { return ''; }
+function svgByPosition() { return ''; }
+function svgHeatmap() { return ''; }
+function svgTrend() { return ''; }
+function svgDistribution() { return ''; }
 
 function routeToView() {
   if (!App.role) return renderWho();
