@@ -573,6 +573,24 @@ export function runTests() {
     function logic_module_loads() {
       ok('logic module loads', L.APP_LOGIC_VERSION === 1);
     },
+
+    // --- fag-statistikk ---
+    function effortRecords_filters_and_maps() {
+      const s = L.defaultState();
+      // låst, present: 1. time Matte gull, 2. time Norsk bronse
+      s.days['2026-09-01'] = { subjects: ['Matte', 'Norsk'], marks: { 0: { medal: 'gull' }, 1: { medal: 'bronse' } }, locked: true, lockedAt: 't' };
+      // ulåst -> skal ignoreres helt
+      s.days['2026-09-02'] = { subjects: ['Matte'], marks: { 0: { medal: 'gull' } } };
+      // låst men fravær/ikke-vurdert -> ingen records
+      s.days['2026-09-03'] = { subjects: ['Matte', 'Gym'], marks: { 0: { medal: '0' }, 1: { medal: null } }, locked: true, lockedAt: 't' };
+      // låst, sick -> hoppes over
+      s.days['2026-09-04'] = { subjects: ['Matte'], marks: { 0: { medal: 'gull' } }, locked: true, lockedAt: 't', sick: true };
+      const recs = L.effortRecords(s).sort((a, b) => a.position - b.position);
+      eq('antall records', recs.length, 2);
+      eq('rec0', recs[0], { date: '2026-09-01', weekday: 'tue', position: 0, subjectKey: 'matte', subjectLabel: 'Matte', medal: 'gull', score: 3 });
+      eq('rec1 score', recs[1].score, 1);
+      eq('EFFORT_SCORE', L.EFFORT_SCORE, { bronse: 1, solv: 2, gull: 3 });
+    },
   ];
 
   for (const t of tests) {

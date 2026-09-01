@@ -913,3 +913,39 @@ function mergeHomeworkList(a = [], b = []) {
   }
   return [...map.values()];
 }
+
+// --- Fag-statistikk (forelder, kun visning) ------------------------------
+
+export const EFFORT_SCORE = { bronse: 1, solv: 2, gull: 3 };
+
+// Flat liste med innsats-records fra LÅSTE, ikke-syke dager.
+// Kun bronse/solv/gull teller; fravær ('0') og ikke-vurdert (null) utelates.
+export function effortRecords(state) {
+  const days = (state && state.days) || {};
+  const out = [];
+  for (const date of Object.keys(days)) {
+    const day = days[date];
+    if (!day || day.locked !== true || day.sick) continue;
+    const wd = weekdayKey(date);
+    const subjects = Array.isArray(day.subjects) ? day.subjects : [];
+    const marks = day.marks || {};
+    for (const key of Object.keys(marks)) {
+      const medal = marks[key] ? marks[key].medal : null;
+      const score = EFFORT_SCORE[medal];
+      if (score === undefined) continue; // null og '0' hoppes over
+      const raw = subjects[Number(key)];
+      const label = (raw == null ? '' : String(raw)).trim();
+      if (!label) continue;
+      out.push({
+        date,
+        weekday: wd,
+        position: Number(key),
+        subjectKey: label.toLowerCase(),
+        subjectLabel: label,
+        medal,
+        score,
+      });
+    }
+  }
+  return out;
+}
