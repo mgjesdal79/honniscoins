@@ -913,3 +913,178 @@ function mergeHomeworkList(a = [], b = []) {
   }
   return [...map.values()];
 }
+
+// --- Fag-statistikk (forelder, kun visning) ------------------------------
+
+export const EFFORT_SCORE = { bronse: 1, solv: 2, gull: 3 };
+
+// Flat liste med innsats-records fra LÅSTE, ikke-syke dager.
+// Kun bronse/solv/gull teller; fravær ('0') og ikke-vurdert (null) utelates.
+export function effortRecords(state) {
+  const days = (state && state.days) || {};
+  const out = [];
+  for (const date of Object.keys(days)) {
+    const day = days[date];
+    if (!day || day.locked !== true || day.sick) continue;
+    const wd = weekdayKey(date);
+    const subjects = Array.isArray(day.subjects) ? day.subjects : [];
+    const marks = day.marks || {};
+    for (const key of Object.keys(marks)) {
+      const medal = marks[key] ? marks[key].medal : null;
+      const score = EFFORT_SCORE[medal];
+      if (score === undefined) continue; // null og '0' hoppes over
+      const raw = subjects[Number(key)];
+      const label = (raw == null ? '' : String(raw)).trim();
+      if (!label) continue;
+      out.push({
+        date,
+        weekday: wd,
+        position: Number(key),
+        subjectKey: label.toLowerCase(),
+        subjectLabel: label,
+        medal,
+        score,
+      });
+    }
+  }
+  return out;
+}
+
+// Periode-grenser for statistikk. 'all' | 'month' | 'd90'. todayIso = 'YYYY-MM-DD'.
+export function periodBounds(period, todayIso) {
+  if (period === 'month') return { from: todayIso.slice(0, 8) + '01', to: todayIso };
+  if (period === 'd90') {
+    const d = parseIso(todayIso);
+    d.setDate(d.getDate() - 89); // 90 dager inklusiv i dag
+    return { from: isoDate(d), to: todayIso };
+  }
+  return { from: null, to: null }; // 'all'
+}
+
+export function filterRecordsByPeriod(records, bounds) {
+  const { from, to } = bounds || {};
+  return (records || []).filter((r) => (!from || r.date >= from) && (!to || r.date <= to));
+}
+
+// Intern: velg hyppigste skrivemåte for et fag.
+function pickLabel(labelCounts) {
+  let best = null, bestN = -1;
+  for (const [label, n] of labelCounts) {
+    if (n > bestN) { best = label; bestN = n; }
+  }
+  return best;
+}
+
+export function statBySubject(records) {
+  const map = new Map(); // key -> { sum, n, labels:Map }
+  let totalSum = 0, totalN = 0;
+  for (const r of records || []) {
+    let e = map.get(r.subjectKey);
+    if (!e) { e = { sum: 0, n: 0, labels: new Map() }; map.set(r.subjectKey, e); }
+    e.sum += r.score; e.n += 1;
+    e.labels.set(r.subjectLabel, (e.labels.get(r.subjectLabel) || 0) + 1);
+    totalSum += r.score; totalN += 1;
+  }
+  const subjects = [...map.entries()].map(([key, e]) => ({
+    subjectKey: key,
+    subjectLabel: pickLabel(e.labels),
+    avg: e.sum / e.n,
+    n: e.n,
+  }));
+  subjects.sort((a, b) => b.avg - a.avg || b.n - a.n);
+  return { subjects, overallAvg: totalN ? totalSum / totalN : 0, n: totalN };
+}
+
+export function statByPosition(records) {
+  const map = new Map(); // position -> { sum, n }
+  for (const r of records || []) {
+    let e = map.get(r.position);
+    if (!e) { e = { sum: 0, n: 0 }; map.set(r.position, e); }
+    e.sum += r.score; e.n += 1;
+  }
+  return [...map.entries()]
+    .map(([position, e]) => ({ position, avg: e.sum / e.n, n: e.n }))
+    .sort((a, b) => a.position - b.position);
+}
+
+export function statHeatmap(records) {
+  const acc = {}; // wd -> pos -> {sum,n}
+  for (const k of WEEKDAY_KEYS) acc[k] = {};
+  let maxPos = -1;
+  for (const r of records || []) {
+    if (!acc[r.weekday]) continue; // helg e.l. finnes normalt ikke
+    let e = acc[r.weekday][r.position];
+    if (!e) { e = { sum: 0, n: 0 }; acc[r.weekday][r.position] = e; }
+    e.sum += r.score; e.n += 1;
+    if (r.position > maxPos) maxPos = r.position;
+  }
+  const positions = [];
+  for (let p = 0; p <= maxPos; p++) positions.push(p);
+  const cell = {};
+  for (const wd of WEEKDAY_KEYS) {
+    cell[wd] = {};
+    for (const p of positions) {
+      const e = acc[wd][p];
+      cell[wd][p] = e ? { avg: e.sum / e.n, n: e.n } : null;
+    }
+  }
+  return { positions, weekdays: [...WEEKDAY_KEYS], cell };
+}
+
+// focusKeys = liste med subjectKey som skal få egen linje (i tillegg til totalt).
+// Hvis utelatt: de to fagene med flest records.
+export function statTrend(records, focusKeys) {
+  const recs = records || [];
+  if (!recs.length) return { months: [], series: [] };
+  if (!focusKeys) {
+    const by = statBySubject(recs).subjects; // sortert avg desc, tie n desc
+    focusKeys = by.slice().sort((a, b) => b.n - a.n).slice(0, 2).map((x) => x.subjectKey);
+  }
+  const months = [...new Set(recs.map((r) => r.date.slice(0, 7)))].sort();
+  const labelFor = {};
+  for (const r of recs) if (!labelFor[r.subjectKey]) labelFor[r.subjectKey] = r.subjectLabel;
+
+  const avgFor = (pred) => {
+    const map = {}; // month -> {sum,n}
+    for (const r of recs) {
+      if (!pred(r)) continue;
+      const m = r.date.slice(0, 7);
+      const e = (map[m] = map[m] || { sum: 0, n: 0 });
+      e.sum += r.score; e.n += 1;
+    }
+    return months.map((m) => (map[m] ? map[m].sum / map[m].n : null));
+  };
+
+  const series = [{ key: '__total__', label: 'Totalt', values: avgFor(() => true) }];
+  for (const key of focusKeys) {
+    series.push({ key, label: labelFor[key] || key, values: avgFor((r) => r.subjectKey === key) });
+  }
+  return { months, series };
+}
+
+// Andeler gull/solv/bronse per fag (fravær/null er allerede ute av records).
+// Sortert som statBySubject (snitt synkende) for visuell konsistens med Visning 1.
+export function statMedalDistribution(records) {
+  const order = statBySubject(records).subjects.map((s) => s.subjectKey);
+  const map = new Map(); // key -> { labels:Map, gull, solv, bronse, n }
+  for (const r of records || []) {
+    let e = map.get(r.subjectKey);
+    if (!e) { e = { labels: new Map(), gull: 0, solv: 0, bronse: 0, n: 0 }; map.set(r.subjectKey, e); }
+    if (r.medal === 'gull') e.gull++;
+    else if (r.medal === 'solv') e.solv++;
+    else if (r.medal === 'bronse') e.bronse++;
+    e.n++;
+    e.labels.set(r.subjectLabel, (e.labels.get(r.subjectLabel) || 0) + 1);
+  }
+  return order.map((key) => {
+    const e = map.get(key);
+    return {
+      subjectKey: key,
+      subjectLabel: pickLabel(e.labels),
+      n: e.n,
+      gull: e.gull / e.n,
+      solv: e.solv / e.n,
+      bronse: e.bronse / e.n,
+    };
+  });
+}

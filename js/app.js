@@ -11,6 +11,8 @@ import {
   homeworkForWeek, homeworkPointsPending, activeHomework,
   addHomework, updateHomework, deleteHomework, hideHomework,
   commitHomework, uncommitHomework, approveHomework, rejectHomework,
+  effortRecords, periodBounds, filterRecordsByPeriod,
+  statBySubject, statByPosition, statHeatmap, statTrend, statMedalDistribution,
 } from './logic.js';
 
 const el = document.getElementById('app');
@@ -23,6 +25,7 @@ const App = {
   parentUnlocked: false,
   currentDate: nearestWeekday(isoDate(new Date())),
   parentTab: 'uke',
+  statPeriod: 'all', // 'all' | 'month' | 'd90' – Statistikk-fanen
   sonPage: localStorage.getItem('honniscoins:sonPage') || 'uken',
   mondayDismissed: false,
   editQuestId: null,
@@ -633,6 +636,7 @@ function renderParentHome() {
     ['quests', 'Quests'],
     ['poeng', 'Poeng'],
     ['logg', 'Logg'],
+    ['stat', 'Statistikk'],
   ];
   const bar = tabs
     .map(([k, l]) => {
@@ -661,6 +665,7 @@ function renderParentHome() {
   if (App.parentTab === 'quests') return renderQuestsTab(host);
   if (App.parentTab === 'poeng') return renderPoengTab(host);
   if (App.parentTab === 'logg') return renderLoggTab(host);
+  if (App.parentTab === 'stat') return renderStatistikkTab(host);
 }
 
 // Ukesoppsummering: saldo + streak øverst, så man–fre med status og dagstotal.
@@ -1310,6 +1315,184 @@ function renderLoggTab(host) {
 }
 
 // --- ruter + oppstart ----------------------------------------------------
+
+// --- Statistikk (forelder, kun visning) ----------------------------------
+
+function renderStatistikkTab(host) {
+  const today = isoDate(new Date());
+  const bounds = periodBounds(App.statPeriod, today);
+  const recs = filterRecordsByPeriod(effortRecords(App.state), bounds);
+
+  const periods = [['month', 'Denne måneden'], ['d90', 'Siste 90 dager'], ['all', 'Alt']];
+  const chips = periods
+    .map(([k, l]) => `<button class="statchip ${App.statPeriod === k ? 'on' : ''}" data-p="${k}">${l}</button>`)
+    .join('');
+
+  if (!recs.length) {
+    host.innerHTML = `
+      <div class="statperiod">${chips}</div>
+      <div class="card statempty">📊 Ingen data ennå for valgt periode.<br>
+        <span class="muted">Lås noen dager med medaljer først – kun låste dager teller.</span></div>`;
+    bindStatChips(host);
+    return;
+  }
+
+  const bySub = statBySubject(recs);
+  const byPos = statByPosition(recs);
+  const heat = statHeatmap(recs);
+  const trend = statTrend(recs);
+  const dist = statMedalDistribution(recs);
+
+  host.innerHTML = `
+    <div class="statperiod">${chips}</div>
+    <div class="statgrid">
+      ${statCard('Innsats per fag', 'Snitt-medalje per fag (🥇3 🥈2 🥉1)', svgBySubject(bySub))}
+      ${statCard('Innsats etter når på dagen', 'Snitt per timenummer', svgByPosition(byPos))}
+      ${statCard('Ukedag × time', 'Snitt per ukedag og timenummer', svgHeatmap(heat), true)}
+      ${statCard('Utvikling over tid', 'Månedlig snitt: totalt + mest brukte fag', svgTrend(trend), true)}
+      ${statCard('Medaljefordeling per fag', 'Andel gull/sølv/bronse', svgDistribution(dist))}
+    </div>`;
+  bindStatChips(host);
+}
+
+function statCard(title, sub, svg, wide) {
+  return `<div class="card statc ${wide ? 'span2' : ''}">
+    <div class="stath">${title}</div><div class="muted stats">${sub}</div>${svg}</div>`;
+}
+
+function bindStatChips(host) {
+  host.querySelectorAll('.statchip[data-p]').forEach(
+    (b) => (b.onclick = () => { App.statPeriod = b.dataset.p; routeToView(); })
+  );
+}
+
+// Felles: fargeterskel for innsats-snitt.
+function effortColor(avg) {
+  return avg >= 2.2 ? 'var(--good)' : avg < 1.6 ? 'var(--bad)' : 'var(--s1)';
+}
+function hourLabel(pos) { return (pos + 1) + '. time'; }
+
+// Visning 1: rangerte horisontale stolper.
+function svgBySubject(bySub) {
+  const W = 800, H = Math.max(160, 40 + bySub.subjects.length * 34), L = 96, R = 54, T = 8, B = 22;
+  const iw = W - L - R, ih = H - T - B, rowH = ih / bySub.subjects.length, bh = Math.min(24, rowH * 0.6);
+  let g = '';
+  for (let v = 0; v <= 3; v++) {
+    const x = L + iw * (v / 3);
+    g += `<line x1="${x}" y1="${T}" x2="${x}" y2="${T + ih}" stroke="var(--grid)"/>`;
+    g += `<text x="${x}" y="${T + ih + 15}" text-anchor="middle" class="axl">${v}</text>`;
+  }
+  bySub.subjects.forEach((d, i) => {
+    const cy = T + rowH * i + rowH / 2, w = iw * (d.avg / 3);
+    g += `<text x="${L - 8}" y="${cy + 4}" text-anchor="end" class="axv">${escapeHtml(d.subjectLabel)}</text>`;
+    g += `<rect x="${L}" y="${cy - bh / 2}" width="${Math.max(w, 2)}" height="${bh}" rx="5" fill="${effortColor(d.avg)}"/>`;
+    g += `<text x="${L + w + 8}" y="${cy + 4}" class="axv">${d.avg.toFixed(1)}</text>`;
+    g += `<text x="${W - 6}" y="${cy + 4}" text-anchor="end" class="axn">n=${d.n}</text>`;
+  });
+  const sx = L + iw * (bySub.overallAvg / 3);
+  g += `<line x1="${sx}" y1="${T}" x2="${sx}" y2="${T + ih}" stroke="var(--ink2)" stroke-dasharray="4 4"/>`;
+  return svgWrap(W, H, g);
+}
+
+// Visning 2: stolper per timenummer.
+function svgByPosition(byPos) {
+  const W = 800, H = 260, L = 40, R = 14, T = 12, B = 42, iw = W - L - R, ih = H - T - B;
+  let g = '';
+  for (let v = 0; v <= 3; v++) {
+    const y = T + ih - ih * (v / 3);
+    g += `<line x1="${L}" y1="${y}" x2="${L + iw}" y2="${y}" stroke="var(--grid)"/>`;
+    g += `<text x="${L - 6}" y="${y + 4}" text-anchor="end" class="axl">${v}</text>`;
+  }
+  const bw = (iw / Math.max(1, byPos.length)) * 0.5;
+  byPos.forEach((d, i) => {
+    const cx = L + iw * ((i + 0.5) / byPos.length), bh = ih * (d.avg / 3);
+    g += `<rect x="${cx - bw / 2}" y="${T + ih - bh}" width="${bw}" height="${bh}" rx="5" fill="${effortColor(d.avg)}"/>`;
+    g += `<text x="${cx}" y="${T + ih - bh - 6}" text-anchor="middle" class="axv">${d.avg.toFixed(1)}</text>`;
+    g += `<text x="${cx}" y="${T + ih + 15}" text-anchor="middle" class="axl">${hourLabel(d.position)}</text>`;
+    g += `<text x="${cx}" y="${T + ih + 29}" text-anchor="middle" class="axn">n=${d.n}</text>`;
+  });
+  return svgWrap(W, H, g);
+}
+
+// Visning 3: heatmap ukedag x timenummer.
+function svgHeatmap(heat) {
+  const names = { mon: 'Man', tue: 'Tir', wed: 'Ons', thu: 'Tor', fri: 'Fre' };
+  const cols = heat.positions.length || 1;
+  const W = 800, H = 60 + heat.weekdays.length * 42, L = 46, R = 14, T = 26, B = 16;
+  const iw = W - L - R, ih = H - T - B, cw = iw / cols, ch = ih / heat.weekdays.length, gap = 3;
+  const ramp = ['--seq1', '--seq2', '--seq3', '--seq4', '--seq5'];
+  const colorOf = (avg) => `var(${ramp[Math.min(4, Math.floor((avg / 3) * 5))]})`;
+  let g = '';
+  heat.positions.forEach((p, j) =>
+    (g += `<text x="${L + cw * (j + 0.5)}" y="${T - 9}" text-anchor="middle" class="axl">${hourLabel(p)}</text>`));
+  heat.weekdays.forEach((wd, i) => {
+    g += `<text x="${L - 6}" y="${T + ch * (i + 0.5) + 4}" text-anchor="end" class="axl">${names[wd]}</text>`;
+    heat.positions.forEach((p, j) => {
+      const c = heat.cell[wd][p];
+      const x = L + cw * j + gap / 2, y = T + ch * i + gap / 2;
+      if (!c) {
+        g += `<rect x="${x}" y="${y}" width="${cw - gap}" height="${ch - gap}" rx="5" fill="var(--null)" stroke="var(--grid)"/>`;
+      } else {
+        g += `<rect x="${x}" y="${y}" width="${cw - gap}" height="${ch - gap}" rx="5" fill="${colorOf(c.avg)}"/>`;
+        g += `<text x="${L + cw * (j + 0.5)}" y="${T + ch * (i + 0.5) + 4}" text-anchor="middle" fill="${c.avg / 3 > 0.6 ? '#fff' : 'var(--ink)'}" class="axc">${c.avg.toFixed(1)}</text>`;
+      }
+    });
+  });
+  return svgWrap(W, H, g);
+}
+
+// Visning 4: linjediagram, månedlig snitt.
+function svgTrend(trend) {
+  const cols = ['var(--ink2)', 'var(--s1)', 'var(--s2)'];
+  const W = 800, H = 260, L = 40, R = 70, T = 12, B = 30, iw = W - L - R, ih = H - T - B;
+  const n = Math.max(1, trend.months.length - 1);
+  const X = (i) => L + iw * (i / n), Y = (v) => T + ih - ih * (v / 3);
+  let g = '';
+  for (let v = 0; v <= 3; v++) {
+    const y = Y(v);
+    g += `<line x1="${L}" y1="${y}" x2="${L + iw}" y2="${y}" stroke="var(--grid)"/>`;
+    g += `<text x="${L - 6}" y="${y + 4}" text-anchor="end" class="axl">${v}</text>`;
+  }
+  trend.months.forEach((m, i) =>
+    (g += `<text x="${X(i)}" y="${T + ih + 18}" text-anchor="middle" class="axl">${m.slice(5)}</text>`));
+  trend.series.forEach((s, si) => {
+    const col = cols[si % cols.length];
+    let prev = null, lastPt = null;
+    s.values.forEach((v, i) => {
+      if (v == null) { prev = null; return; }
+      const pt = [X(i), Y(v)];
+      if (prev) g += `<line x1="${prev[0]}" y1="${prev[1]}" x2="${pt[0]}" y2="${pt[1]}" stroke="${col}" stroke-width="${si === 0 ? 2.5 : 2}" stroke-linecap="round"/>`;
+      g += `<circle cx="${pt[0]}" cy="${pt[1]}" r="3" fill="${col}"/>`;
+      prev = pt; lastPt = pt;
+    });
+    if (lastPt) g += `<text x="${lastPt[0] + 7}" y="${lastPt[1] + 4}" fill="${col}" class="axs">${escapeHtml(s.label)}</text>`;
+  });
+  return svgWrap(W, H, g);
+}
+
+// Visning 5: 100 % stablet gull/sølv/bronse.
+function svgDistribution(dist) {
+  const W = 800, H = Math.max(160, 30 + dist.length * 36), L = 96, R = 14, T = 8, B = 20;
+  const iw = W - L - R, ih = H - T - B, rowH = ih / dist.length, bh = Math.min(26, rowH * 0.6);
+  const parts = [['gull', 'var(--gull)'], ['solv', 'var(--solv)'], ['bronse', 'var(--bronse)']];
+  let g = '';
+  dist.forEach((d, i) => {
+    const cy = T + rowH * i + rowH / 2;
+    g += `<text x="${L - 8}" y="${cy + 4}" text-anchor="end" class="axv">${escapeHtml(d.subjectLabel)}</text>`;
+    let x = L;
+    parts.forEach(([k, col]) => {
+      const w = iw * d[k];
+      g += `<rect x="${x}" y="${cy - bh / 2}" width="${Math.max(w - 2, 0)}" height="${bh}" fill="${col}"/>`;
+      if (d[k] >= 0.12) g += `<text x="${x + w / 2}" y="${cy + 4}" text-anchor="middle" fill="#fff" class="axc">${Math.round(d[k] * 100)}%</text>`;
+      x += w;
+    });
+  });
+  return svgWrap(W, H, g);
+}
+
+function svgWrap(w, h, inner) {
+  return `<svg class="statsvg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" role="img">${inner}</svg>`;
+}
 
 function routeToView() {
   if (!App.role) return renderWho();

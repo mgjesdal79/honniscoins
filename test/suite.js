@@ -573,6 +573,106 @@ export function runTests() {
     function logic_module_loads() {
       ok('logic module loads', L.APP_LOGIC_VERSION === 1);
     },
+
+    // --- fag-statistikk ---
+    function effortRecords_filters_and_maps() {
+      const s = L.defaultState();
+      // låst, present: 1. time Matte gull, 2. time Norsk bronse
+      s.days['2026-09-01'] = { subjects: ['Matte', 'Norsk'], marks: { 0: { medal: 'gull' }, 1: { medal: 'bronse' } }, locked: true, lockedAt: 't' };
+      // ulåst -> skal ignoreres helt
+      s.days['2026-09-02'] = { subjects: ['Matte'], marks: { 0: { medal: 'gull' } } };
+      // låst men fravær/ikke-vurdert -> ingen records
+      s.days['2026-09-03'] = { subjects: ['Matte', 'Gym'], marks: { 0: { medal: '0' }, 1: { medal: null } }, locked: true, lockedAt: 't' };
+      // låst, sick -> hoppes over
+      s.days['2026-09-04'] = { subjects: ['Matte'], marks: { 0: { medal: 'gull' } }, locked: true, lockedAt: 't', sick: true };
+      const recs = L.effortRecords(s).sort((a, b) => a.position - b.position);
+      eq('antall records', recs.length, 2);
+      eq('rec0', recs[0], { date: '2026-09-01', weekday: 'tue', position: 0, subjectKey: 'matte', subjectLabel: 'Matte', medal: 'gull', score: 3 });
+      eq('rec1 score', recs[1].score, 1);
+      eq('EFFORT_SCORE', L.EFFORT_SCORE, { bronse: 1, solv: 2, gull: 3 });
+    },
+    function periodFiltering() {
+      eq('all -> åpen', L.periodBounds('all', '2026-09-15'), { from: null, to: null });
+      eq('month -> fra 01', L.periodBounds('month', '2026-09-15'), { from: '2026-09-01', to: '2026-09-15' });
+      eq('d90 -> 90 dager', L.periodBounds('d90', '2026-09-15'), { from: '2026-06-18', to: '2026-09-15' });
+      const recs = [{ date: '2026-06-01' }, { date: '2026-09-10' }, { date: '2026-09-20' }];
+      eq('filter month', L.filterRecordsByPeriod(recs, { from: '2026-09-01', to: '2026-09-15' }).map((r) => r.date), ['2026-09-10']);
+      eq('filter all', L.filterRecordsByPeriod(recs, { from: null, to: null }).length, 3);
+    },
+    function statBySubject_basics() {
+      const recs = [
+        { subjectKey: 'matte', subjectLabel: 'Matte', score: 1 },
+        { subjectKey: 'matte', subjectLabel: 'matte', score: 3 }, // ulik staving -> samme fag
+        { subjectKey: 'norsk', subjectLabel: 'Norsk', score: 2 },
+      ];
+      const r = L.statBySubject(recs);
+      eq('overall snitt', r.overallAvg, 2); // (1+3+2)/3
+      eq('overall n', r.n, 3);
+      eq('antall fag', r.subjects.length, 2);
+      const matte = r.subjects.find((x) => x.subjectKey === 'matte');
+      eq('matte snitt', matte.avg, 2);
+      eq('matte n', matte.n, 2);
+      eq('matte label = hyppigste', matte.subjectLabel, 'Matte');
+      eq('tom input', L.statBySubject([]), { subjects: [], overallAvg: 0, n: 0 });
+    },
+    function statByPosition_basics() {
+      const recs = [
+        { position: 0, score: 3 }, { position: 0, score: 1 },
+        { position: 2, score: 2 },
+      ];
+      const r = L.statByPosition(recs);
+      eq('antall posisjoner', r.length, 2);
+      eq('pos0', r[0], { position: 0, avg: 2, n: 2 });
+      eq('pos2', r[1], { position: 2, avg: 2, n: 1 });
+      eq('tom', L.statByPosition([]), []);
+    },
+    function statHeatmap_basics() {
+      const recs = [
+        { weekday: 'mon', position: 0, score: 3 },
+        { weekday: 'mon', position: 0, score: 1 }, // snitt 2
+        { weekday: 'fri', position: 1, score: 1 },
+      ];
+      const r = L.statHeatmap(recs);
+      eq('positions', r.positions, [0, 1]);
+      eq('weekdays', r.weekdays, ['mon', 'tue', 'wed', 'thu', 'fri']);
+      eq('mon x pos0', r.cell.mon[0], { avg: 2, n: 2 });
+      eq('mon x pos1 tom', r.cell.mon[1], null);
+      eq('fri x pos1', r.cell.fri[1], { avg: 1, n: 1 });
+      eq('tom', L.statHeatmap([]), { positions: [], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], cell: { mon: {}, tue: {}, wed: {}, thu: {}, fri: {} } });
+    },
+    function statTrend_basics() {
+      const recs = [
+        { date: '2026-08-10', subjectKey: 'matte', subjectLabel: 'Matte', score: 1 },
+        { date: '2026-08-20', subjectKey: 'matte', subjectLabel: 'Matte', score: 3 }, // aug snitt Matte=2, total=2
+        { date: '2026-09-01', subjectKey: 'matte', subjectLabel: 'Matte', score: 2 },
+        { date: '2026-09-01', subjectKey: 'norsk', subjectLabel: 'Norsk', score: 2 }, // sep total=2
+      ];
+      const r = L.statTrend(recs, ['matte']);
+      eq('måneder', r.months, ['2026-08', '2026-09']);
+      const total = r.series.find((s) => s.key === '__total__');
+      eq('total label', total.label, 'Totalt');
+      eq('total verdier', total.values, [2, 2]);
+      const matte = r.series.find((s) => s.key === 'matte');
+      eq('matte label', matte.label, 'Matte');
+      eq('matte verdier', matte.values, [2, 2]);
+      eq('tom', L.statTrend([], []), { months: [], series: [] });
+    },
+    function statMedalDistribution_basics() {
+      const recs = [
+        { subjectKey: 'matte', subjectLabel: 'Matte', medal: 'gull', score: 3 },
+        { subjectKey: 'matte', subjectLabel: 'Matte', medal: 'solv', score: 2 },
+        { subjectKey: 'matte', subjectLabel: 'Matte', medal: 'bronse', score: 1 },
+        { subjectKey: 'matte', subjectLabel: 'Matte', medal: 'gull', score: 3 },
+      ];
+      const r = L.statMedalDistribution(recs);
+      eq('ett fag', r.length, 1);
+      eq('n', r[0].n, 4);
+      eq('gull andel', r[0].gull, 0.5);
+      eq('solv andel', r[0].solv, 0.25);
+      eq('bronse andel', r[0].bronse, 0.25);
+      eq('label', r[0].subjectLabel, 'Matte');
+      eq('tom', L.statMedalDistribution([]), []);
+    },
   ];
 
   for (const t of tests) {
