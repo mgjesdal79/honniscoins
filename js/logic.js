@@ -965,3 +965,32 @@ export function filterRecordsByPeriod(records, bounds) {
   const { from, to } = bounds || {};
   return (records || []).filter((r) => (!from || r.date >= from) && (!to || r.date <= to));
 }
+
+// Intern: velg hyppigste skrivemåte for et fag.
+function pickLabel(labelCounts) {
+  let best = null, bestN = -1;
+  for (const [label, n] of labelCounts) {
+    if (n > bestN) { best = label; bestN = n; }
+  }
+  return best;
+}
+
+export function statBySubject(records) {
+  const map = new Map(); // key -> { sum, n, labels:Map }
+  let totalSum = 0, totalN = 0;
+  for (const r of records || []) {
+    let e = map.get(r.subjectKey);
+    if (!e) { e = { sum: 0, n: 0, labels: new Map() }; map.set(r.subjectKey, e); }
+    e.sum += r.score; e.n += 1;
+    e.labels.set(r.subjectLabel, (e.labels.get(r.subjectLabel) || 0) + 1);
+    totalSum += r.score; totalN += 1;
+  }
+  const subjects = [...map.entries()].map(([key, e]) => ({
+    subjectKey: key,
+    subjectLabel: pickLabel(e.labels),
+    avg: e.sum / e.n,
+    n: e.n,
+  }));
+  subjects.sort((a, b) => b.avg - a.avg || b.n - a.n);
+  return { subjects, overallAvg: totalN ? totalSum / totalN : 0, n: totalN };
+}

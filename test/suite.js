@@ -599,6 +599,22 @@ export function runTests() {
       eq('filter month', L.filterRecordsByPeriod(recs, { from: '2026-09-01', to: '2026-09-15' }).map((r) => r.date), ['2026-09-10']);
       eq('filter all', L.filterRecordsByPeriod(recs, { from: null, to: null }).length, 3);
     },
+    function statBySubject_basics() {
+      const recs = [
+        { subjectKey: 'matte', subjectLabel: 'Matte', score: 1 },
+        { subjectKey: 'matte', subjectLabel: 'matte', score: 3 }, // ulik staving -> samme fag
+        { subjectKey: 'norsk', subjectLabel: 'Norsk', score: 2 },
+      ];
+      const r = L.statBySubject(recs);
+      eq('overall snitt', r.overallAvg, 2); // (1+3+2)/3
+      eq('overall n', r.n, 3);
+      eq('antall fag', r.subjects.length, 2);
+      const matte = r.subjects.find((x) => x.subjectKey === 'matte');
+      eq('matte snitt', matte.avg, 2);
+      eq('matte n', matte.n, 2);
+      eq('matte label = hyppigste', matte.subjectLabel, 'Matte');
+      eq('tom input', L.statBySubject([]), { subjects: [], overallAvg: 0, n: 0 });
+    },
   ];
 
   for (const t of tests) {
