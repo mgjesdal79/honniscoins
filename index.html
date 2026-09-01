@@ -125,6 +125,31 @@
   .navbadge{position:absolute;top:-6px;right:-10px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--accent);color:#fff;font-size:.62rem;font-weight:800;line-height:16px;text-align:center}
   .pagenav .pg .i{position:relative}
   .tabbar .t{position:relative}
+  /* Statistikk (forelder, laptop-orientert) */
+  #ptab .statperiod{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px}
+  .statchip{font:600 .8rem var(--font);border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:6px 14px;cursor:pointer}
+  .statchip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .statgrid{display:grid;grid-template-columns:1fr;gap:16px}
+  @media (min-width:820px){
+    .statgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .statgrid .span2{grid-column:1 / -1}
+  }
+  .statc{padding:14px 16px}
+  .stath{font-weight:700;font-size:.95rem}
+  .stats{font-size:.74rem;margin-bottom:8px}
+  .statempty{padding:26px 16px;text-align:center;line-height:1.5}
+  .statsvg{display:block;width:100%;height:auto;overflow:visible}
+  .statsvg .axl{fill:var(--muted);font-size:11px}
+  .statsvg .axv{fill:var(--text);font-size:12px;font-weight:600}
+  .statsvg .axn{fill:var(--muted);font-size:10px}
+  .statsvg .axc{font-size:11px;font-weight:600}
+  .statsvg .axs{font-size:12px;font-weight:600}
+  .statsvg text{font-family:var(--font)}
+  /* dataviz-farger, tilpasset mørkt tema */
+  .statgrid{--s1:#3987e5;--s2:#eb6834;--good:#0ca30c;--bad:#e34948;
+    --grid:#1c3a63;--ink:#fff;--ink2:#9fb3cf;--null:#0f2547;
+    --gull:#eda100;--solv:#9aa0a6;--bronse:#b0703c;
+    --seq1:#123252;--seq2:#184f95;--seq3:#256abf;--seq4:#3987e5;--seq5:#86b6ef}
   .qbanner{background:#2a2410;border:1px solid var(--gold);color:var(--gold);border-radius:12px;padding:10px 12px;font-weight:700;font-size:.85rem;text-align:center;margin-bottom:12px}
   .qcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px}
   .qcard.over{border-color:var(--bad)}
@@ -173,7 +198,7 @@
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.08.23 (b19 · inline lekse-redigering)';
+    window.APP_VERSION = '2026.09.01 (b20 · fag-statistikk)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>
