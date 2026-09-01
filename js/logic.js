@@ -1030,3 +1030,34 @@ export function statHeatmap(records) {
   }
   return { positions, weekdays: [...WEEKDAY_KEYS], cell };
 }
+
+// focusKeys = liste med subjectKey som skal få egen linje (i tillegg til totalt).
+// Hvis utelatt: de to fagene med flest records.
+export function statTrend(records, focusKeys) {
+  const recs = records || [];
+  if (!recs.length) return { months: [], series: [] };
+  if (!focusKeys) {
+    const by = statBySubject(recs).subjects; // sortert avg desc, tie n desc
+    focusKeys = by.slice().sort((a, b) => b.n - a.n).slice(0, 2).map((x) => x.subjectKey);
+  }
+  const months = [...new Set(recs.map((r) => r.date.slice(0, 7)))].sort();
+  const labelFor = {};
+  for (const r of recs) if (!labelFor[r.subjectKey]) labelFor[r.subjectKey] = r.subjectLabel;
+
+  const avgFor = (pred) => {
+    const map = {}; // month -> {sum,n}
+    for (const r of recs) {
+      if (!pred(r)) continue;
+      const m = r.date.slice(0, 7);
+      const e = (map[m] = map[m] || { sum: 0, n: 0 });
+      e.sum += r.score; e.n += 1;
+    }
+    return months.map((m) => (map[m] ? map[m].sum / map[m].n : null));
+  };
+
+  const series = [{ key: '__total__', label: 'Totalt', values: avgFor(() => true) }];
+  for (const key of focusKeys) {
+    series.push({ key, label: labelFor[key] || key, values: avgFor((r) => r.subjectKey === key) });
+  }
+  return { months, series };
+}

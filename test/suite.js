@@ -640,6 +640,23 @@ export function runTests() {
       eq('fri x pos1', r.cell.fri[1], { avg: 1, n: 1 });
       eq('tom', L.statHeatmap([]), { positions: [], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], cell: { mon: {}, tue: {}, wed: {}, thu: {}, fri: {} } });
     },
+    function statTrend_basics() {
+      const recs = [
+        { date: '2026-08-10', subjectKey: 'matte', subjectLabel: 'Matte', score: 1 },
+        { date: '2026-08-20', subjectKey: 'matte', subjectLabel: 'Matte', score: 3 }, // aug snitt Matte=2, total=2
+        { date: '2026-09-01', subjectKey: 'matte', subjectLabel: 'Matte', score: 2 },
+        { date: '2026-09-01', subjectKey: 'norsk', subjectLabel: 'Norsk', score: 2 }, // sep total=2
+      ];
+      const r = L.statTrend(recs, ['matte']);
+      eq('måneder', r.months, ['2026-08', '2026-09']);
+      const total = r.series.find((s) => s.key === '__total__');
+      eq('total label', total.label, 'Totalt');
+      eq('total verdier', total.values, [2, 2]);
+      const matte = r.series.find((s) => s.key === 'matte');
+      eq('matte label', matte.label, 'Matte');
+      eq('matte verdier', matte.values, [2, 2]);
+      eq('tom', L.statTrend([], []), { months: [], series: [] });
+    },
   ];
 
   for (const t of tests) {
