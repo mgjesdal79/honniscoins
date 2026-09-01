@@ -994,3 +994,15 @@ export function statBySubject(records) {
   subjects.sort((a, b) => b.avg - a.avg || b.n - a.n);
   return { subjects, overallAvg: totalN ? totalSum / totalN : 0, n: totalN };
 }
+
+export function statByPosition(records) {
+  const map = new Map(); // position -> { sum, n }
+  for (const r of records || []) {
+    let e = map.get(r.position);
+    if (!e) { e = { sum: 0, n: 0 }; map.set(r.position, e); }
+    e.sum += r.score; e.n += 1;
+  }
+  return [...map.entries()]
+    .map(([position, e]) => ({ position, avg: e.sum / e.n, n: e.n }))
+    .sort((a, b) => a.position - b.position);
+}

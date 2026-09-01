@@ -615,6 +615,17 @@ export function runTests() {
       eq('matte label = hyppigste', matte.subjectLabel, 'Matte');
       eq('tom input', L.statBySubject([]), { subjects: [], overallAvg: 0, n: 0 });
     },
+    function statByPosition_basics() {
+      const recs = [
+        { position: 0, score: 3 }, { position: 0, score: 1 },
+        { position: 2, score: 2 },
+      ];
+      const r = L.statByPosition(recs);
+      eq('antall posisjoner', r.length, 2);
+      eq('pos0', r[0], { position: 0, avg: 2, n: 2 });
+      eq('pos2', r[1], { position: 2, avg: 2, n: 1 });
+      eq('tom', L.statByPosition([]), []);
+    },
   ];
 
   for (const t of tests) {
