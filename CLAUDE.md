@@ -66,6 +66,13 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   commit) uten migrering.
 - **UI:** sønn `renderSidequestsPage` (seksjoner Å gjøre / Venter på godkjenning / Godkjent);
   forelder `renderQuestsTab` (godkjenningskø + opprett/rediger-skjema + aktive quests).
+- **Arkiv av godkjente (`questArchiveSplit(state, n=5)`, ren fn):** «Godkjent» viser kun de
+  **5 nyeste** (sortert `approvedAt`, fallback `createdAt`); resten ligger bak knappen
+  **«📦 Vis arkiv (N)»**, månedsgruppert (`YYYY-MM`, nyeste først). Returnerer `{recent,
+  months:[{month,items}], archiveCount}` — ingen migrering. Delt UI-helper `approvedArchiveHtml`
+  (brukt av både sønn og forelder; forelder beholder rediger/slett per kort) + `monthLabel`
+  (norsk måned-navn). `App.questArchiveOpen` = ren visningstilstand (ikke persistert).
+  CSS: `.arkbtn`/`.arkmonth`. Spec: `docs/superpowers/specs/2026-09-02-honniscoins-sidequest-arkiv-design.md`.
 - **Frist-velger (forelder):** datostepper med standard = i dag, `‹`/`›` = ±1 dag, trykk midtfeltet
   (transparent `input[type=date]` over) åpner kalender, «Fjern frist»/«Sett frist (i dag)» veksler.
   Arbeids-frist holdes i closure-var `due` og oppdaterer kun visningen (nullstiller ikke
@@ -143,8 +150,8 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   (sønn-tilgang + ikon-meny + streak-fiks).
 
 ## Testing
-- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 238 tester per nå (inkl. sidequests,
-  lekser og statistikk/streak).
+- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 252 tester per nå (inkl. sidequests
+  m/arkiv, lekser og statistikk/streak).
 - **Kjør:** `/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc -m test/run-jsc.js`
   (jsc støtter ES-moduler; ingen node/deno/bun i miljøet).
 - Nettleser: `test/tests.html` (tynn renderer av samme suite).
