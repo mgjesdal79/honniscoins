@@ -709,15 +709,15 @@ export function runTests() {
       eq('tom', L.statHeatmap([]), { positions: [], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], cell: { mon: {}, tue: {}, wed: {}, thu: {}, fri: {} } });
     },
     function statDailyTotal_basics() {
-      // 4 gull + 2 sølv + 1 bronse på én dag = 12 + 4 + 1 = 17
+      // 4 gull + 2 sølv + 1 bronse på én dag = 12 + 4 + 1 = 17 (stablet poeng-bidrag)
       const recs = [];
-      for (let i = 0; i < 4; i++) recs.push({ date: '2026-08-10', score: 3 });
-      for (let i = 0; i < 2; i++) recs.push({ date: '2026-08-10', score: 2 });
-      recs.push({ date: '2026-08-10', score: 1 });
-      recs.push({ date: '2026-08-11', score: 3 });
+      for (let i = 0; i < 4; i++) recs.push({ date: '2026-08-10', medal: 'gull', score: 3 });
+      for (let i = 0; i < 2; i++) recs.push({ date: '2026-08-10', medal: 'solv', score: 2 });
+      recs.push({ date: '2026-08-10', medal: 'bronse', score: 1 });
+      recs.push({ date: '2026-08-11', medal: 'gull', score: 3 });
       const r = L.statDailyTotal(recs);
-      eq('dag 1 total 17', r[0], { date: '2026-08-10', total: 17 });
-      eq('dag 2 total 3', r[1], { date: '2026-08-11', total: 3 });
+      eq('dag 1 stablet', r[0], { date: '2026-08-10', total: 17, gull: 12, solv: 4, bronse: 1 });
+      eq('dag 2 stablet', r[1], { date: '2026-08-11', total: 3, gull: 3, solv: 0, bronse: 0 });
       eq('sortert 2 dager', r.length, 2);
       eq('tom', L.statDailyTotal([]), []);
     },

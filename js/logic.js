@@ -1056,11 +1056,16 @@ export function statHeatmap(records) {
 
 // focusKeys = liste med subjectKey som skal få egen linje (i tillegg til totalt).
 // Hvis utelatt: de to fagene med flest records.
-// Sum innsats-poeng per LÅST dag. Ett punkt per dag. Sortert på dato.
+// Sum innsats-poeng per LÅST dag, fordelt på medalje (poeng-bidrag: gull=antall×3 osv).
+// total = gull + solv + bronse. Én stolpe per dag. Sortert på dato.
 export function statDailyTotal(records) {
   const byDate = {};
-  for (const r of records || []) byDate[r.date] = (byDate[r.date] || 0) + r.score;
-  return Object.keys(byDate).sort().map((date) => ({ date, total: byDate[date] }));
+  for (const r of records || []) {
+    const d = (byDate[r.date] = byDate[r.date] || { date: r.date, total: 0, gull: 0, solv: 0, bronse: 0 });
+    d.total += r.score;
+    if (r.medal === 'gull' || r.medal === 'solv' || r.medal === 'bronse') d[r.medal] += r.score;
+  }
+  return Object.keys(byDate).sort().map((date) => byDate[date]);
 }
 
 // Sum innsats-poeng per uke (mandag-startet). subjectKey null/'__all__' = alle fag.
