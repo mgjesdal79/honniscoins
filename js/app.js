@@ -635,18 +635,19 @@ let editWeekday = 'mon';
 function renderParentHome() {
   const pendingQuests = activeQuests(App.state).filter((q) => q.status === 'done').length;
   const tabs = [
-    ['uke', 'Uke'],
-    ['dag', 'Dag'],
-    ['timeplan', 'Timeplan'],
-    ['quests', 'Quests'],
-    ['poeng', 'Poeng'],
-    ['logg', 'Logg'],
-    ['stat', 'Statistikk'],
+    ['uke', '📅', 'Uke'],
+    ['dag', '📝', 'Dag'],
+    ['timeplan', '🗓', 'Plan'],
+    ['quests', '⭐', 'Quests'],
+    ['poeng', '💵', 'Poeng'],
+    ['logg', '📋', 'Logg'],
+    ['stat', '📊', 'Stat'],
   ];
   const bar = tabs
-    .map(([k, l]) => {
+    .map(([k, ic, l]) => {
       const badge = k === 'quests' && pendingQuests ? `<span class="navbadge">${pendingQuests}</span>` : '';
-      return `<button class="t ${App.parentTab === k ? 'on' : ''}" data-tab="${k}">${l}${badge}</button>`;
+      return `<button class="t ${App.parentTab === k ? 'on' : ''}" data-tab="${k}">
+        <span class="ti">${ic}${badge}</span><span class="tl">${l}</span></button>`;
     })
     .join('');
   el.innerHTML = `
