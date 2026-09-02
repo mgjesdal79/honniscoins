@@ -485,6 +485,26 @@ export function questPointsPending(state) {
     .reduce((a, q) => a + (Number(q.points) || 0), 0);
 }
 
+// Deler godkjente quests i «siste n» + månedsgruppert arkiv (nyeste først).
+// Ingen migrering: bruker approvedAt (fallback createdAt) som allerede finnes.
+export function questArchiveSplit(state, n = 5) {
+  const approved = activeQuests(state)
+    .filter((q) => q.status === 'approved')
+    .sort((a, b) =>
+      (b.approvedAt || b.createdAt || '').localeCompare(a.approvedAt || a.createdAt || ''));
+  const recent = approved.slice(0, n);
+  const rest = approved.slice(n);
+  const byMonth = {};
+  for (const q of rest) {
+    const month = (q.approvedAt || q.createdAt || '').slice(0, 7) || '0000-00';
+    (byMonth[month] = byMonth[month] || []).push(q);
+  }
+  const months = Object.keys(byMonth)
+    .sort((a, b) => b.localeCompare(a))
+    .map((month) => ({ month, items: byMonth[month] }));
+  return { recent, months, archiveCount: rest.length };
+}
+
 function findQuestIdx(s, id) {
   return (s.quests || []).findIndex((q) => q.id === id);
 }
