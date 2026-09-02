@@ -724,17 +724,17 @@ export function runTests() {
     function statWeeklyTotal_basics() {
       // 2026-08-10 = mandag (uke A), 2026-08-17 = mandag (uke B)
       const recs = [
-        { date: '2026-08-10', subjectKey: 'matte', score: 3 },
-        { date: '2026-08-12', subjectKey: 'norsk', score: 2 }, // uke A total 5
-        { date: '2026-08-17', subjectKey: 'matte', score: 1 }, // uke B total 1
+        { date: '2026-08-10', subjectKey: 'matte', medal: 'gull', score: 3 },
+        { date: '2026-08-12', subjectKey: 'norsk', medal: 'solv', score: 2 }, // uke A total 5
+        { date: '2026-08-17', subjectKey: 'matte', medal: 'bronse', score: 1 }, // uke B total 1
       ];
-      eq('uke totalt', L.statWeeklyTotal(recs, '__all__'), [
-        { week: '2026-08-10', total: 5 },
-        { week: '2026-08-17', total: 1 },
+      eq('uke totalt stablet', L.statWeeklyTotal(recs, '__all__'), [
+        { week: '2026-08-10', total: 5, gull: 3, solv: 2, bronse: 0 },
+        { week: '2026-08-17', total: 1, gull: 0, solv: 0, bronse: 1 },
       ]);
-      eq('uke fag matte', L.statWeeklyTotal(recs, 'matte'), [
-        { week: '2026-08-10', total: 3 },
-        { week: '2026-08-17', total: 1 },
+      eq('uke fag matte stablet', L.statWeeklyTotal(recs, 'matte'), [
+        { week: '2026-08-10', total: 3, gull: 3, solv: 0, bronse: 0 },
+        { week: '2026-08-17', total: 1, gull: 0, solv: 0, bronse: 1 },
       ]);
       eq('tom', L.statWeeklyTotal([], '__all__'), []);
     },
