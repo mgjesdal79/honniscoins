@@ -658,22 +658,35 @@ export function runTests() {
       eq('fri x pos1', r.cell.fri[1], { avg: 1, n: 1 });
       eq('tom', L.statHeatmap([]), { positions: [], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], cell: { mon: {}, tue: {}, wed: {}, thu: {}, fri: {} } });
     },
-    function statTrend_basics() {
+    function statDailyTotal_basics() {
+      // 4 gull + 2 sølv + 1 bronse på én dag = 12 + 4 + 1 = 17
+      const recs = [];
+      for (let i = 0; i < 4; i++) recs.push({ date: '2026-08-10', score: 3 });
+      for (let i = 0; i < 2; i++) recs.push({ date: '2026-08-10', score: 2 });
+      recs.push({ date: '2026-08-10', score: 1 });
+      recs.push({ date: '2026-08-11', score: 3 });
+      const r = L.statDailyTotal(recs);
+      eq('dag 1 total 17', r[0], { date: '2026-08-10', total: 17 });
+      eq('dag 2 total 3', r[1], { date: '2026-08-11', total: 3 });
+      eq('sortert 2 dager', r.length, 2);
+      eq('tom', L.statDailyTotal([]), []);
+    },
+    function statWeeklyTotal_basics() {
+      // 2026-08-10 = mandag (uke A), 2026-08-17 = mandag (uke B)
       const recs = [
-        { date: '2026-08-10', subjectKey: 'matte', subjectLabel: 'Matte', score: 1 },
-        { date: '2026-08-20', subjectKey: 'matte', subjectLabel: 'Matte', score: 3 }, // aug snitt Matte=2, total=2
-        { date: '2026-09-01', subjectKey: 'matte', subjectLabel: 'Matte', score: 2 },
-        { date: '2026-09-01', subjectKey: 'norsk', subjectLabel: 'Norsk', score: 2 }, // sep total=2
+        { date: '2026-08-10', subjectKey: 'matte', score: 3 },
+        { date: '2026-08-12', subjectKey: 'norsk', score: 2 }, // uke A total 5
+        { date: '2026-08-17', subjectKey: 'matte', score: 1 }, // uke B total 1
       ];
-      const r = L.statTrend(recs, ['matte']);
-      eq('måneder', r.months, ['2026-08', '2026-09']);
-      const total = r.series.find((s) => s.key === '__total__');
-      eq('total label', total.label, 'Totalt');
-      eq('total verdier', total.values, [2, 2]);
-      const matte = r.series.find((s) => s.key === 'matte');
-      eq('matte label', matte.label, 'Matte');
-      eq('matte verdier', matte.values, [2, 2]);
-      eq('tom', L.statTrend([], []), { months: [], series: [] });
+      eq('uke totalt', L.statWeeklyTotal(recs, '__all__'), [
+        { week: '2026-08-10', total: 5 },
+        { week: '2026-08-17', total: 1 },
+      ]);
+      eq('uke fag matte', L.statWeeklyTotal(recs, 'matte'), [
+        { week: '2026-08-10', total: 3 },
+        { week: '2026-08-17', total: 1 },
+      ]);
+      eq('tom', L.statWeeklyTotal([], '__all__'), []);
     },
     function statMedalDistribution_basics() {
       const recs = [
