@@ -25,8 +25,10 @@ const App = {
   parentUnlocked: false,
   currentDate: nearestWeekday(isoDate(new Date())),
   parentTab: 'uke',
-  statPeriod: 'all', // 'all' | 'month' | 'd90' – Statistikk-fanen
-  statWeekSubject: '__all__', // '__all__' | subjectKey – «Uke for uke»-fagvelger
+  statPeriod: 'd30', // 'd30' | 'd90' | 'all' | 'custom' – Statistikk-perioden
+  statFrom: null, statTo: null, // egendefinert periode ('YYYY-MM-DD')
+  statGran: 'day', // 'day' | 'week' – oppløsning i «Utvikling over tid»
+  statSubject: '__all__', // '__all__' | subjectKey – felles fagvelger for trend-kortet
   sonPage: localStorage.getItem('honniscoins:sonPage') || 'uken',
   mondayDismissed: false,
   editQuestId: null,
@@ -1360,19 +1362,45 @@ function renderLoggTab(host) {
 // --- Statistikk (forelder, kun visning) ----------------------------------
 
 // Returnerer periode-chips + statgrid (eller tomtilstand) som HTML-streng.
+const STAT_MAX_DAY_SPAN = 60; // dag-visning kun for perioder ≤ 60 dager; ellers tvunget uke
+
+// Effektive periode-grenser (presets via periodBounds, + egendefinert range).
+function statBounds(today) {
+  if (App.statPeriod === 'custom') return { from: App.statFrom || null, to: App.statTo || today };
+  return periodBounds(App.statPeriod, today);
+}
+
+// Antall dager i valgt periode (åpen ende → faktisk data-spenn).
+function periodSpanDays(bounds, recs) {
+  let from = bounds.from, to = bounds.to;
+  if (!from || !to) {
+    const dates = recs.map((r) => r.date).sort();
+    from = from || dates[0];
+    to = to || dates[dates.length - 1];
+  }
+  if (!from || !to) return 0;
+  return Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
+}
+
 function statContentHtml(state) {
   const today = isoDate(new Date());
-  const bounds = periodBounds(App.statPeriod, today);
+  const bounds = statBounds(today);
   const recs = filterRecordsByPeriod(effortRecords(state), bounds);
 
-  const periods = [['month', 'Denne måneden'], ['d90', 'Siste 90 dager'], ['all', 'Alt']];
+  const periods = [['d30', 'Siste 30 d'], ['d90', 'Siste 90 d'], ['all', 'Alle'], ['custom', 'Egendefinert']];
   const chips = periods
     .map(([k, l]) => `<button class="statchip ${App.statPeriod === k ? 'on' : ''}" data-p="${k}">${l}</button>`)
     .join('');
+  const rangeRow = App.statPeriod === 'custom'
+    ? `<div class="statrange">
+        <label>Fra <input type="date" id="statFrom" value="${App.statFrom || ''}" max="${today}"></label>
+        <label>Til <input type="date" id="statTo" value="${App.statTo || today}" max="${today}"></label>
+      </div>`
+    : '';
 
   if (!recs.length) {
     return `
-      <div class="statperiod">${chips}</div>
+      <div class="statperiod">${chips}</div>${rangeRow}
       <div class="card statempty">📊 Ingen data ennå for valgt periode.<br>
         <span class="muted">Lås noen dager med medaljer først – kun låste dager teller.</span></div>`;
   }
@@ -1380,26 +1408,45 @@ function statContentHtml(state) {
   const bySub = statBySubject(recs);
   const byPos = statByPosition(recs);
   const heat = statHeatmap(recs);
-  const daily = statDailyTotal(recs);
-  const weekSubjects = bySub.subjects;
-  // Sikre at valgt fag fortsatt finnes i perioden – ellers fall tilbake til «Totalt».
-  const weekSel = App.statWeekSubject !== '__all__'
-    && !weekSubjects.some((s) => s.subjectKey === App.statWeekSubject)
-    ? '__all__' : App.statWeekSubject;
-  const weekly = statWeeklyTotal(recs, weekSel);
   const dist = statMedalDistribution(recs);
 
+  // Felles fagvelger – fall tilbake til «Totalt» hvis valgt fag mangler i perioden.
+  const subjects = bySub.subjects;
+  const subjSel = App.statSubject !== '__all__'
+    && !subjects.some((s) => s.subjectKey === App.statSubject)
+    ? '__all__' : App.statSubject;
+
+  // Dag-visning kun for korte perioder; lang periode tvinger uke.
+  const dayAllowed = periodSpanDays(bounds, recs) <= STAT_MAX_DAY_SPAN;
+  const gran = dayAllowed ? App.statGran : 'week';
+  const trendBody = gran === 'week'
+    ? svgWeeklyTotal(statWeeklyTotal(recs, subjSel))
+    : svgDailyTotal(statDailyTotal(recs, subjSel));
+  const trendSub = gran === 'week'
+    ? 'Sum innsats-poeng per uke, stablet på medalje (🥇3 🥈2 🥉1)'
+    : 'Sum innsats-poeng per dag, stablet på medalje (🥇3 🥈2 🥉1)';
+
   return `
-    <div class="statperiod">${chips}</div>
+    <div class="statperiod">${chips}</div>${rangeRow}
     <div class="statgrid">
+      ${statCard('Utvikling over tid', trendSub,
+        statTrendControls(subjects, subjSel, gran, dayAllowed) + trendBody, true)}
       ${statCard('Innsats per fag', 'Snitt-medalje per fag (🥇3 🥈2 🥉1)', svgBySubject(bySub))}
       ${statCard('Innsats etter når på dagen', 'Snitt per timenummer', svgByPosition(byPos))}
       ${statCard('Ukedag × time', 'Snitt per ukedag og timenummer', svgHeatmap(heat), true)}
-      ${statCard('Utvikling over tid', 'Sum innsats-poeng per dag, stablet på medalje (🥇3 🥈2 🥉1)', svgDailyTotal(daily), true)}
-      ${statCard('Uke for uke', 'Sum innsats-poeng per uke, stablet på medalje',
-        weekSelectHtml(weekSubjects, weekSel) + svgWeeklyTotal(weekly), true)}
       ${statCard('Medaljefordeling per fag', 'Andel gull/sølv/bronse', svgDistribution(dist))}
     </div>`;
+}
+
+// Verktøylinje for trend-kortet: Dag/Uke-toggle + fagvelger (+ hint ved tvunget uke).
+function statTrendControls(subjects, subjSel, gran, dayAllowed) {
+  const dayBtn = `<button class="statgran ${gran === 'day' ? 'on' : ''}${dayAllowed ? '' : ' off'}" data-g="day"${dayAllowed ? '' : ' title="Velg en kortere periode (≤60 dager) for dag-visning"'}>Dag</button>`;
+  const weekBtn = `<button class="statgran ${gran === 'week' ? 'on' : ''}" data-g="week">Uke</button>`;
+  const hint = dayAllowed ? '' : `<span class="statghint">Lang periode → uke-visning</span>`;
+  return `<div class="stattoolbar">
+    <div class="statgranwrap">${dayBtn}${weekBtn}</div>
+    ${weekSelectHtml(subjects, subjSel)}${hint}
+  </div>`;
 }
 
 function renderStatistikkTab(host) {
@@ -1414,10 +1461,25 @@ function statCard(title, sub, svg, wide) {
 
 function bindStatChips(host) {
   host.querySelectorAll('.statchip[data-p]').forEach(
-    (b) => (b.onclick = () => { App.statPeriod = b.dataset.p; routeToView(); })
+    (b) => (b.onclick = () => {
+      App.statPeriod = b.dataset.p;
+      if (App.statPeriod === 'custom' && !App.statFrom) {
+        const today = isoDate(new Date());
+        const d = new Date(); d.setDate(d.getDate() - 29);
+        App.statFrom = isoDate(d); App.statTo = today;
+      }
+      routeToView();
+    })
   );
-  const sel = host.querySelector('#statWeekSubject');
-  if (sel) sel.onchange = () => { App.statWeekSubject = sel.value; routeToView(); };
+  const from = host.querySelector('#statFrom');
+  if (from) from.onchange = () => { App.statFrom = from.value || null; App.statPeriod = 'custom'; routeToView(); };
+  const to = host.querySelector('#statTo');
+  if (to) to.onchange = () => { App.statTo = to.value || null; App.statPeriod = 'custom'; routeToView(); };
+  host.querySelectorAll('.statgran[data-g]').forEach(
+    (b) => (b.onclick = () => { if (!b.classList.contains('off')) { App.statGran = b.dataset.g; routeToView(); } })
+  );
+  const sel = host.querySelector('#statSubject');
+  if (sel) sel.onchange = () => { App.statSubject = sel.value; routeToView(); };
 }
 
 // Felles: fargeterskel for innsats-snitt.
@@ -1504,13 +1566,13 @@ function niceMax(v) {
   return step * pow;
 }
 
-// Fagvelger for «Uke for uke».
+// Felles fagvelger for trend-kortet (Totalt / enkeltfag).
 function weekSelectHtml(subjects, sel) {
   const opts = [`<option value="__all__"${sel === '__all__' ? ' selected' : ''}>Totalt</option>`]
     .concat((subjects || []).map((s) =>
       `<option value="${escapeHtml(s.subjectKey)}"${sel === s.subjectKey ? ' selected' : ''}>${escapeHtml(s.subjectLabel)}</option>`))
     .join('');
-  return `<div class="statselwrap"><select id="statWeekSubject" class="statsel">${opts}</select></div>`;
+  return `<div class="statselwrap"><select id="statSubject" class="statsel">${opts}</select></div>`;
 }
 
 // Visning 4: sum innsats-poeng per dag – stablede medalje-søyler (bronse|sølv|gull).
