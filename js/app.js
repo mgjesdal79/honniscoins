@@ -6,7 +6,7 @@ import {
   weekdaysOf, daySubjectsMatchTimetable, resyncSubjects,
   isDayLocked, isWeekClosed, canSonEditDay, lockDay, closeWeek, reopenWeek, weekStartIso,
   weeklyMedalCounts, weeklyStreakBonus, silverStreakInfo, goldStreakInfo,
-  activeQuests, isQuestOverdue, questPointsPending,
+  activeQuests, isQuestOverdue, questPointsPending, questArchiveSplit,
   addQuest, updateQuest, deleteQuest, commitQuest, uncommitQuest, approveQuest, rejectQuest,
   homeworkForWeek, homeworkPointsPending, activeHomework,
   addHomework, updateHomework, deleteHomework, hideHomework,
@@ -30,6 +30,7 @@ const App = {
   sonPage: localStorage.getItem('honniscoins:sonPage') || 'uken',
   mondayDismissed: false,
   editQuestId: null,
+  questArchiveOpen: false, // «Vis arkiv» for godkjente sidequests (visningstilstand)
   homeworkView: 'day', // 'day' | 'week' – sønn Uken-lekser
   editHwId: null,      // forelder redigerer lekse
 };
@@ -483,13 +484,40 @@ function questDueLabel(due, todayIso) {
   return `<span class="qdue ${cls}">⏰ ${days} ${days === 1 ? 'dag' : 'dager'} igjen · ${dm}</span>`;
 }
 
+const MONTH_NAMES_NB = ['januar', 'februar', 'mars', 'april', 'mai', 'juni',
+  'juli', 'august', 'september', 'oktober', 'november', 'desember'];
+// '2026-08' -> 'August 2026'
+function monthLabel(ym) {
+  const [y, m] = (ym || '').split('-');
+  const name = MONTH_NAMES_NB[Number(m) - 1] || ym;
+  const cap = name.charAt(0).toUpperCase() + name.slice(1);
+  return y ? `${cap} ${y}` : cap;
+}
+
+// «Godkjent»: 5 nyeste + «Vis arkiv»-knapp med månedsbolker. cardFn(q) -> kort-HTML.
+function approvedArchiveHtml(state, cardFn) {
+  const { recent, months, archiveCount } = questArchiveSplit(state);
+  if (!recent.length && !archiveCount) return '';
+  let html = `<div class="sec">Godkjent</div>${recent.map(cardFn).join('')}`;
+  if (archiveCount > 0) {
+    html += `<button class="btn ghost arkbtn" data-arktoggle>${
+      App.questArchiveOpen ? '▾ Skjul arkiv' : `📦 Vis arkiv (${archiveCount})`
+    }</button>`;
+    if (App.questArchiveOpen) {
+      html += months
+        .map((mo) => `<div class="arkmonth">${monthLabel(mo.month)}</div>${mo.items.map(cardFn).join('')}`)
+        .join('');
+    }
+  }
+  return html;
+}
+
 function renderSidequestsPage(host) {
   const s = App.state;
   const today = isoDate(new Date());
   const quests = activeQuests(s);
   const open = quests.filter((q) => q.status === 'open');
   const done = quests.filter((q) => q.status === 'done');
-  const approved = quests.filter((q) => q.status === 'approved');
   const pending = questPointsPending(s);
 
   if (!quests.length) {
@@ -535,7 +563,10 @@ function renderSidequestsPage(host) {
     ${pending ? `<div class="qbanner">⏳ ${pending} 🪙 venter på godkjenning</div>` : ''}
     ${section(`Å gjøre (${open.length})`, open, 'open')}
     ${section('Venter på godkjenning', done, 'done')}
-    ${section('Godkjent', approved, 'approved')}`;
+    ${approvedArchiveHtml(s, (q) => questCard(q, 'approved'))}`;
+
+  const arkBtn = host.querySelector('[data-arktoggle]');
+  if (arkBtn) arkBtn.onclick = () => { App.questArchiveOpen = !App.questArchiveOpen; renderSon(); };
 
   host.querySelectorAll('[data-commit]').forEach(
     (b) =>
@@ -982,7 +1013,6 @@ function renderQuestsTab(host) {
   const quests = activeQuests(s);
   const done = quests.filter((q) => q.status === 'done');
   const open = quests.filter((q) => q.status === 'open');
-  const approved = quests.filter((q) => q.status === 'approved');
   const editing = App.editQuestId ? quests.find((q) => q.id === App.editQuestId) : null;
 
   const dueTxt = (due) => {
@@ -1008,16 +1038,15 @@ function renderQuestsTab(host) {
     )
     .join('');
 
-  const activeRows = [...open, ...approved]
-    .map((q) => {
-      const overdue = isQuestOverdue(q, today);
-      const status =
-        q.status === 'approved'
-          ? '<span class="qdue ok">✅ Godkjent</span>'
-          : overdue
-          ? '<span class="qdue over">⏰ Forfalt</span>'
-          : `<span class="muted" style="font-size:.74rem">Frist: ${dueTxt(q.due)}</span>`;
-      return `<div class="qcard ${q.status === 'approved' ? 'approved' : ''}">
+  const parentCard = (q) => {
+    const overdue = isQuestOverdue(q, today);
+    const status =
+      q.status === 'approved'
+        ? '<span class="qdue ok">✅ Godkjent</span>'
+        : overdue
+        ? '<span class="qdue over">⏰ Forfalt</span>'
+        : `<span class="muted" style="font-size:.74rem">Frist: ${dueTxt(q.due)}</span>`;
+    return `<div class="qcard ${q.status === 'approved' ? 'approved' : ''}">
         <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b><span class="qpts">+${q.points} 🪙</span></div>
         ${q.desc ? `<div class="qdesc">${escapeHtml(q.desc)}</div>` : ''}
         <div class="qmeta">${status}</div>
@@ -1026,8 +1055,9 @@ function renderQuestsTab(host) {
           <button class="btn ghost qbtn danger" data-del="${q.id}">🗑️ Slett</button>
         </div>
       </div>`;
-    })
-    .join('');
+  };
+  const activeRows = open.map(parentCard).join('');
+  const approvedHtml = approvedArchiveHtml(s, parentCard);
 
   host.innerHTML = `
     ${done.length ? `<div class="sec">Til godkjenning (${done.length})</div>${queueRows}` : ''}
@@ -1054,7 +1084,11 @@ function renderQuestsTab(host) {
       </div>
     </div>
 
-    ${open.length + approved.length ? `<div class="sec">Aktive quests</div>${activeRows}` : ''}`;
+    ${open.length ? `<div class="sec">Aktive quests</div>${activeRows}` : ''}
+    ${approvedHtml}`;
+
+  const arkBtn = host.querySelector('[data-arktoggle]');
+  if (arkBtn) arkBtn.onclick = () => { App.questArchiveOpen = !App.questArchiveOpen; routeToView(); };
 
   host.querySelectorAll('[data-approve]').forEach(
     (b) =>

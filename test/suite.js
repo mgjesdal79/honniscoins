@@ -501,6 +501,56 @@ export function runTests() {
       b.quests = [{ id: 'q1', title: 'X', status: 'open', points: 5, updatedAt: '2026-01-01' }];
       eq('nyere sletting vinner', L.mergeState(a, b).quests[0].removed, true);
     },
+    function questArchive_empty() {
+      const s = L.defaultState();
+      const r = L.questArchiveSplit(s);
+      eq('recent tom', r.recent, []);
+      eq('months tom', r.months, []);
+      eq('archiveCount 0', r.archiveCount, 0);
+    },
+    function questArchive_under_n() {
+      const s = L.defaultState();
+      s.quests = [
+        { id: 'a', title: 'A', status: 'approved', points: 1, approvedAt: '2026-08-01T10:00:00.000Z' },
+        { id: 'b', title: 'B', status: 'approved', points: 1, approvedAt: '2026-08-02T10:00:00.000Z' },
+        { id: 'c', title: 'C', status: 'done', points: 1, approvedAt: null },
+      ];
+      const r = L.questArchiveSplit(s);
+      eq('kun godkjente i recent', r.recent.map((q) => q.id), ['b', 'a']);
+      eq('arkiv tomt under n', r.months, []);
+      eq('archiveCount 0', r.archiveCount, 0);
+    },
+    function questArchive_over_n_grouped() {
+      const s = L.defaultState();
+      s.quests = [];
+      // 7 godkjente: 5 i aug (05..01), 2 i juli (02, 01) – ulik dato pr id.
+      const mk = (id, at) => ({ id, title: id, status: 'approved', points: 1, approvedAt: at });
+      s.quests.push(mk('a1', '2026-08-05T09:00:00.000Z'));
+      s.quests.push(mk('a2', '2026-08-04T09:00:00.000Z'));
+      s.quests.push(mk('a3', '2026-08-03T09:00:00.000Z'));
+      s.quests.push(mk('a4', '2026-08-02T09:00:00.000Z'));
+      s.quests.push(mk('a5', '2026-08-01T09:00:00.000Z'));
+      s.quests.push(mk('j2', '2026-07-20T09:00:00.000Z'));
+      s.quests.push(mk('j1', '2026-07-10T09:00:00.000Z'));
+      const r = L.questArchiveSplit(s, 5);
+      eq('5 nyeste i recent', r.recent.map((q) => q.id), ['a1', 'a2', 'a3', 'a4', 'a5']);
+      eq('archiveCount 2', r.archiveCount, 2);
+      eq('én arkiv-måned', r.months.length, 1);
+      eq('måned juli', r.months[0].month, '2026-07');
+      eq('juli nyeste først', r.months[0].items.map((q) => q.id), ['j2', 'j1']);
+    },
+    function questArchive_sort_and_fallback() {
+      const s = L.defaultState();
+      s.quests = [
+        // ingen approvedAt -> fallback createdAt
+        { id: 'x', title: 'X', status: 'approved', points: 1, createdAt: '2026-06-01T00:00:00.000Z' },
+        { id: 'y', title: 'Y', status: 'approved', points: 1, approvedAt: '2026-09-01T00:00:00.000Z' },
+      ];
+      const r = L.questArchiveSplit(s, 1);
+      eq('nyeste (y) i recent', r.recent.map((q) => q.id), ['y']);
+      eq('x i arkiv via createdAt', r.months[0].items.map((q) => q.id), ['x']);
+      eq('måned juni', r.months[0].month, '2026-06');
+    },
 
     // --- Lekser (homework) ---
     function homework_defaultState_and_migrate() {
