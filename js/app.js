@@ -436,6 +436,7 @@ function renderPoengPage(host) {
     </div>`;
 
   host.innerHTML = `
+    <div class="narrowcol">
     <div class="balance">
       <div class="coins">${bal} <small>Honniscoins</small></div>
       <div class="kr">≈ ${formatKr(bal, s.settings.krPerCoin)} · denne uka +${wTot}</div>
@@ -462,7 +463,11 @@ function renderPoengPage(host) {
     ${statGrid(sv)}
 
     <div class="sec">🥇 Gull-streak (timer på rad)</div>
-    ${statGrid(gd)}`;
+    ${statGrid(gd)}
+    </div>
+    <div class="sec">📊 Statistikk</div>
+    ${statContentHtml(s)}`;
+  bindStatChips(host);
 }
 
 // Frist-tekst for en quest sett fra sønnen: forfalt (rødt), i dag, om N dager, dato.
@@ -1498,8 +1503,9 @@ function svgWrap(w, h, inner) {
 }
 
 function routeToView() {
-  // Kun statistikk-fanen (forelder) bryter ut av mobil-bredden – ses på laptop.
-  const wide = App.role === 'parent' && App.parentUnlocked && App.parentTab === 'stat';
+  // Statistikk bryter ut av mobil-bredden – ses på laptop (forelder-fane + sønn-Poeng).
+  const wide = (App.role === 'parent' && App.parentUnlocked && App.parentTab === 'stat')
+    || (App.role === 'son' && App.sonPage === 'poeng');
   document.body.classList.toggle('statwide', wide);
   if (!App.role) return renderWho();
   if (App.role === 'son') return renderSon();
