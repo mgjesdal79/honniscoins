@@ -32,8 +32,13 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
 - **Ukesbonus (stables):** sølvtimer = sølv+gull (≥15→+5, ≥30→+10); gulltimer (≥10→+10, ≥20→+20,
   ≥30→+30). Høyeste trinn per farge. Konfig i `settings.bonus` (silverTiers/goldTiers).
 - **Oppmøte/bronse-bonus:** data-drevet trapp `settings.bonus.attendanceLadder` (utvidbar).
-- **Ekte streak:** timer på rad (sølv = sølv|gull, gull = gull), kronologisk over låste dager.
-  Syk pauser (bryter ikke). Viser Nå / All-time / Denne måneden (+ ⏳ pågående).
+- **Ekte streak (moro-teller, gir INGEN poeng):** utfylte timer på rad (sølv = sølv|gull,
+  gull = gull), kronologisk over låste dager via `lessonSequence` → `hourStreak` →
+  `silverStreakInfo`/`goldStreakInfo`. **Alle utfylte timer teller uansett syk/ikke** (syk
+  med medalje teller også); tomme/ufylte timer **pauser** (bryter ikke); **«0» (ugyldig
+  fravær) BRYTER**; ulåst dag bryter. Viser Nå / All-time / Denne måneden (+ ⏳ pågående).
+  NB: oppmøte-/bronse-streak (`attendanceStreakInfo`, `classifyDay`) er en SEPARAT, poeng-
+  relevant streak (styres av lås som alt annet).
 - **Migrering** (`migrate`, kjøres i `loadState`): fyller `settings.bonus`/`weekLocks` og låser
   eksisterende dager med innhold, så gamle opptjente poeng ikke forsvinner.
 - **Sønn-sider (pager):** Uken / Poeng (💵) / Sidequests (⭐) / Shop (🛒) — bunn-nav + sveip +
@@ -41,8 +46,10 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   fortsatt placeholder.
 - **Uke-stripe-badge (`renderUkenPage`):** låst dag = «🔒 +X» (grønn), ulåst dag med opptjente
   poeng = «~X» (dempet, klasse `.b.prev`), tom/ingen poeng = «·». Ikke bare «·» overalt.
-- **Forelder-faner:** Uke / Dag / Timeplan / **Quests** / Poeng / Logg. Dag-fanen har lås/åpne-dag
-  og lås/åpne-uke. Quests-fanen har badge = antall quests til godkjenning.
+- **Forelder-faner (ikon + kort tekst, `renderParentHome`):** Uke 📅 / Dag 📝 / Plan 🗓 /
+  **Quests** ⭐ / Poeng 💵 / Logg 📋 / **Stat** 📊 (`App.parentTab ∈ {uke,dag,timeplan,quests,
+  poeng,logg,stat}`). Dag-fanen har lås/åpne-dag og lås/åpne-uke. Quests-fanen har badge =
+  antall quests til godkjenning.
 
 ## Sidequests (enkeltoppgaver hjemme)
 - **Konsept:** forelder oppretter oppgave (tittel, beskrivelse, poeng, frist). Sønn «committer»
@@ -104,9 +111,40 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   Plan: `docs/superpowers/plans/2026-08-23-honniscoins-lekser.md` (Fase 1 = Task 1–11 manuelt,
   Fase 2 = Task 12–15 Docendo). Mockup: `mockups/lekser-v2.html`.
 
+## Statistikk (innsats-analyse)
+- **Innsats-poeng per medalje:** 🥇 gull = 3, 🥈 sølv = 2, 🥉 bronse = 1 (`EFFORT_SCORE`).
+  Fravær («0») og null teller ikke. Kun **låste, ikke-syke** dager inngår.
+- **Kilde (logic.js, rene fn):** `effortRecords(state)` → `[{date, weekday, position,
+  subjectKey, subjectLabel, medal, score}]`. Periode: `periodBounds(period, today)` +
+  `filterRecordsByPeriod(recs, bounds)`; `period ∈ {all, month, d90}` (`App.statPeriod`).
+- **Seks visnings-kort (`statContentHtml`, delt av forelder + sønn):**
+  1. `statBySubject` — snitt-medalje per fag (rangerte stolper, `svgBySubject`).
+  2. `statByPosition` — snitt per timenummer (`svgByPosition`).
+  3. `statHeatmap` — ukedag × time (`svgHeatmap`, span2).
+  4. `statDailyTotal(recs)` — **sum innsats-poeng per dag**, punkter uten linje
+     (`svgDailyTotal`, span2). Erstattet gamle `statTrend`/`svgTrend`.
+  5. `statWeeklyTotal(recs, subjectKey)` — **sum per uke** (mandag-startet, sammenhengende
+     uker med 0-fyll), søyler (`svgWeeklyTotal`, span2) med fag-nedtrekk `#statWeekSubject`
+     («Totalt» = `'__all__'` eller enkeltfag). Valget i `App.statWeekSubject`; faller tilbake
+     til «Totalt» hvis valgt fag ikke finnes i perioden.
+  6. `statMedalDistribution` — andel gull/sølv/bronse per fag (`svgDistribution`).
+- **UI-plassering:** forelder i egen **Stat**-fane (`renderStatistikkTab`); sønn nederst på
+  **Poeng**-siden. Begge kaller `statContentHtml(state)` + `bindStatChips(host)` (periode-chips
+  `.statchip[data-p]` + fag-`<select>#statWeekSubject`).
+- **Bredde:** statistikk bryter ut av mobil-bredden på laptop via `body.statwide` (togglet i
+  `routeToView` for forelder-Stat-fane ELLER sønn-Poeng), `@media (min-width:820px)` gir
+  2-kolonners `.statgrid` (`.span2` = full bredde). Sønnens Poeng-innhold ligger i `.narrowcol`.
+- **SVG-hjelpere (app.js):** `svgWrap`, `niceMax` (pen y-akse), `effortColor`, `hourLabel`,
+  `weekSelectHtml`. dataviz-palett tilpasset mørkt tema (`--s1`/`--s2`/`--grid`/`--gull`/
+  `--solv`/`--bronse`). `.statsel`/`.statselwrap` = mørk nedtrekk.
+- **Spec:** `docs/superpowers/specs/2026-09-02-honniscoins-utvikling-daglig-ukentlig-design.md`
+  (daglig total + uke-for-uke);
+  `docs/superpowers/specs/2026-09-02-honniscoins-streak-fiks-sonn-statistikk-meny-design.md`
+  (sønn-tilgang + ikon-meny + streak-fiks).
+
 ## Testing
-- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 195 tester per nå (inkl. sidequests
-  og lekser).
+- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 238 tester per nå (inkl. sidequests,
+  lekser og statistikk/streak).
 - **Kjør:** `/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc -m test/run-jsc.js`
   (jsc støtter ES-moduler; ingen node/deno/bun i miljøet).
 - Nettleser: `test/tests.html` (tynn renderer av samme suite).
