@@ -12,7 +12,7 @@ import {
   addHomework, updateHomework, deleteHomework, hideHomework,
   commitHomework, uncommitHomework, approveHomework, rejectHomework,
   effortRecords, periodBounds, filterRecordsByPeriod,
-  statBySubject, statByPosition, statHeatmap, statTrend, statMedalDistribution,
+  statBySubject, statByPosition, statHeatmap, statDailyTotal, statWeeklyTotal, statMedalDistribution,
 } from './logic.js';
 
 const el = document.getElementById('app');
@@ -26,6 +26,7 @@ const App = {
   currentDate: nearestWeekday(isoDate(new Date())),
   parentTab: 'uke',
   statPeriod: 'all', // 'all' | 'month' | 'd90' – Statistikk-fanen
+  statWeekSubject: '__all__', // '__all__' | subjectKey – «Uke for uke»-fagvelger
   sonPage: localStorage.getItem('honniscoins:sonPage') || 'uken',
   mondayDismissed: false,
   editQuestId: null,
@@ -1345,7 +1346,13 @@ function statContentHtml(state) {
   const bySub = statBySubject(recs);
   const byPos = statByPosition(recs);
   const heat = statHeatmap(recs);
-  const trend = statTrend(recs);
+  const daily = statDailyTotal(recs);
+  const weekSubjects = bySub.subjects;
+  // Sikre at valgt fag fortsatt finnes i perioden – ellers fall tilbake til «Totalt».
+  const weekSel = App.statWeekSubject !== '__all__'
+    && !weekSubjects.some((s) => s.subjectKey === App.statWeekSubject)
+    ? '__all__' : App.statWeekSubject;
+  const weekly = statWeeklyTotal(recs, weekSel);
   const dist = statMedalDistribution(recs);
 
   return `
@@ -1354,7 +1361,9 @@ function statContentHtml(state) {
       ${statCard('Innsats per fag', 'Snitt-medalje per fag (🥇3 🥈2 🥉1)', svgBySubject(bySub))}
       ${statCard('Innsats etter når på dagen', 'Snitt per timenummer', svgByPosition(byPos))}
       ${statCard('Ukedag × time', 'Snitt per ukedag og timenummer', svgHeatmap(heat), true)}
-      ${statCard('Utvikling over tid', 'Månedlig snitt: totalt + mest brukte fag', svgTrend(trend), true)}
+      ${statCard('Utvikling over tid', 'Sum innsats-poeng per dag (🥇3 🥈2 🥉1)', svgDailyTotal(daily), true)}
+      ${statCard('Uke for uke', 'Sum innsats-poeng per uke',
+        weekSelectHtml(weekSubjects, weekSel) + svgWeeklyTotal(weekly), true)}
       ${statCard('Medaljefordeling per fag', 'Andel gull/sølv/bronse', svgDistribution(dist))}
     </div>`;
 }
@@ -1373,6 +1382,8 @@ function bindStatChips(host) {
   host.querySelectorAll('.statchip[data-p]').forEach(
     (b) => (b.onclick = () => { App.statPeriod = b.dataset.p; routeToView(); })
   );
+  const sel = host.querySelector('#statWeekSubject');
+  if (sel) sel.onchange = () => { App.statWeekSubject = sel.value; routeToView(); };
 }
 
 // Felles: fargeterskel for innsats-snitt.
@@ -1450,31 +1461,69 @@ function svgHeatmap(heat) {
   return svgWrap(W, H, g);
 }
 
-// Visning 4: linjediagram, månedlig snitt.
-function svgTrend(trend) {
-  const cols = ['var(--ink2)', 'var(--s1)', 'var(--s2)'];
-  const W = 800, H = 260, L = 40, R = 70, T = 12, B = 30, iw = W - L - R, ih = H - T - B;
-  const n = Math.max(1, trend.months.length - 1);
-  const X = (i) => L + iw * (i / n), Y = (v) => T + ih - ih * (v / 3);
+// Pen y-akse-maks (rundet opp til 1/2/5 × 10ⁿ).
+function niceMax(v) {
+  if (!v || v <= 0) return 1;
+  const pow = Math.pow(10, Math.floor(Math.log10(v)));
+  const n = v / pow;
+  const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+  return step * pow;
+}
+
+// Fagvelger for «Uke for uke».
+function weekSelectHtml(subjects, sel) {
+  const opts = [`<option value="__all__"${sel === '__all__' ? ' selected' : ''}>Totalt</option>`]
+    .concat((subjects || []).map((s) =>
+      `<option value="${escapeHtml(s.subjectKey)}"${sel === s.subjectKey ? ' selected' : ''}>${escapeHtml(s.subjectLabel)}</option>`))
+    .join('');
+  return `<div class="statselwrap"><select id="statWeekSubject" class="statsel">${opts}</select></div>`;
+}
+
+// Visning 4: sum innsats-poeng per dag – punkter uten linje.
+function svgDailyTotal(daily) {
+  const W = 800, H = 260, L = 40, R = 16, T = 12, B = 34, iw = W - L - R, ih = H - T - B;
+  if (!daily.length) return svgWrap(W, H, `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="axl">Ingen data</text>`);
+  const max = niceMax(Math.max(...daily.map((d) => d.total)));
+  const n = Math.max(1, daily.length - 1);
+  const X = (i) => L + iw * (daily.length === 1 ? 0.5 : i / n);
+  const Y = (v) => T + ih - ih * (v / max);
   let g = '';
-  for (let v = 0; v <= 3; v++) {
-    const y = Y(v);
+  for (let t = 0; t <= 4; t++) {
+    const v = (max / 4) * t, y = Y(v);
     g += `<line x1="${L}" y1="${y}" x2="${L + iw}" y2="${y}" stroke="var(--grid)"/>`;
-    g += `<text x="${L - 6}" y="${y + 4}" text-anchor="end" class="axl">${v}</text>`;
+    g += `<text x="${L - 6}" y="${y + 4}" text-anchor="end" class="axl">${Math.round(v)}</text>`;
   }
-  trend.months.forEach((m, i) =>
-    (g += `<text x="${X(i)}" y="${T + ih + 18}" text-anchor="middle" class="axl">${m.slice(5)}</text>`));
-  trend.series.forEach((s, si) => {
-    const col = cols[si % cols.length];
-    let prev = null, lastPt = null;
-    s.values.forEach((v, i) => {
-      if (v == null) { prev = null; return; }
-      const pt = [X(i), Y(v)];
-      if (prev) g += `<line x1="${prev[0]}" y1="${prev[1]}" x2="${pt[0]}" y2="${pt[1]}" stroke="${col}" stroke-width="${si === 0 ? 2.5 : 2}" stroke-linecap="round"/>`;
-      g += `<circle cx="${pt[0]}" cy="${pt[1]}" r="3" fill="${col}"/>`;
-      prev = pt; lastPt = pt;
-    });
-    if (lastPt) g += `<text x="${lastPt[0] + 7}" y="${lastPt[1] + 4}" fill="${col}" class="axs">${escapeHtml(s.label)}</text>`;
+  const step = Math.max(1, Math.ceil(daily.length / 6));
+  daily.forEach((d, i) => {
+    if (i % step === 0 || i === daily.length - 1)
+      g += `<text x="${X(i)}" y="${T + ih + 18}" text-anchor="middle" class="axl">${d.date.slice(5)}</text>`;
+  });
+  daily.forEach((d, i) => {
+    g += `<circle cx="${X(i)}" cy="${Y(d.total)}" r="4" fill="var(--s1)"/>`;
+  });
+  return svgWrap(W, H, g);
+}
+
+// Visning 5: sum innsats-poeng per uke – søyler (fagvelger over).
+function svgWeeklyTotal(weekly) {
+  const W = 800, H = 260, L = 40, R = 16, T = 14, B = 34, iw = W - L - R, ih = H - T - B;
+  if (!weekly.length) return svgWrap(W, H, `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="axl">Ingen data</text>`);
+  const max = niceMax(Math.max(...weekly.map((d) => d.total)));
+  const Y = (v) => T + ih - ih * (v / max);
+  let g = '';
+  for (let t = 0; t <= 4; t++) {
+    const v = (max / 4) * t, y = Y(v);
+    g += `<line x1="${L}" y1="${y}" x2="${L + iw}" y2="${y}" stroke="var(--grid)"/>`;
+    g += `<text x="${L - 6}" y="${y + 4}" text-anchor="end" class="axl">${Math.round(v)}</text>`;
+  }
+  const cw = iw / weekly.length, bw = Math.min(40, cw * 0.6);
+  const step = Math.max(1, Math.ceil(weekly.length / 8));
+  weekly.forEach((d, i) => {
+    const cx = L + cw * (i + 0.5), bh = ih * (d.total / max);
+    g += `<rect x="${cx - bw / 2}" y="${T + ih - bh}" width="${bw}" height="${Math.max(bh, 0)}" rx="4" fill="var(--s1)"/>`;
+    if (d.total > 0) g += `<text x="${cx}" y="${T + ih - bh - 6}" text-anchor="middle" class="axv">${d.total}</text>`;
+    if (i % step === 0 || i === weekly.length - 1)
+      g += `<text x="${cx}" y="${T + ih + 18}" text-anchor="middle" class="axl">${d.week.slice(5)}</text>`;
   });
   return svgWrap(W, H, g);
 }

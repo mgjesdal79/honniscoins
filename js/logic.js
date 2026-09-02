@@ -1036,33 +1036,34 @@ export function statHeatmap(records) {
 
 // focusKeys = liste med subjectKey som skal få egen linje (i tillegg til totalt).
 // Hvis utelatt: de to fagene med flest records.
-export function statTrend(records, focusKeys) {
+// Sum innsats-poeng per LÅST dag. Ett punkt per dag. Sortert på dato.
+export function statDailyTotal(records) {
+  const byDate = {};
+  for (const r of records || []) byDate[r.date] = (byDate[r.date] || 0) + r.score;
+  return Object.keys(byDate).sort().map((date) => ({ date, total: byDate[date] }));
+}
+
+// Sum innsats-poeng per uke (mandag-startet). subjectKey null/'__all__' = alle fag.
+// Sammenhengende uker fra første til siste uke i records (uker uten poeng = 0).
+export function statWeeklyTotal(records, subjectKey) {
   const recs = records || [];
-  if (!recs.length) return { months: [], series: [] };
-  if (!focusKeys) {
-    const by = statBySubject(recs).subjects; // sortert avg desc, tie n desc
-    focusKeys = by.slice().sort((a, b) => b.n - a.n).slice(0, 2).map((x) => x.subjectKey);
+  if (!recs.length) return [];
+  const all = subjectKey == null || subjectKey === '__all__';
+  const sum = {};
+  let firstW = null, lastW = null;
+  for (const r of recs) {
+    const w = weekStartIso(r.date);
+    if (firstW === null || w < firstW) firstW = w;
+    if (lastW === null || w > lastW) lastW = w;
+    if (all || r.subjectKey === subjectKey) sum[w] = (sum[w] || 0) + r.score;
   }
-  const months = [...new Set(recs.map((r) => r.date.slice(0, 7)))].sort();
-  const labelFor = {};
-  for (const r of recs) if (!labelFor[r.subjectKey]) labelFor[r.subjectKey] = r.subjectLabel;
-
-  const avgFor = (pred) => {
-    const map = {}; // month -> {sum,n}
-    for (const r of recs) {
-      if (!pred(r)) continue;
-      const m = r.date.slice(0, 7);
-      const e = (map[m] = map[m] || { sum: 0, n: 0 });
-      e.sum += r.score; e.n += 1;
-    }
-    return months.map((m) => (map[m] ? map[m].sum / map[m].n : null));
-  };
-
-  const series = [{ key: '__total__', label: 'Totalt', values: avgFor(() => true) }];
-  for (const key of focusKeys) {
-    series.push({ key, label: labelFor[key] || key, values: avgFor((r) => r.subjectKey === key) });
+  const out = [];
+  let w = firstW;
+  for (let i = 0; i < 520 && w <= lastW; i++) {
+    out.push({ week: w, total: sum[w] || 0 });
+    const d = parseIso(w); d.setDate(d.getDate() + 7); w = isoDate(d);
   }
-  return { months, series };
+  return out;
 }
 
 // Andeler gull/solv/bronse per fag (fravær/null er allerede ute av records).
