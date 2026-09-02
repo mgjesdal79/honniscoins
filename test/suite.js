@@ -165,6 +165,24 @@ export function runTests() {
       ok('pågående', sv.currentOngoing === true);
       ok('måned pågående', sv.monthBestOngoing === true);
     },
+    function streak_sick_day_counts_filled_hours() {
+      const s = L.defaultState();
+      s.days['2026-10-05'] = lockedDay(['A', 'B'], { 0: 'gull', 1: 'gull' });
+      // syk-dag, låst, 2 gulltimer utfylt + resten blankt (gyldig fravær resten av dagen)
+      s.days['2026-10-06'] = { subjects: ['A', 'B', 'C', 'D'], marks: { 0: { medal: 'gull' }, 1: { medal: 'gull' } }, sick: true, locked: true, lockedAt: 't' };
+      s.days['2026-10-07'] = lockedDay(['A'], { 0: 'gull' });
+      eq('syk-dag utfylte timer teller (gull best 5)', L.goldStreakInfo(s, '2026-10').allTimeBest, 5);
+    },
+    function streak_blank_hour_pauses() {
+      const s = L.defaultState();
+      s.days['2026-10-05'] = lockedDay(['A', 'B', 'C'], { 0: 'gull', 2: 'gull' }); // time 1 blank
+      eq('blank time pauser (gull best 2)', L.goldStreakInfo(s, '2026-10').allTimeBest, 2);
+    },
+    function streak_fravaer_breaks() {
+      const s = L.defaultState();
+      s.days['2026-10-05'] = lockedDay(['A', 'B', 'C'], { 0: 'gull', 1: '0', 2: 'gull' });
+      eq('fravær «0» bryter (gull best 1)', L.goldStreakInfo(s, '2026-10').allTimeBest, 1);
+    },
 
     // --- migrering ---
     function migrate_locks_existing_content() {
