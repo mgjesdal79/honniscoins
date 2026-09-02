@@ -973,12 +973,13 @@ export function effortRecords(state) {
   return out;
 }
 
-// Periode-grenser for statistikk. 'all' | 'month' | 'd90'. todayIso = 'YYYY-MM-DD'.
+// Periode-grenser for statistikk. 'all' | 'month' | 'd30' | 'd90'. todayIso = 'YYYY-MM-DD'.
 export function periodBounds(period, todayIso) {
   if (period === 'month') return { from: todayIso.slice(0, 8) + '01', to: todayIso };
-  if (period === 'd90') {
+  if (period === 'd30' || period === 'd90') {
+    const n = period === 'd30' ? 30 : 90;
     const d = parseIso(todayIso);
-    d.setDate(d.getDate() - 89); // 90 dager inklusiv i dag
+    d.setDate(d.getDate() - (n - 1)); // n dager inklusiv i dag
     return { from: isoDate(d), to: todayIso };
   }
   return { from: null, to: null }; // 'all'
@@ -1058,9 +1059,12 @@ export function statHeatmap(records) {
 // Hvis utelatt: de to fagene med flest records.
 // Sum innsats-poeng per LÅST dag, fordelt på medalje (poeng-bidrag: gull=antall×3 osv).
 // total = gull + solv + bronse. Én stolpe per dag. Sortert på dato.
-export function statDailyTotal(records) {
+// subjectKey null/'__all__' = alle fag; ellers kun det valgte faget.
+export function statDailyTotal(records, subjectKey) {
+  const all = subjectKey == null || subjectKey === '__all__';
   const byDate = {};
   for (const r of records || []) {
+    if (!all && r.subjectKey !== subjectKey) continue;
     const d = (byDate[r.date] = byDate[r.date] || { date: r.date, total: 0, gull: 0, solv: 0, bronse: 0 });
     d.total += r.score;
     if (r.medal === 'gull' || r.medal === 'solv' || r.medal === 'bronse') d[r.medal] += r.score;

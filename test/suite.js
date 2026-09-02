@@ -662,6 +662,7 @@ export function runTests() {
     function periodFiltering() {
       eq('all -> åpen', L.periodBounds('all', '2026-09-15'), { from: null, to: null });
       eq('month -> fra 01', L.periodBounds('month', '2026-09-15'), { from: '2026-09-01', to: '2026-09-15' });
+      eq('d30 -> 30 dager', L.periodBounds('d30', '2026-09-15'), { from: '2026-08-17', to: '2026-09-15' });
       eq('d90 -> 90 dager', L.periodBounds('d90', '2026-09-15'), { from: '2026-06-18', to: '2026-09-15' });
       const recs = [{ date: '2026-06-01' }, { date: '2026-09-10' }, { date: '2026-09-20' }];
       eq('filter month', L.filterRecordsByPeriod(recs, { from: '2026-09-01', to: '2026-09-15' }).map((r) => r.date), ['2026-09-10']);
@@ -720,6 +721,22 @@ export function runTests() {
       eq('dag 2 stablet', r[1], { date: '2026-08-11', total: 3, gull: 3, solv: 0, bronse: 0 });
       eq('sortert 2 dager', r.length, 2);
       eq('tom', L.statDailyTotal([]), []);
+    },
+    function statDailyTotal_subjectFilter() {
+      const recs = [
+        { date: '2026-08-10', subjectKey: 'matte', medal: 'gull', score: 3 },
+        { date: '2026-08-10', subjectKey: 'norsk', medal: 'solv', score: 2 },
+        { date: '2026-08-11', subjectKey: 'matte', medal: 'bronse', score: 1 },
+      ];
+      eq('alle fag', L.statDailyTotal(recs, '__all__'), [
+        { date: '2026-08-10', total: 5, gull: 3, solv: 2, bronse: 0 },
+        { date: '2026-08-11', total: 1, gull: 0, solv: 0, bronse: 1 },
+      ]);
+      eq('kun matte', L.statDailyTotal(recs, 'matte'), [
+        { date: '2026-08-10', total: 3, gull: 3, solv: 0, bronse: 0 },
+        { date: '2026-08-11', total: 1, gull: 0, solv: 0, bronse: 1 },
+      ]);
+      eq('fag uten treff', L.statDailyTotal(recs, 'gym'), []);
     },
     function statWeeklyTotal_basics() {
       // 2026-08-10 = mandag (uke A), 2026-08-17 = mandag (uke B)
