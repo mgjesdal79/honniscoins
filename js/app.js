@@ -436,6 +436,7 @@ function renderPoengPage(host) {
     </div>`;
 
   host.innerHTML = `
+    <div class="narrowcol">
     <div class="balance">
       <div class="coins">${bal} <small>Honniscoins</small></div>
       <div class="kr">≈ ${formatKr(bal, s.settings.krPerCoin)} · denne uka +${wTot}</div>
@@ -462,7 +463,11 @@ function renderPoengPage(host) {
     ${statGrid(sv)}
 
     <div class="sec">🥇 Gull-streak (timer på rad)</div>
-    ${statGrid(gd)}`;
+    ${statGrid(gd)}
+    </div>
+    <div class="sec">📊 Statistikk</div>
+    ${statContentHtml(s)}`;
+  bindStatChips(host);
 }
 
 // Frist-tekst for en quest sett fra sønnen: forfalt (rødt), i dag, om N dager, dato.
@@ -630,18 +635,19 @@ let editWeekday = 'mon';
 function renderParentHome() {
   const pendingQuests = activeQuests(App.state).filter((q) => q.status === 'done').length;
   const tabs = [
-    ['uke', 'Uke'],
-    ['dag', 'Dag'],
-    ['timeplan', 'Timeplan'],
-    ['quests', 'Quests'],
-    ['poeng', 'Poeng'],
-    ['logg', 'Logg'],
-    ['stat', 'Statistikk'],
+    ['uke', '📅', 'Uke'],
+    ['dag', '📝', 'Dag'],
+    ['timeplan', '🗓', 'Plan'],
+    ['quests', '⭐', 'Quests'],
+    ['poeng', '💵', 'Poeng'],
+    ['logg', '📋', 'Logg'],
+    ['stat', '📊', 'Stat'],
   ];
   const bar = tabs
-    .map(([k, l]) => {
+    .map(([k, ic, l]) => {
       const badge = k === 'quests' && pendingQuests ? `<span class="navbadge">${pendingQuests}</span>` : '';
-      return `<button class="t ${App.parentTab === k ? 'on' : ''}" data-tab="${k}">${l}${badge}</button>`;
+      return `<button class="t ${App.parentTab === k ? 'on' : ''}" data-tab="${k}">
+        <span class="ti">${ic}${badge}</span><span class="tl">${l}</span></button>`;
     })
     .join('');
   el.innerHTML = `
@@ -1318,10 +1324,11 @@ function renderLoggTab(host) {
 
 // --- Statistikk (forelder, kun visning) ----------------------------------
 
-function renderStatistikkTab(host) {
+// Returnerer periode-chips + statgrid (eller tomtilstand) som HTML-streng.
+function statContentHtml(state) {
   const today = isoDate(new Date());
   const bounds = periodBounds(App.statPeriod, today);
-  const recs = filterRecordsByPeriod(effortRecords(App.state), bounds);
+  const recs = filterRecordsByPeriod(effortRecords(state), bounds);
 
   const periods = [['month', 'Denne måneden'], ['d90', 'Siste 90 dager'], ['all', 'Alt']];
   const chips = periods
@@ -1329,12 +1336,10 @@ function renderStatistikkTab(host) {
     .join('');
 
   if (!recs.length) {
-    host.innerHTML = `
+    return `
       <div class="statperiod">${chips}</div>
       <div class="card statempty">📊 Ingen data ennå for valgt periode.<br>
         <span class="muted">Lås noen dager med medaljer først – kun låste dager teller.</span></div>`;
-    bindStatChips(host);
-    return;
   }
 
   const bySub = statBySubject(recs);
@@ -1343,7 +1348,7 @@ function renderStatistikkTab(host) {
   const trend = statTrend(recs);
   const dist = statMedalDistribution(recs);
 
-  host.innerHTML = `
+  return `
     <div class="statperiod">${chips}</div>
     <div class="statgrid">
       ${statCard('Innsats per fag', 'Snitt-medalje per fag (🥇3 🥈2 🥉1)', svgBySubject(bySub))}
@@ -1352,6 +1357,10 @@ function renderStatistikkTab(host) {
       ${statCard('Utvikling over tid', 'Månedlig snitt: totalt + mest brukte fag', svgTrend(trend), true)}
       ${statCard('Medaljefordeling per fag', 'Andel gull/sølv/bronse', svgDistribution(dist))}
     </div>`;
+}
+
+function renderStatistikkTab(host) {
+  host.innerHTML = statContentHtml(App.state);
   bindStatChips(host);
 }
 
@@ -1495,8 +1504,9 @@ function svgWrap(w, h, inner) {
 }
 
 function routeToView() {
-  // Kun statistikk-fanen (forelder) bryter ut av mobil-bredden – ses på laptop.
-  const wide = App.role === 'parent' && App.parentUnlocked && App.parentTab === 'stat';
+  // Statistikk bryter ut av mobil-bredden – ses på laptop (forelder-fane + sønn-Poeng).
+  const wide = (App.role === 'parent' && App.parentUnlocked && App.parentTab === 'stat')
+    || (App.role === 'son' && App.sonPage === 'poeng');
   document.body.classList.toggle('statwide', wide);
   if (!App.role) return renderWho();
   if (App.role === 'son') return renderSon();

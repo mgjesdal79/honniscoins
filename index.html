@@ -53,7 +53,10 @@
   .key{height:60px;border-radius:14px;background:var(--surface);border:1px solid var(--line);font-size:1.3rem;font-weight:700;color:#fff}
   .key.blank{background:transparent;border:none}
   .tabbar{display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px;margin:8px 0 12px}
-  .tabbar .t{flex:1;padding:9px;border-radius:9px;font-size:.8rem;font-weight:700;color:var(--muted);background:transparent;border:none}
+  .tabbar{gap:3px;padding:4px}
+  .tabbar .t{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;border-radius:9px;color:var(--muted);background:transparent;border:none}
+  .tabbar .t .ti{font-size:1.15rem;line-height:1}
+  .tabbar .t .tl{font-size:.6rem;font-weight:700;letter-spacing:.01em}
   .tabbar .t.on{background:var(--accent);color:#fff}
   .sec{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:14px 2px 8px;font-weight:700}
   .row{display:flex;align-items:center;justify-content:space-between;padding:11px 4px;border-bottom:1px solid #10233f;gap:10px}
@@ -130,6 +133,7 @@
   @media (min-width:820px){
     body.statwide{max-width:1160px;padding-left:28px;padding-right:28px}
   }
+  .narrowcol{max-width:480px;margin:0 auto}
   #ptab .statperiod{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px}
   .statchip{font:600 .8rem var(--font);border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:6px 14px;cursor:pointer}
   .statchip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -202,7 +206,7 @@
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.09.01 (b21 · statistikk full bredde)';
+    window.APP_VERSION = '2026.09.02 (b22 · streak-fiks + sønn-statistikk + meny)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>

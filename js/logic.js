@@ -367,20 +367,23 @@ export function weeklyStreakBonusTotal(state) {
 
 // --- Ekte streak: timer på rad ------------------------------------------
 
-// Kronologisk sekvens av timer over låste dager. Hull (ulåst dag i intervallet) = {break:true}.
-// Syk-dag hoppes over (pauser, bryter ikke). Ren funksjon.
+// Kronologisk sekvens av UTFYLTE medaljetimer over låste dager (også syke).
+// Ulåst dag i intervallet = {break:true} (hull). «0» (fravær u/gyldig grunn) =
+// {break:true} (brudd). Blank time og syk-dagens blanke timer hoppes over (pause).
+// Ren funksjon.
 export function lessonSequence(state, uptoIso) {
   const days = scoringDaySequence(state, uptoIso);
   const seq = [];
   for (const d of days) {
     const day = state.days[d];
     if (!day || !day.locked) { seq.push({ date: d, break: true }); continue; }
-    if (day.sick) continue; // syk pauser
     const subjects = subjectsForDate(state, d);
     const marks = day.marks || {};
     for (let i = 0; i < subjects.length; i++) {
       const m = marks[String(i)] ? marks[String(i)].medal : null;
-      seq.push({ date: d, idx: i, medal: m });
+      if (m === 'bronse' || m === 'solv' || m === 'gull') seq.push({ date: d, idx: i, medal: m });
+      else if (m === '0') seq.push({ date: d, idx: i, break: true });
+      // null/blank = hopp over (pause); syk-dagens blanke timer havner også her
     }
   }
   return seq;
