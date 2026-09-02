@@ -1396,7 +1396,7 @@ function statContentHtml(state) {
       ${statCard('Innsats etter når på dagen', 'Snitt per timenummer', svgByPosition(byPos))}
       ${statCard('Ukedag × time', 'Snitt per ukedag og timenummer', svgHeatmap(heat), true)}
       ${statCard('Utvikling over tid', 'Sum innsats-poeng per dag, stablet på medalje (🥇3 🥈2 🥉1)', svgDailyTotal(daily), true)}
-      ${statCard('Uke for uke', 'Sum innsats-poeng per uke',
+      ${statCard('Uke for uke', 'Sum innsats-poeng per uke, stablet på medalje',
         weekSelectHtml(weekSubjects, weekSel) + svgWeeklyTotal(weekly), true)}
       ${statCard('Medaljefordeling per fag', 'Andel gull/sølv/bronse', svgDistribution(dist))}
     </div>`;
@@ -1554,10 +1554,15 @@ function svgDailyTotal(daily) {
   return legend + svgWrap(W, H, g);
 }
 
-// Visning 5: sum innsats-poeng per uke – søyler (fagvelger over).
+// Visning 5: sum innsats-poeng per uke – stablede medalje-søyler (fagvelger over).
 function svgWeeklyTotal(weekly) {
   const W = 800, H = 260, L = 40, R = 16, T = 14, B = 34, iw = W - L - R, ih = H - T - B;
-  if (!weekly.length) return svgWrap(W, H, `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="axl">Ingen data</text>`);
+  const legend = `<div class="statlegend">
+    <span><i style="background:var(--gull)"></i>Gull</span>
+    <span><i style="background:var(--solv)"></i>Sølv</span>
+    <span><i style="background:var(--bronse)"></i>Bronse</span></div>`;
+  if (!weekly.length)
+    return legend + svgWrap(W, H, `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="axl">Ingen data</text>`);
   const max = niceMax(Math.max(...weekly.map((d) => d.total)));
   const Y = (v) => T + ih - ih * (v / max);
   let g = '';
@@ -1566,16 +1571,28 @@ function svgWeeklyTotal(weekly) {
     g += `<line x1="${L}" y1="${y}" x2="${L + iw}" y2="${y}" stroke="var(--grid)"/>`;
     g += `<text x="${L - 6}" y="${y + 4}" text-anchor="end" class="axl">${Math.round(v)}</text>`;
   }
-  const cw = iw / weekly.length, bw = Math.min(40, cw * 0.6);
+  const cw = iw / weekly.length, bw = Math.min(40, cw * 0.6), GAP = 2;
+  // Nederst → øverst: gull, sølv, bronse.
+  const segs = [['gull', 'var(--gull)'], ['solv', 'var(--solv)'], ['bronse', 'var(--bronse)']];
   const step = Math.max(1, Math.ceil(weekly.length / 8));
+  const showVals = weekly.length <= 16;
   weekly.forEach((d, i) => {
-    const cx = L + cw * (i + 0.5), bh = ih * (d.total / max);
-    g += `<rect x="${cx - bw / 2}" y="${T + ih - bh}" width="${bw}" height="${Math.max(bh, 0)}" rx="4" fill="var(--s1)"/>`;
-    if (d.total > 0) g += `<text x="${cx}" y="${T + ih - bh - 6}" text-anchor="middle" class="axv">${d.total}</text>`;
+    const cx = L + cw * (i + 0.5), x = cx - bw / 2;
+    let yBase = T + ih;
+    segs.forEach(([k, col]) => {
+      const full = ih * (d[k] / max);
+      if (!d[k]) return;
+      const y = (yBase - full + GAP).toFixed(1);
+      const h = Math.max(full - GAP, 0.5).toFixed(1);
+      g += `<rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="2" fill="${col}"/>`;
+      yBase -= full;
+    });
+    if (showVals && d.total > 0)
+      g += `<text x="${cx}" y="${Y(d.total) - 6}" text-anchor="middle" class="axv">${d.total}</text>`;
     if (i % step === 0 || i === weekly.length - 1)
       g += `<text x="${cx}" y="${T + ih + 18}" text-anchor="middle" class="axl">${d.week.slice(5)}</text>`;
   });
-  return svgWrap(W, H, g);
+  return legend + svgWrap(W, H, g);
 }
 
 // Visning 5: 100 % stablet gull/sølv/bronse.

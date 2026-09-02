@@ -1080,12 +1080,17 @@ export function statWeeklyTotal(records, subjectKey) {
     const w = weekStartIso(r.date);
     if (firstW === null || w < firstW) firstW = w;
     if (lastW === null || w > lastW) lastW = w;
-    if (all || r.subjectKey === subjectKey) sum[w] = (sum[w] || 0) + r.score;
+    if (all || r.subjectKey === subjectKey) {
+      const e = (sum[w] = sum[w] || { total: 0, gull: 0, solv: 0, bronse: 0 });
+      e.total += r.score;
+      if (r.medal === 'gull' || r.medal === 'solv' || r.medal === 'bronse') e[r.medal] += r.score;
+    }
   }
   const out = [];
   let w = firstW;
   for (let i = 0; i < 520 && w <= lastW; i++) {
-    out.push({ week: w, total: sum[w] || 0 });
+    const e = sum[w] || { total: 0, gull: 0, solv: 0, bronse: 0 };
+    out.push({ week: w, total: e.total, gull: e.gull, solv: e.solv, bronse: e.bronse });
     const d = parseIso(w); d.setDate(d.getDate() + 7); w = isoDate(d);
   }
   return out;
