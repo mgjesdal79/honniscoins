@@ -1318,10 +1318,11 @@ function renderLoggTab(host) {
 
 // --- Statistikk (forelder, kun visning) ----------------------------------
 
-function renderStatistikkTab(host) {
+// Returnerer periode-chips + statgrid (eller tomtilstand) som HTML-streng.
+function statContentHtml(state) {
   const today = isoDate(new Date());
   const bounds = periodBounds(App.statPeriod, today);
-  const recs = filterRecordsByPeriod(effortRecords(App.state), bounds);
+  const recs = filterRecordsByPeriod(effortRecords(state), bounds);
 
   const periods = [['month', 'Denne måneden'], ['d90', 'Siste 90 dager'], ['all', 'Alt']];
   const chips = periods
@@ -1329,12 +1330,10 @@ function renderStatistikkTab(host) {
     .join('');
 
   if (!recs.length) {
-    host.innerHTML = `
+    return `
       <div class="statperiod">${chips}</div>
       <div class="card statempty">📊 Ingen data ennå for valgt periode.<br>
         <span class="muted">Lås noen dager med medaljer først – kun låste dager teller.</span></div>`;
-    bindStatChips(host);
-    return;
   }
 
   const bySub = statBySubject(recs);
@@ -1343,7 +1342,7 @@ function renderStatistikkTab(host) {
   const trend = statTrend(recs);
   const dist = statMedalDistribution(recs);
 
-  host.innerHTML = `
+  return `
     <div class="statperiod">${chips}</div>
     <div class="statgrid">
       ${statCard('Innsats per fag', 'Snitt-medalje per fag (🥇3 🥈2 🥉1)', svgBySubject(bySub))}
@@ -1352,6 +1351,10 @@ function renderStatistikkTab(host) {
       ${statCard('Utvikling over tid', 'Månedlig snitt: totalt + mest brukte fag', svgTrend(trend), true)}
       ${statCard('Medaljefordeling per fag', 'Andel gull/sølv/bronse', svgDistribution(dist))}
     </div>`;
+}
+
+function renderStatistikkTab(host) {
+  host.innerHTML = statContentHtml(App.state);
   bindStatChips(host);
 }
 
