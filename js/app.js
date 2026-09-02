@@ -1531,7 +1531,8 @@ function svgDailyTotal(daily) {
     g += `<text x="${L - 6}" y="${y + 4}" text-anchor="end" class="axl">${Math.round(v)}</text>`;
   }
   const cw = iw / daily.length, bw = Math.min(34, cw * 0.62), GAP = 2;
-  const segs = [['bronse', 'var(--bronse)'], ['solv', 'var(--solv)'], ['gull', 'var(--gull)']];
+  // Nederst → øverst: gull, sølv, bronse.
+  const segs = [['gull', 'var(--gull)'], ['solv', 'var(--solv)'], ['bronse', 'var(--bronse)']];
   const step = Math.max(1, Math.ceil(daily.length / 6));
   const showVals = daily.length <= 12;
   daily.forEach((d, i) => {
