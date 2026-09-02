@@ -1395,7 +1395,7 @@ function statContentHtml(state) {
       ${statCard('Innsats per fag', 'Snitt-medalje per fag (🥇3 🥈2 🥉1)', svgBySubject(bySub))}
       ${statCard('Innsats etter når på dagen', 'Snitt per timenummer', svgByPosition(byPos))}
       ${statCard('Ukedag × time', 'Snitt per ukedag og timenummer', svgHeatmap(heat), true)}
-      ${statCard('Utvikling over tid', 'Sum innsats-poeng per dag (🥇3 🥈2 🥉1)', svgDailyTotal(daily), true)}
+      ${statCard('Utvikling over tid', 'Sum innsats-poeng per dag, stablet på medalje (🥇3 🥈2 🥉1)', svgDailyTotal(daily), true)}
       ${statCard('Uke for uke', 'Sum innsats-poeng per uke',
         weekSelectHtml(weekSubjects, weekSel) + svgWeeklyTotal(weekly), true)}
       ${statCard('Medaljefordeling per fag', 'Andel gull/sølv/bronse', svgDistribution(dist))}
@@ -1513,13 +1513,16 @@ function weekSelectHtml(subjects, sel) {
   return `<div class="statselwrap"><select id="statWeekSubject" class="statsel">${opts}</select></div>`;
 }
 
-// Visning 4: sum innsats-poeng per dag – punkter uten linje.
+// Visning 4: sum innsats-poeng per dag – stablede medalje-søyler (bronse|sølv|gull).
 function svgDailyTotal(daily) {
-  const W = 800, H = 260, L = 40, R = 16, T = 12, B = 34, iw = W - L - R, ih = H - T - B;
-  if (!daily.length) return svgWrap(W, H, `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="axl">Ingen data</text>`);
+  const W = 800, H = 260, L = 40, R = 16, T = 14, B = 34, iw = W - L - R, ih = H - T - B;
+  const legend = `<div class="statlegend">
+    <span><i style="background:var(--gull)"></i>Gull</span>
+    <span><i style="background:var(--solv)"></i>Sølv</span>
+    <span><i style="background:var(--bronse)"></i>Bronse</span></div>`;
+  if (!daily.length)
+    return legend + svgWrap(W, H, `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="axl">Ingen data</text>`);
   const max = niceMax(Math.max(...daily.map((d) => d.total)));
-  const n = Math.max(1, daily.length - 1);
-  const X = (i) => L + iw * (daily.length === 1 ? 0.5 : i / n);
   const Y = (v) => T + ih - ih * (v / max);
   let g = '';
   for (let t = 0; t <= 4; t++) {
@@ -1527,15 +1530,27 @@ function svgDailyTotal(daily) {
     g += `<line x1="${L}" y1="${y}" x2="${L + iw}" y2="${y}" stroke="var(--grid)"/>`;
     g += `<text x="${L - 6}" y="${y + 4}" text-anchor="end" class="axl">${Math.round(v)}</text>`;
   }
+  const cw = iw / daily.length, bw = Math.min(34, cw * 0.62), GAP = 2;
+  const segs = [['bronse', 'var(--bronse)'], ['solv', 'var(--solv)'], ['gull', 'var(--gull)']];
   const step = Math.max(1, Math.ceil(daily.length / 6));
+  const showVals = daily.length <= 12;
   daily.forEach((d, i) => {
+    const cx = L + cw * (i + 0.5), x = cx - bw / 2;
+    let yBase = T + ih;
+    segs.forEach(([k, col]) => {
+      const full = ih * (d[k] / max);
+      if (!d[k]) return;
+      const y = (yBase - full + GAP).toFixed(1);
+      const h = Math.max(full - GAP, 0.5).toFixed(1);
+      g += `<rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="2" fill="${col}"/>`;
+      yBase -= full;
+    });
+    if (showVals && d.total > 0)
+      g += `<text x="${cx}" y="${Y(d.total) - 6}" text-anchor="middle" class="axv">${d.total}</text>`;
     if (i % step === 0 || i === daily.length - 1)
-      g += `<text x="${X(i)}" y="${T + ih + 18}" text-anchor="middle" class="axl">${d.date.slice(5)}</text>`;
+      g += `<text x="${cx}" y="${T + ih + 18}" text-anchor="middle" class="axl">${d.date.slice(5)}</text>`;
   });
-  daily.forEach((d, i) => {
-    g += `<circle cx="${X(i)}" cy="${Y(d.total)}" r="4" fill="var(--s1)"/>`;
-  });
-  return svgWrap(W, H, g);
+  return legend + svgWrap(W, H, g);
 }
 
 // Visning 5: sum innsats-poeng per uke – søyler (fagvelger over).
