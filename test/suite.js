@@ -62,6 +62,7 @@ export function runTests() {
       eq('points', s.settings.dailyRoutine.points, 15);
       eq('subtasks', s.settings.dailyRoutine.subtasks, [{ id: 's1', text: 'Heng opp jakke' }]);
       eq('updatedAt stamped', s.settings.dailyRoutine.updatedAt, 't1');
+      eq('settings.updatedAt bumpet (merge-safe)', s.settings.updatedAt, 't1');
       eq('original uendret', s0.settings.dailyRoutine.enabled, false);
     },
     function balance_earned_minus_spent() {

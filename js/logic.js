@@ -613,6 +613,7 @@ export function setDailyRoutine(state, { patch, actor = 'parent' }, ctx) {
   if ('points' in patch) r.points = Number(patch.points) || 0;
   if ('subtasks' in patch) r.subtasks = (patch.subtasks || []).map((st) => ({ id: st.id, text: st.text }));
   r.updatedAt = ctx.now;
+  s.settings.updatedAt = ctx.now; // settings flettes whole-object LWW → bump så mal-endringen ikke tapes
   s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'routine', action: 'edit' });
   return s;
 }
