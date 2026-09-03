@@ -80,6 +80,34 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
 - **Spec:** `docs/superpowers/specs/2026-08-22-honniscoins-sidequests-design.md`.
   Mockup: `mockups/sidequests.html`.
 
+## Daglig rutine (gjentakende sidequest)
+- **Konsept:** én fast, redigerbar mal genererer automatisk én avkryssbar «rydd opp etter skolen»-
+  sidequest per hverdag (man–fre), uten manuell oppretting. Instansen ER en vanlig quest →
+  arver all quest-maskineri (commit/godkjenn/poeng/arkiv/logg/fletting).
+- **Mal-datamodell:** `settings.dailyRoutine = {enabled, title, points, subtasks:[{id,text}],
+  updatedAt}` (default `enabled:false`, tittel 'Rydd opp etter skolen', 10 poeng). Flettes
+  med settings-LWW.
+- **Instans-felt (utover vanlig quest):** `source:'routine'`, `routineDate:'YYYY-MM-DD'`,
+  `subtasks:[{id,text,done}]`. Manuelle quests har ingen `subtasks`/`source` → all UI/logikk
+  tåler manglende subtasks (tom liste).
+- **Generering (`generateDailyRoutine`, kalt sist i `migrate`):** kun hvis `enabled`, kun
+  hverdag (`weekdayKey`), kun i dag (ingen backfill), idempotent via **deterministiske id-er**
+  `routine-<date>` (subtask `routine-<date>-<n>`, logg `log-routine-<date>`) → to enheter
+  samme dag lager samme id, `mergeQuestList` (LWW) kolliderer ikke.
+- **Regler (rene fn i logic.js):** `allSubtasksDone(quest)` (tom liste = true);
+  `commitQuest` gatet — sønn kan ikke markere ferdig før alle subtasks er huket av;
+  `toggleQuestSubtask(state,{id,subId},ctx)` (bumper `quest.updatedAt`, logges ikke);
+  `setDailyRoutine(state,{patch},ctx)` (forelder-mal-CRUD); `updateQuest` utvidet med
+  `subtasks`-patch (finjustere dagens instans uten å røre malen).
+- **UI:** sønn — instans-kort i Sidequests («🔁 Daglig · <dato>»-badge, avkryssbar subtask-liste,
+  «X av N gjort», låst «Marker som ferdig» til alt er huket av; helper `routineDateLabel`).
+  Forelder — «Daglig rutine»-seksjon i **Poeng-fanen** (på/av, tittel, reward-stepper,
+  redigerbar deloppgave-liste). CSS: `.qrec`/`.subs`/`.subchk`/`.subprog`.
+- **Future (ikke bygget):** ferie-modus (skru av rating + rutine på gitte datoer), generelt
+  recurring-system (flere maler/planer), flerbruker/deling.
+- **Spec/plan:** `docs/superpowers/specs/2026-09-04-honniscoins-daglig-rutine-design.md`,
+  `docs/superpowers/plans/2026-09-04-honniscoins-daglig-rutine.md`.
+
 ## Lekser (skolelekser per dag)
 - **Konsept:** forelder registrerer lekser per dag (fag, tekst, poeng, evt. «hele uka»). Sønn
   «committer» når ferdig → forelder godkjenner (poeng i potten) eller sender tilbake. Samme
