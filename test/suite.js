@@ -515,6 +515,18 @@ export function runTests() {
       eq('delvis -> false', L.allSubtasksDone({ subtasks: [{ done: true }, { done: false }] }), false);
       eq('alle -> true', L.allSubtasksDone({ subtasks: [{ done: true }, { done: true }] }), true);
     },
+    function commitQuest_blocked_until_subtasks_done() {
+      let s = L.defaultState();
+      s.quests.push({ id: 'r1', title: 'Rydd', points: 15, status: 'open', updatedAt: 't0', removed: false, subtasks: [{ id: 'a', text: 'x', done: false }] });
+      const s2 = L.commitQuest(s, { id: 'r1', actor: 'son' }, { now: 't1', id: 'l1' });
+      eq('ikke committet når subtask åpen', s2.quests[0].status, 'open');
+    },
+    function commitQuest_allowed_when_subtasks_done() {
+      let s = L.defaultState();
+      s.quests.push({ id: 'r1', title: 'Rydd', points: 15, status: 'open', updatedAt: 't0', removed: false, subtasks: [{ id: 'a', text: 'x', done: true }] });
+      const s2 = L.commitQuest(s, { id: 'r1', actor: 'son' }, { now: 't1', id: 'l1' });
+      eq('committet når alle subtasks done', s2.quests[0].status, 'done');
+    },
     function merge_quests_lww() {
       const a = L.defaultState();
       const b = L.defaultState();

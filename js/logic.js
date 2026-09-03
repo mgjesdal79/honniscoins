@@ -619,6 +619,7 @@ export function commitQuest(state, { id, actor = 'son' }, ctx) {
   const s = clone(state);
   const i = findQuestIdx(s, id);
   if (i < 0) return s;
+  if (!allSubtasksDone(s.quests[i])) return s; // alle subtasks må være huket av
   s.quests[i].status = 'done';
   s.quests[i].doneAt = ctx.now;
   s.quests[i].updatedAt = ctx.now;
