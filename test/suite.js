@@ -499,6 +499,12 @@ export function runTests() {
       ok('godkjent er aldri forfalt', L.isQuestOverdue({ ...q, status: 'approved' }, '2026-08-22') === false);
       ok('uten frist -> ikke forfalt', L.isQuestOverdue({ id: 'q', status: 'open', due: null }, '2026-08-22') === false);
     },
+    function allSubtasksDone_cases() {
+      eq('ingen subtasks -> true', L.allSubtasksDone({ title: 'x' }), true);
+      eq('tom liste -> true', L.allSubtasksDone({ subtasks: [] }), true);
+      eq('delvis -> false', L.allSubtasksDone({ subtasks: [{ done: true }, { done: false }] }), false);
+      eq('alle -> true', L.allSubtasksDone({ subtasks: [{ done: true }, { done: true }] }), true);
+    },
     function merge_quests_lww() {
       const a = L.defaultState();
       const b = L.defaultState();

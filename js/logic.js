@@ -475,6 +475,12 @@ export function isQuestOverdue(quest, todayIso) {
   return !!(quest && !quest.removed && quest.due && quest.status !== 'approved' && quest.due < todayIso);
 }
 
+// Alle subtasks huket av? (Ingen/tom liste teller som ferdig.)
+export function allSubtasksDone(quest) {
+  const subs = (quest && quest.subtasks) || [];
+  return subs.every((st) => !!st.done);
+}
+
 // Poeng fra godkjente quests (inngår i saldo). Ventende (done) teller ikke.
 export function questPointsTotal(state) {
   return activeQuests(state)
