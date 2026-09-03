@@ -122,35 +122,52 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
 - **Innsats-poeng per medalje:** 🥇 gull = 3, 🥈 sølv = 2, 🥉 bronse = 1 (`EFFORT_SCORE`).
   Fravær («0») og null teller ikke. Kun **låste, ikke-syke** dager inngår.
 - **Kilde (logic.js, rene fn):** `effortRecords(state)` → `[{date, weekday, position,
-  subjectKey, subjectLabel, medal, score}]`. Periode: `periodBounds(period, today)` +
-  `filterRecordsByPeriod(recs, bounds)`; `period ∈ {all, month, d90}` (`App.statPeriod`).
-- **Seks visnings-kort (`statContentHtml`, delt av forelder + sønn):**
-  1. `statBySubject` — snitt-medalje per fag (rangerte stolper, `svgBySubject`).
-  2. `statByPosition` — snitt per timenummer (`svgByPosition`).
-  3. `statHeatmap` — ukedag × time (`svgHeatmap`, span2).
-  4. `statDailyTotal(recs)` — **sum innsats-poeng per dag**, punkter uten linje
-     (`svgDailyTotal`, span2). Erstattet gamle `statTrend`/`svgTrend`.
-  5. `statWeeklyTotal(recs, subjectKey)` — **sum per uke** (mandag-startet, sammenhengende
-     uker med 0-fyll), søyler (`svgWeeklyTotal`, span2) med fag-nedtrekk `#statWeekSubject`
-     («Totalt» = `'__all__'` eller enkeltfag). Valget i `App.statWeekSubject`; faller tilbake
-     til «Totalt» hvis valgt fag ikke finnes i perioden.
-  6. `statMedalDistribution` — andel gull/sølv/bronse per fag (`svgDistribution`).
+  subjectKey, subjectLabel, medal, score}]`.
+- **Periode (styrer HELE Stat-siden):** `App.statPeriod ∈ {d30, d90, all, custom}`
+  (default `'d30'` = siste 30 dager). `periodBounds(period, today)` (nå med `'d30'`) +
+  `filterRecordsByPeriod(recs, bounds)`. **Egendefinert** (`'custom'`) bruker
+  `App.statFrom`/`App.statTo` (dato-range); app-helper `statBounds(today)` velger preset
+  vs. custom. Chips: `Siste 30 d / 90 d / Alle / Egendefinert`; sistnevnte viser to
+  `input[type=date]` (`#statFrom`/`#statTo`, `.statrange`).
+- **Fem visnings-kort (`statContentHtml`, delt av forelder + sønn):**
+  1. **`Utvikling over tid`** — **samlet trend-kort** (ligger FØRST). Dag/Uke-toggle
+     (`App.statGran ∈ {day,week}`, default `'day'`; pille `.statgran[data-g]`,
+     `.stattoolbar`) + felles fagvelger (`weekSelectHtml` → `<select>#statSubject`,
+     `App.statSubject`, «Totalt» = `'__all__'`) som gjelder BEGGE oppløsninger.
+     - Dag: `statDailyTotal(recs, subjectKey)` → `svgDailyTotal` (stablede medalje-søyler).
+     - Uke: `statWeeklyTotal(recs, subjectKey)` → `svgWeeklyTotal` (mandag-startet,
+       sammenhengende uker med 0-fyll).
+     - **Stablede søyler:** hvert segment = poeng-bidrag (antall × medaljescore), rekkefølge
+       nederst→øverst **gull → sølv → bronse**, 2px luftgap, fargeforklaring `.statlegend`,
+       verditall når få stolper. Begge fn returnerer `{…,total,gull,solv,bronse}` og tar
+       valgfritt `subjectKey` (null/`'__all__'` = alle fag; bakoverkompatibelt).
+     - **Lang periode → kun uke:** når spennet **> 60 dager** (`STAT_MAX_DAY_SPAN`, målt via
+       `periodSpanDays(bounds, recs)`; åpen ende = faktisk data-spenn) tvinges uke og
+       `Dag`-knappen dempes (`.statgran.off`) med hint. Toolbar bygges i `statTrendControls`.
+     - Fag-valg faller tilbake til «Totalt» hvis valgt fag ikke finnes i perioden.
+  2. `statBySubject` — snitt-medalje per fag (rangerte stolper, `svgBySubject`).
+  3. `statByPosition` — snitt per timenummer (`svgByPosition`).
+  4. `statHeatmap` — ukedag × time (`svgHeatmap`, span2).
+  5. `statMedalDistribution` — andel gull/sølv/bronse per fag (`svgDistribution`).
 - **UI-plassering:** forelder i egen **Stat**-fane (`renderStatistikkTab`); sønn nederst på
-  **Poeng**-siden. Begge kaller `statContentHtml(state)` + `bindStatChips(host)` (periode-chips
-  `.statchip[data-p]` + fag-`<select>#statWeekSubject`).
+  **Poeng**-siden. Begge kaller `statContentHtml(state)` + `bindStatChips(host)` (binder
+  periode-chips, custom-datoinputs, Dag/Uke-toggle og fag-`<select>#statSubject`).
 - **Bredde:** statistikk bryter ut av mobil-bredden på laptop via `body.statwide` (togglet i
   `routeToView` for forelder-Stat-fane ELLER sønn-Poeng), `@media (min-width:820px)` gir
   2-kolonners `.statgrid` (`.span2` = full bredde). Sønnens Poeng-innhold ligger i `.narrowcol`.
 - **SVG-hjelpere (app.js):** `svgWrap`, `niceMax` (pen y-akse), `effortColor`, `hourLabel`,
   `weekSelectHtml`. dataviz-palett tilpasset mørkt tema (`--s1`/`--s2`/`--grid`/`--gull`/
-  `--solv`/`--bronse`). `.statsel`/`.statselwrap` = mørk nedtrekk.
+  `--solv`/`--bronse`). `.statsel`/`.statselwrap` = mørk nedtrekk; `.statperiod` av-scopet fra
+  `#ptab` (gjelder både forelder og sønn).
 - **Spec:** `docs/superpowers/specs/2026-09-02-honniscoins-utvikling-daglig-ukentlig-design.md`
-  (daglig total + uke-for-uke);
+  (opprinnelig daglig total + uke-for-uke);
   `docs/superpowers/specs/2026-09-02-honniscoins-streak-fiks-sonn-statistikk-meny-design.md`
-  (sønn-tilgang + ikon-meny + streak-fiks).
+  (sønn-tilgang + ikon-meny + streak-fiks);
+  `docs/superpowers/specs/2026-09-02-honniscoins-samlet-trend-design.md`
+  (sammenslått trend-kort: dag/uke-toggle + felles fagvelger + én periode m/ custom range).
 
 ## Testing
-- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 252 tester per nå (inkl. sidequests
+- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 256 tester per nå (inkl. sidequests
   m/arkiv, lekser og statistikk/streak).
 - **Kjør:** `/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc -m test/run-jsc.js`
   (jsc støtter ES-moduler; ingen node/deno/bun i miljøet).
