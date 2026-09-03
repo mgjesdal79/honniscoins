@@ -215,13 +215,20 @@
   .hwdaytag{font-size:.68rem;color:var(--muted);font-weight:700;background:var(--surface-2,#0f2547);border:1px solid var(--line);border-radius:7px;padding:1px 6px;margin-left:6px}
   .hwedited{font-size:.66rem;color:#c3b9ff;font-weight:800;background:#171438;border:1px solid #3a2f7a;border-radius:7px;padding:1px 6px}
   .hwsubjhead{display:flex;align-items:center;gap:7px;margin:14px 2px 7px;font-weight:800;font-size:.95rem}
+  .qrec{display:inline-block;font-size:.68rem;font-weight:800;padding:3px 8px;border-radius:999px;background:#122a52;color:#8fb4ff;border:1px solid #2c5db8;margin:2px 0 6px}
+  .subs{list-style:none;margin:8px 0 4px;padding:0;display:flex;flex-direction:column;gap:7px}
+  .subs li{display:flex;align-items:center;gap:9px;font-size:.92rem}
+  .subs li.done span{color:var(--muted);text-decoration:line-through}
+  .subchk{width:22px;height:22px;flex:0 0 auto;border-radius:7px;border:2px solid var(--line);background:transparent;color:#04120b;font-size:.8rem;font-weight:800;padding:0}
+  .subchk.on{background:var(--good);border-color:var(--good)}
+  .subprog{font-size:.76rem;color:var(--muted);margin:2px 2px 0}
 </style>
 </head>
 <body>
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.09.02 (b28 · samlet trend: dag/uke + fag + periode)';
+    window.APP_VERSION = '2026.09.04 (b29 · daglig rutine: subtask CSS)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>
