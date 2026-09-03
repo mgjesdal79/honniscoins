@@ -422,6 +422,40 @@ export function goldStreakInfo(state, monthPrefix, uptoIso) {
 
 // --- Migrering av eldre state -------------------------------------------
 
+// Genererer én rutine-instans for i dag (hverdag) hvis malen er på og ingen finnes.
+// Deterministiske id-er (migrate har ingen ctx.id) gir idempotens + trygg fletting.
+export function generateDailyRoutine(state, todayIso) {
+  const s = clone(state);
+  const r = s.settings && s.settings.dailyRoutine;
+  if (!r || r.enabled !== true) return s;
+  if (!todayIso || weekdayKey(todayIso) === null) return s; // kun hverdag
+  if (!Array.isArray(s.quests)) s.quests = [];
+  const qid = `routine-${todayIso}`;
+  if (s.quests.some((q) => q.id === qid)) return s; // idempotent
+  const stamp = `${todayIso}T00:00:00.000Z`;
+  const subtasks = (r.subtasks || []).map((st, i) => ({ id: `${qid}-${i}`, text: st.text, done: false }));
+  s.quests.push({
+    id: qid,
+    title: r.title,
+    desc: '',
+    points: Number(r.points) || 0,
+    due: null,
+    status: 'open',
+    createdAt: stamp,
+    createdBy: 'system',
+    doneAt: null,
+    approvedAt: null,
+    updatedAt: stamp,
+    removed: false,
+    source: 'routine',
+    routineDate: todayIso,
+    subtasks,
+  });
+  if (!Array.isArray(s.log)) s.log = [];
+  s.log.push({ id: `log-routine-${todayIso}`, at: stamp, actor: 'system', type: 'quest', action: 'create', quest: qid, title: r.title, source: 'routine' });
+  return s;
+}
+
 // Fyller manglende felt og markerer eksisterende dager med innhold som låst,
 // så opptjente poeng ikke forsvinner når «lås styrer alt» tas i bruk. Ren funksjon.
 export function migrate(state, todayIso) {
@@ -452,7 +486,7 @@ export function migrate(state, todayIso) {
       }
     }
   }
-  return s;
+  return generateDailyRoutine(s, todayIso);
 }
 
 // Total streak-bonus over hele historikken (inngår i saldo).

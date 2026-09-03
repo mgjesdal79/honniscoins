@@ -678,6 +678,54 @@ export function runTests() {
       ok('logic module loads', L.APP_LOGIC_VERSION === 1);
     },
 
+    // --- Daglig rutine (generering) ---
+    function generateDailyRoutine_weekday_creates() {
+      const s = L.defaultState();
+      s.settings.dailyRoutine = { enabled: true, title: 'Rydd', points: 15, subtasks: [{ id: 'm1', text: 'Jakke' }, { id: 'm2', text: 'Sekk' }], updatedAt: 't' };
+      const m = L.generateDailyRoutine(s, '2026-09-04'); // fredag
+      const inst = m.quests.filter((q) => q.source === 'routine');
+      eq('én instans', inst.length, 1);
+      eq('deterministisk id', inst[0].id, 'routine-2026-09-04');
+      eq('routineDate', inst[0].routineDate, '2026-09-04');
+      eq('status open', inst[0].status, 'open');
+      eq('points fra mal', inst[0].points, 15);
+      eq('subtasks kopiert, done=false', inst[0].subtasks, [
+        { id: 'routine-2026-09-04-0', text: 'Jakke', done: false },
+        { id: 'routine-2026-09-04-1', text: 'Sekk', done: false },
+      ]);
+    },
+    function generateDailyRoutine_weekend_skips() {
+      const s = L.defaultState();
+      s.settings.dailyRoutine = { enabled: true, title: 'Rydd', points: 15, subtasks: [], updatedAt: 't' };
+      const m = L.generateDailyRoutine(s, '2026-09-05'); // lørdag
+      eq('ingen instans i helg', m.quests.filter((q) => q.source === 'routine').length, 0);
+    },
+    function generateDailyRoutine_disabled_skips() {
+      const s = L.defaultState();
+      s.settings.dailyRoutine = { enabled: false, title: 'Rydd', points: 15, subtasks: [], updatedAt: 't' };
+      const m = L.generateDailyRoutine(s, '2026-09-04');
+      eq('ingen instans når disabled', m.quests.filter((q) => q.source === 'routine').length, 0);
+    },
+    function generateDailyRoutine_idempotent() {
+      const s = L.defaultState();
+      s.settings.dailyRoutine = { enabled: true, title: 'Rydd', points: 15, subtasks: [], updatedAt: 't' };
+      const m1 = L.generateDailyRoutine(s, '2026-09-04');
+      const m2 = L.generateDailyRoutine(m1, '2026-09-04');
+      eq('fortsatt kun én', m2.quests.filter((q) => q.source === 'routine').length, 1);
+    },
+    function generateDailyRoutine_no_backfill() {
+      const s = L.defaultState();
+      s.settings.dailyRoutine = { enabled: true, title: 'Rydd', points: 15, subtasks: [], updatedAt: 't' };
+      const m = L.generateDailyRoutine(s, '2026-09-04'); // fredag
+      eq('kun for i dag', m.quests.filter((q) => q.routineDate === '2026-09-03').length, 0);
+    },
+    function migrate_runs_generation() {
+      const s = L.defaultState();
+      s.settings.dailyRoutine = { enabled: true, title: 'Rydd', points: 15, subtasks: [], updatedAt: 't' };
+      const m = L.migrate(s, '2026-09-04'); // fredag
+      eq('migrate genererer', m.quests.filter((q) => q.source === 'routine').length, 1);
+    },
+
     // --- fag-statistikk ---
     function effortRecords_filters_and_maps() {
       const s = L.defaultState();
