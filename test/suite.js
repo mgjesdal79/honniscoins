@@ -54,6 +54,16 @@ export function runTests() {
         return m2.settings.dailyRoutine.title === 'Egen' && m2.settings.dailyRoutine.points === 20;
       })());
     },
+    function setDailyRoutine_updates_and_stamps() {
+      const s0 = L.defaultState();
+      const s = L.setDailyRoutine(s0, { patch: { enabled: true, title: 'Rydd', points: 15, subtasks: [{ id: 's1', text: 'Heng opp jakke' }] } }, { now: 't1', id: 'r1' });
+      eq('enabled', s.settings.dailyRoutine.enabled, true);
+      eq('title', s.settings.dailyRoutine.title, 'Rydd');
+      eq('points', s.settings.dailyRoutine.points, 15);
+      eq('subtasks', s.settings.dailyRoutine.subtasks, [{ id: 's1', text: 'Heng opp jakke' }]);
+      eq('updatedAt stamped', s.settings.dailyRoutine.updatedAt, 't1');
+      eq('original uendret', s0.settings.dailyRoutine.enabled, false);
+    },
     function balance_earned_minus_spent() {
       const s = L.defaultState();
       s.days['2026-08-20'] = lockedDay(['A', 'B'], { 0: 'gull', 1: 'bronse' }); // present

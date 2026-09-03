@@ -567,6 +567,19 @@ export function deleteQuest(state, { id, actor = 'parent' }, ctx) {
   return s;
 }
 
+// Forelder oppdaterer malen for daglig rutine.
+export function setDailyRoutine(state, { patch, actor = 'parent' }, ctx) {
+  const s = clone(state);
+  const r = s.settings.dailyRoutine || (s.settings.dailyRoutine = { enabled: false, title: 'Rydd opp etter skolen', points: 10, subtasks: [], updatedAt: null });
+  if ('enabled' in patch) r.enabled = !!patch.enabled;
+  if ('title' in patch) r.title = patch.title;
+  if ('points' in patch) r.points = Number(patch.points) || 0;
+  if ('subtasks' in patch) r.subtasks = (patch.subtasks || []).map((st) => ({ id: st.id, text: st.text }));
+  r.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'routine', action: 'edit' });
+  return s;
+}
+
 // Sønn markerer ferdig (commit): open -> done.
 export function commitQuest(state, { id, actor = 'son' }, ctx) {
   const s = clone(state);
