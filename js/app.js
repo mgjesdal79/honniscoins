@@ -7,7 +7,7 @@ import {
   isDayLocked, isWeekClosed, canSonEditDay, lockDay, closeWeek, reopenWeek, weekStartIso,
   weeklyMedalCounts, weeklyStreakBonus, silverStreakInfo, goldStreakInfo,
   activeQuests, isQuestOverdue, questPointsPending, questArchiveSplit, allSubtasksDone,
-  addQuest, updateQuest, deleteQuest, commitQuest, uncommitQuest, approveQuest, rejectQuest, toggleQuestSubtask,
+  addQuest, updateQuest, deleteQuest, commitQuest, uncommitQuest, approveQuest, rejectQuest, toggleQuestSubtask, setDailyRoutine,
   homeworkForWeek, homeworkPointsPending, activeHomework,
   addHomework, updateHomework, deleteHomework, hideHomework,
   commitHomework, uncommitHomework, approveHomework, rejectHomework,
@@ -1242,6 +1242,19 @@ function renderPoengTab(host) {
       <div class="row" style="border:none"><div class="lbl">Kr per Honniscoin</div>
         <input class="inp" id="krRate" type="number" min="0" step="0.5" value="${s.settings.krPerCoin}"></div>
     </div>
+    <div class="sec">Daglig rutine (rydd opp etter skolen)</div>
+    <div class="card" id="routineCard">
+      <label class="row" style="border:none"><div class="lbl">På hverdager</div>
+        <input type="checkbox" id="rtEnabled" ${s.settings.dailyRoutine.enabled ? 'checked' : ''}></label>
+      <div class="row"><div class="lbl">Tittel</div>
+        <input class="inp" id="rtTitle" style="width:auto;flex:1;text-align:left" value="${escapeHtml(s.settings.dailyRoutine.title)}"></div>
+      <div class="row"><div class="lbl">Reward 🪙</div>
+        <input class="inp" id="rtPoints" type="number" min="0" value="${s.settings.dailyRoutine.points}"></div>
+      <div class="lbl" style="margin:10px 2px 6px">Deloppgaver</div>
+      <div id="rtSubs"></div>
+      <button class="btn ghost" id="rtAdd" style="margin-top:6px">+ Legg til deloppgave</button>
+      <div class="muted" style="font-size:.78rem;margin-top:10px">Endring gjelder neste hverdag. Dagens instans finjusterer du i Quests-fanen.</div>
+    </div>
     <div id="payoutHost"></div>`;
   const bind = (id, field) => {
     document.getElementById(id).onchange = (e) => {
@@ -1269,6 +1282,40 @@ function renderPoengTab(host) {
       { now: nowIso(), id: newId() }
     );
     save();
+  };
+  // Arbeidskopi av malen (redigeres lokalt, lagres via setDailyRoutine).
+  const rt = {
+    enabled: s.settings.dailyRoutine.enabled,
+    title: s.settings.dailyRoutine.title,
+    points: s.settings.dailyRoutine.points,
+    subtasks: (s.settings.dailyRoutine.subtasks || []).map((st) => ({ id: st.id, text: st.text })),
+  };
+  const saveRoutine = () => {
+    App.state = setDailyRoutine(App.state, { patch: rt, actor: 'parent' }, { now: nowIso(), id: newId() });
+    save();
+  };
+  const renderSubs = () => {
+    const box = document.getElementById('rtSubs');
+    box.innerHTML = rt.subtasks.map((st, i) =>
+      `<div class="row" style="gap:8px">
+         <input class="inp" style="width:auto;flex:1;text-align:left" data-sti="${i}" value="${escapeHtml(st.text)}">
+         <button class="link" data-stdel="${i}" style="color:var(--bad)">✕</button>
+       </div>`).join('') || '<div class="muted" style="font-size:.8rem">Ingen deloppgaver ennå.</div>';
+    box.querySelectorAll('[data-sti]').forEach((inp) => {
+      inp.onchange = () => { rt.subtasks[Number(inp.dataset.sti)].text = inp.value; saveRoutine(); };
+    });
+    box.querySelectorAll('[data-stdel]').forEach((b) => {
+      b.onclick = () => { rt.subtasks.splice(Number(b.dataset.stdel), 1); saveRoutine(); renderSubs(); };
+    });
+  };
+  renderSubs();
+  document.getElementById('rtEnabled').onchange = (e) => { rt.enabled = e.target.checked; saveRoutine(); };
+  document.getElementById('rtTitle').onchange = (e) => { rt.title = e.target.value; saveRoutine(); };
+  document.getElementById('rtPoints').onchange = (e) => { rt.points = Number(e.target.value); saveRoutine(); };
+  document.getElementById('rtAdd').onclick = () => {
+    rt.subtasks.push({ id: newId(), text: '' });
+    saveRoutine();
+    renderSubs();
   };
   renderPayoutSection(document.getElementById('payoutHost'));
 }
