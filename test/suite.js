@@ -512,6 +512,13 @@ export function runTests() {
       eq('tombstone', s.quests[0].removed, true);
       eq('aktive filtrerer bort', L.activeQuests(s).length, 0);
     },
+    function updateQuest_can_set_subtasks() {
+      let s = L.defaultState();
+      s.quests.push({ id: 'r1', title: 'Rydd', points: 15, status: 'open', updatedAt: 't0', removed: false, subtasks: [{ id: 'a', text: 'x', done: true }] });
+      const s2 = L.updateQuest(s, { id: 'r1', patch: { subtasks: [{ id: 'a', text: 'x', done: true }, { id: 'c', text: 'z', done: false }] } }, { now: 't1', id: 'l1' });
+      eq('subtasks satt', s2.quests[0].subtasks.length, 2);
+      eq('ny subtask', s2.quests[0].subtasks[1], { id: 'c', text: 'z', done: false });
+    },
     function overdue_derived() {
       const q = { id: 'q1', due: '2026-08-20', status: 'open' };
       ok('forfalt', L.isQuestOverdue(q, '2026-08-22') === true);

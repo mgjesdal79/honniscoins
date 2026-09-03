@@ -585,6 +585,9 @@ export function updateQuest(state, { id, patch, actor = 'parent' }, ctx) {
   if ('desc' in patch) q.desc = patch.desc;
   if ('points' in patch) q.points = Number(patch.points) || 0;
   if ('due' in patch) q.due = patch.due || null;
+  if ('subtasks' in patch) {
+    q.subtasks = (patch.subtasks || []).map((st) => ({ id: st.id, text: st.text, done: !!st.done }));
+  }
   q.updatedAt = ctx.now;
   s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: 'edit', quest: id, title: q.title });
   return s;
