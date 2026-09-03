@@ -33,6 +33,7 @@ export function defaultState() {
       bonus: JSON.parse(JSON.stringify(DEFAULT_BONUS)),
       homeworkPoints: 5,
       docendoIcalId: '519a0908-ed7d-47ed-8667-dea07343b693',
+      dailyRoutine: { enabled: false, title: 'Rydd opp etter skolen', points: 10, subtasks: [], updatedAt: null },
       schemaVersion: 2,
       updatedAt: null,
     },
@@ -437,6 +438,9 @@ export function migrate(state, todayIso) {
   if (!Array.isArray(s.homework)) s.homework = [];
   if (s.settings.homeworkPoints == null) s.settings.homeworkPoints = 5;
   if (!s.settings.docendoIcalId) s.settings.docendoIcalId = '519a0908-ed7d-47ed-8667-dea07343b693';
+  if (!s.settings.dailyRoutine) {
+    s.settings.dailyRoutine = { enabled: false, title: 'Rydd opp etter skolen', points: 10, subtasks: [], updatedAt: null };
+  }
   const stamp = (todayIso || '2000-01-01') + 'T00:00:00.000Z';
   for (const d of Object.keys(s.days || {})) {
     const day = s.days[d];

@@ -34,6 +34,26 @@ export function runTests() {
       eq('weekLocks empty', s.weekLocks, {});
       eq('days empty', s.days, {});
     },
+    function dailyRoutine_default_shape() {
+      const s = L.defaultState();
+      eq('routine enabled default false', s.settings.dailyRoutine.enabled, false);
+      eq('routine title default', s.settings.dailyRoutine.title, 'Rydd opp etter skolen');
+      eq('routine points default', s.settings.dailyRoutine.points, 10);
+      eq('routine subtasks default', s.settings.dailyRoutine.subtasks, []);
+    },
+    function dailyRoutine_migrate_fills_missing() {
+      const s = L.defaultState();
+      delete s.settings.dailyRoutine;
+      const m = L.migrate(s, '2026-09-04');
+      eq('migrate adds routine', !!m.settings.dailyRoutine, true);
+      eq('migrate routine disabled', m.settings.dailyRoutine.enabled, false);
+      ok('migrate keeps existing routine', (() => {
+        const s2 = L.defaultState();
+        s2.settings.dailyRoutine = { enabled: true, title: 'Egen', points: 20, subtasks: [{ id: 'a', text: 'x' }], updatedAt: 't' };
+        const m2 = L.migrate(s2, '2026-09-04');
+        return m2.settings.dailyRoutine.title === 'Egen' && m2.settings.dailyRoutine.points === 20;
+      })());
+    },
     function balance_earned_minus_spent() {
       const s = L.defaultState();
       s.days['2026-08-20'] = lockedDay(['A', 'B'], { 0: 'gull', 1: 'bronse' }); // present
