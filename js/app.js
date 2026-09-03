@@ -6,8 +6,8 @@ import {
   weekdaysOf, daySubjectsMatchTimetable, resyncSubjects,
   isDayLocked, isWeekClosed, canSonEditDay, lockDay, closeWeek, reopenWeek, weekStartIso,
   weeklyMedalCounts, weeklyStreakBonus, silverStreakInfo, goldStreakInfo,
-  activeQuests, isQuestOverdue, questPointsPending, questArchiveSplit,
-  addQuest, updateQuest, deleteQuest, commitQuest, uncommitQuest, approveQuest, rejectQuest,
+  activeQuests, isQuestOverdue, questPointsPending, questArchiveSplit, allSubtasksDone,
+  addQuest, updateQuest, deleteQuest, commitQuest, uncommitQuest, approveQuest, rejectQuest, toggleQuestSubtask,
   homeworkForWeek, homeworkPointsPending, activeHomework,
   addHomework, updateHomework, deleteHomework, hideHomework,
   commitHomework, uncommitHomework, approveHomework, rejectHomework,
@@ -50,6 +50,13 @@ function newId() {
 }
 function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+function routineDateLabel(iso) {
+  if (!iso) return '';
+  const wd = ['søn', 'man', 'tir', 'ons', 'tor', 'fre', 'lør'][new Date(iso + 'T00:00:00').getDay()];
+  const [y, m, d] = iso.split('-');
+  const mn = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des'][Number(m) - 1];
+  return `${wd} ${Number(d)}. ${mn}`;
 }
 
 const MEDAL_BTNS = [
@@ -532,28 +539,46 @@ function renderSidequestsPage(host) {
     return;
   }
 
+  const routineBadge = (q) =>
+    q.source === 'routine'
+      ? `<span class="qrec">🔁 Daglig · ${routineDateLabel(q.routineDate)}</span>`
+      : '';
+  const subtaskList = (q, interactive) => {
+    const subs = q.subtasks || [];
+    if (!subs.length) return q.desc ? `<div class="qdesc">${escapeHtml(q.desc)}</div>` : '';
+    const done = subs.filter((st) => st.done).length;
+    const items = subs.map((st) =>
+      `<li class="${st.done ? 'done' : ''}">
+         <button class="subchk ${st.done ? 'on' : ''}" ${interactive ? `data-sub="${q.id}|${st.id}"` : 'disabled'}>${st.done ? '✓' : ''}</button>
+         <span>${escapeHtml(st.text)}</span>
+       </li>`).join('');
+    return `<ul class="subs">${items}</ul><div class="subprog">${done} av ${subs.length} gjort</div>`;
+  };
   const questCard = (q, kind) => {
     const overdue = isQuestOverdue(q, today);
     const pts = `<span class="qpts">+${q.points} 🪙</span>`;
-    const desc = q.desc ? `<div class="qdesc">${escapeHtml(q.desc)}</div>` : '';
     if (kind === 'open') {
+      const ready = allSubtasksDone(q);
       return `<div class="qcard ${overdue ? 'over' : ''}">
         <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b>${pts}</div>
-        ${desc}
+        ${routineBadge(q)}
+        ${subtaskList(q, true)}
         <div class="qmeta">${questDueLabel(q.due, today)}</div>
-        <button class="btn qbtn" data-commit="${q.id}">🔒 Marker som ferdig</button>
+        <button class="btn qbtn" data-commit="${q.id}" ${ready ? '' : 'disabled'}>${ready ? '🔒 Marker som ferdig' : 'Huk av alle først'}</button>
       </div>`;
     }
     if (kind === 'done') {
       return `<div class="qcard done">
         <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b>${pts}</div>
-        ${desc}
+        ${routineBadge(q)}
+        ${subtaskList(q, false)}
         <div class="qmeta"><span class="qdue wait">⏳ Sendt til godkjenning</span></div>
         <button class="btn ghost qbtn" data-uncommit="${q.id}">Angre</button>
       </div>`;
     }
     return `<div class="qcard approved">
       <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b>${pts}</div>
+      ${routineBadge(q)}
       <div class="qmeta"><span class="qdue ok">✅ Godkjent · lagt i potten</span></div>
     </div>`;
   };
@@ -582,6 +607,15 @@ function renderSidequestsPage(host) {
     (b) =>
       (b.onclick = () => {
         App.state = uncommitQuest(App.state, { id: b.dataset.uncommit, actor: 'son' }, { now: nowIso(), id: newId() });
+        save();
+        renderSon();
+      })
+  );
+  host.querySelectorAll('[data-sub]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        const [qid, subId] = b.dataset.sub.split('|');
+        App.state = toggleQuestSubtask(App.state, { id: qid, subId, actor: 'son' }, { now: nowIso(), id: newId() });
         save();
         renderSon();
       })
