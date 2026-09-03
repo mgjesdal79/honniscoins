@@ -6,8 +6,8 @@ import {
   weekdaysOf, daySubjectsMatchTimetable, resyncSubjects,
   isDayLocked, isWeekClosed, canSonEditDay, lockDay, closeWeek, reopenWeek, weekStartIso,
   weeklyMedalCounts, weeklyStreakBonus, silverStreakInfo, goldStreakInfo,
-  activeQuests, isQuestOverdue, questPointsPending, questArchiveSplit,
-  addQuest, updateQuest, deleteQuest, commitQuest, uncommitQuest, approveQuest, rejectQuest,
+  activeQuests, isQuestOverdue, questPointsPending, questArchiveSplit, allSubtasksDone,
+  addQuest, updateQuest, deleteQuest, commitQuest, uncommitQuest, approveQuest, rejectQuest, toggleQuestSubtask, setDailyRoutine,
   homeworkForWeek, homeworkPointsPending, activeHomework,
   addHomework, updateHomework, deleteHomework, hideHomework,
   commitHomework, uncommitHomework, approveHomework, rejectHomework,
@@ -50,6 +50,13 @@ function newId() {
 }
 function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+function routineDateLabel(iso) {
+  if (!iso) return '';
+  const wd = ['søn', 'man', 'tir', 'ons', 'tor', 'fre', 'lør'][new Date(iso + 'T00:00:00').getDay()];
+  const [y, m, d] = iso.split('-');
+  const mn = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des'][Number(m) - 1];
+  return `${wd} ${Number(d)}. ${mn}`;
 }
 
 const MEDAL_BTNS = [
@@ -532,28 +539,46 @@ function renderSidequestsPage(host) {
     return;
   }
 
+  const routineBadge = (q) =>
+    q.source === 'routine'
+      ? `<span class="qrec">🔁 Daglig · ${routineDateLabel(q.routineDate)}</span>`
+      : '';
+  const subtaskList = (q, interactive) => {
+    const subs = q.subtasks || [];
+    if (!subs.length) return q.desc ? `<div class="qdesc">${escapeHtml(q.desc)}</div>` : '';
+    const done = subs.filter((st) => st.done).length;
+    const items = subs.map((st) =>
+      `<li class="${st.done ? 'done' : ''}">
+         <button class="subchk ${st.done ? 'on' : ''}" ${interactive ? `data-sub="${q.id}|${st.id}"` : 'disabled'}>${st.done ? '✓' : ''}</button>
+         <span>${escapeHtml(st.text)}</span>
+       </li>`).join('');
+    return `<ul class="subs">${items}</ul><div class="subprog">${done} av ${subs.length} gjort</div>`;
+  };
   const questCard = (q, kind) => {
     const overdue = isQuestOverdue(q, today);
     const pts = `<span class="qpts">+${q.points} 🪙</span>`;
-    const desc = q.desc ? `<div class="qdesc">${escapeHtml(q.desc)}</div>` : '';
     if (kind === 'open') {
+      const ready = allSubtasksDone(q);
       return `<div class="qcard ${overdue ? 'over' : ''}">
         <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b>${pts}</div>
-        ${desc}
+        ${routineBadge(q)}
+        ${subtaskList(q, true)}
         <div class="qmeta">${questDueLabel(q.due, today)}</div>
-        <button class="btn qbtn" data-commit="${q.id}">🔒 Marker som ferdig</button>
+        <button class="btn qbtn" data-commit="${q.id}" ${ready ? '' : 'disabled'}>${ready ? '🔒 Marker som ferdig' : 'Huk av alle først'}</button>
       </div>`;
     }
     if (kind === 'done') {
       return `<div class="qcard done">
         <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b>${pts}</div>
-        ${desc}
+        ${routineBadge(q)}
+        ${subtaskList(q, false)}
         <div class="qmeta"><span class="qdue wait">⏳ Sendt til godkjenning</span></div>
         <button class="btn ghost qbtn" data-uncommit="${q.id}">Angre</button>
       </div>`;
     }
     return `<div class="qcard approved">
       <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b>${pts}</div>
+      ${routineBadge(q)}
       <div class="qmeta"><span class="qdue ok">✅ Godkjent · lagt i potten</span></div>
     </div>`;
   };
@@ -582,6 +607,15 @@ function renderSidequestsPage(host) {
     (b) =>
       (b.onclick = () => {
         App.state = uncommitQuest(App.state, { id: b.dataset.uncommit, actor: 'son' }, { now: nowIso(), id: newId() });
+        save();
+        renderSon();
+      })
+  );
+  host.querySelectorAll('[data-sub]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        const [qid, subId] = b.dataset.sub.split('|');
+        App.state = toggleQuestSubtask(App.state, { id: qid, subId, actor: 'son' }, { now: nowIso(), id: newId() });
         save();
         renderSon();
       })
@@ -1208,6 +1242,19 @@ function renderPoengTab(host) {
       <div class="row" style="border:none"><div class="lbl">Kr per Honniscoin</div>
         <input class="inp" id="krRate" type="number" min="0" step="0.5" value="${s.settings.krPerCoin}"></div>
     </div>
+    <div class="sec">Daglig rutine (rydd opp etter skolen)</div>
+    <div class="card" id="routineCard">
+      <label class="row" style="border:none"><div class="lbl">På hverdager</div>
+        <input type="checkbox" id="rtEnabled" ${s.settings.dailyRoutine.enabled ? 'checked' : ''}></label>
+      <div class="row"><div class="lbl">Tittel</div>
+        <input class="inp" id="rtTitle" style="width:auto;flex:1;text-align:left" value="${escapeHtml(s.settings.dailyRoutine.title)}"></div>
+      <div class="row"><div class="lbl">Reward 🪙</div>
+        <input class="inp" id="rtPoints" type="number" min="0" value="${s.settings.dailyRoutine.points}"></div>
+      <div class="lbl" style="margin:10px 2px 6px">Deloppgaver</div>
+      <div id="rtSubs"></div>
+      <button class="btn ghost" id="rtAdd" style="margin-top:6px">+ Legg til deloppgave</button>
+      <div class="muted" style="font-size:.78rem;margin-top:10px">Endring gjelder neste hverdag. Dagens instans finjusterer du i Quests-fanen.</div>
+    </div>
     <div id="payoutHost"></div>`;
   const bind = (id, field) => {
     document.getElementById(id).onchange = (e) => {
@@ -1235,6 +1282,40 @@ function renderPoengTab(host) {
       { now: nowIso(), id: newId() }
     );
     save();
+  };
+  // Arbeidskopi av malen (redigeres lokalt, lagres via setDailyRoutine).
+  const rt = {
+    enabled: s.settings.dailyRoutine.enabled,
+    title: s.settings.dailyRoutine.title,
+    points: s.settings.dailyRoutine.points,
+    subtasks: (s.settings.dailyRoutine.subtasks || []).map((st) => ({ id: st.id, text: st.text })),
+  };
+  const saveRoutine = () => {
+    App.state = setDailyRoutine(App.state, { patch: rt, actor: 'parent' }, { now: nowIso(), id: newId() });
+    save();
+  };
+  const renderSubs = () => {
+    const box = document.getElementById('rtSubs');
+    box.innerHTML = rt.subtasks.map((st, i) =>
+      `<div class="row" style="gap:8px">
+         <input class="inp" style="width:auto;flex:1;text-align:left" data-sti="${i}" value="${escapeHtml(st.text)}">
+         <button class="link" data-stdel="${i}" style="color:var(--bad)">✕</button>
+       </div>`).join('') || '<div class="muted" style="font-size:.8rem">Ingen deloppgaver ennå.</div>';
+    box.querySelectorAll('[data-sti]').forEach((inp) => {
+      inp.onchange = () => { rt.subtasks[Number(inp.dataset.sti)].text = inp.value; saveRoutine(); };
+    });
+    box.querySelectorAll('[data-stdel]').forEach((b) => {
+      b.onclick = () => { rt.subtasks.splice(Number(b.dataset.stdel), 1); saveRoutine(); renderSubs(); };
+    });
+  };
+  renderSubs();
+  document.getElementById('rtEnabled').onchange = (e) => { rt.enabled = e.target.checked; saveRoutine(); };
+  document.getElementById('rtTitle').onchange = (e) => { rt.title = e.target.value; saveRoutine(); };
+  document.getElementById('rtPoints').onchange = (e) => { rt.points = Number(e.target.value); saveRoutine(); };
+  document.getElementById('rtAdd').onclick = () => {
+    rt.subtasks.push({ id: newId(), text: '' });
+    saveRoutine();
+    renderSubs();
   };
   renderPayoutSection(document.getElementById('payoutHost'));
 }

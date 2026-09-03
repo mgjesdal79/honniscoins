@@ -34,6 +34,37 @@ export function runTests() {
       eq('weekLocks empty', s.weekLocks, {});
       eq('days empty', s.days, {});
     },
+    function dailyRoutine_default_shape() {
+      const s = L.defaultState();
+      eq('routine enabled default false', s.settings.dailyRoutine.enabled, false);
+      eq('routine title default', s.settings.dailyRoutine.title, 'Rydd opp etter skolen');
+      eq('routine points default', s.settings.dailyRoutine.points, 10);
+      eq('routine subtasks default', s.settings.dailyRoutine.subtasks, []);
+    },
+    function dailyRoutine_migrate_fills_missing() {
+      const s = L.defaultState();
+      delete s.settings.dailyRoutine;
+      const m = L.migrate(s, '2026-09-04');
+      eq('migrate adds routine', !!m.settings.dailyRoutine, true);
+      eq('migrate routine disabled', m.settings.dailyRoutine.enabled, false);
+      ok('migrate keeps existing routine', (() => {
+        const s2 = L.defaultState();
+        s2.settings.dailyRoutine = { enabled: true, title: 'Egen', points: 20, subtasks: [{ id: 'a', text: 'x' }], updatedAt: 't' };
+        const m2 = L.migrate(s2, '2026-09-04');
+        return m2.settings.dailyRoutine.title === 'Egen' && m2.settings.dailyRoutine.points === 20;
+      })());
+    },
+    function setDailyRoutine_updates_and_stamps() {
+      const s0 = L.defaultState();
+      const s = L.setDailyRoutine(s0, { patch: { enabled: true, title: 'Rydd', points: 15, subtasks: [{ id: 's1', text: 'Heng opp jakke' }] } }, { now: 't1', id: 'r1' });
+      eq('enabled', s.settings.dailyRoutine.enabled, true);
+      eq('title', s.settings.dailyRoutine.title, 'Rydd');
+      eq('points', s.settings.dailyRoutine.points, 15);
+      eq('subtasks', s.settings.dailyRoutine.subtasks, [{ id: 's1', text: 'Heng opp jakke' }]);
+      eq('updatedAt stamped', s.settings.dailyRoutine.updatedAt, 't1');
+      eq('settings.updatedAt bumpet (merge-safe)', s.settings.updatedAt, 't1');
+      eq('original uendret', s0.settings.dailyRoutine.enabled, false);
+    },
     function balance_earned_minus_spent() {
       const s = L.defaultState();
       s.days['2026-08-20'] = lockedDay(['A', 'B'], { 0: 'gull', 1: 'bronse' }); // present
@@ -453,6 +484,16 @@ export function runTests() {
       eq('tilbake til open', s.quests[0].status, 'open');
       eq('doneAt nullstilt', s.quests[0].doneAt, null);
     },
+    function toggleQuestSubtask_flips_and_bumps() {
+      let s = L.defaultState();
+      s.quests.push({ id: 'r1', title: 'Rydd', points: 15, status: 'open', updatedAt: 't0', removed: false, subtasks: [{ id: 'a', text: 'x', done: false }, { id: 'b', text: 'y', done: false }] });
+      const s2 = L.toggleQuestSubtask(s, { id: 'r1', subId: 'a', actor: 'son' }, { now: 't1', id: 'l1' });
+      eq('a huket av', s2.quests[0].subtasks[0].done, true);
+      eq('b uendret', s2.quests[0].subtasks[1].done, false);
+      eq('updatedAt bumpet', s2.quests[0].updatedAt, 't1');
+      const s3 = L.toggleQuestSubtask(s2, { id: 'r1', subId: 'a', actor: 'son' }, { now: 't2', id: 'l2' });
+      eq('a av igjen', s3.quests[0].subtasks[0].done, false);
+    },
     function reject_returns_to_open() {
       let s = L.defaultState();
       s = L.addQuest(s, { title: 'X', points: 3 }, { now: 't1', id: 'q1' });
@@ -472,12 +513,37 @@ export function runTests() {
       eq('tombstone', s.quests[0].removed, true);
       eq('aktive filtrerer bort', L.activeQuests(s).length, 0);
     },
+    function updateQuest_can_set_subtasks() {
+      let s = L.defaultState();
+      s.quests.push({ id: 'r1', title: 'Rydd', points: 15, status: 'open', updatedAt: 't0', removed: false, subtasks: [{ id: 'a', text: 'x', done: true }] });
+      const s2 = L.updateQuest(s, { id: 'r1', patch: { subtasks: [{ id: 'a', text: 'x', done: true }, { id: 'c', text: 'z', done: false }] } }, { now: 't1', id: 'l1' });
+      eq('subtasks satt', s2.quests[0].subtasks.length, 2);
+      eq('ny subtask', s2.quests[0].subtasks[1], { id: 'c', text: 'z', done: false });
+    },
     function overdue_derived() {
       const q = { id: 'q1', due: '2026-08-20', status: 'open' };
       ok('forfalt', L.isQuestOverdue(q, '2026-08-22') === true);
       ok('ikke forfalt før frist', L.isQuestOverdue(q, '2026-08-19') === false);
       ok('godkjent er aldri forfalt', L.isQuestOverdue({ ...q, status: 'approved' }, '2026-08-22') === false);
       ok('uten frist -> ikke forfalt', L.isQuestOverdue({ id: 'q', status: 'open', due: null }, '2026-08-22') === false);
+    },
+    function allSubtasksDone_cases() {
+      eq('ingen subtasks -> true', L.allSubtasksDone({ title: 'x' }), true);
+      eq('tom liste -> true', L.allSubtasksDone({ subtasks: [] }), true);
+      eq('delvis -> false', L.allSubtasksDone({ subtasks: [{ done: true }, { done: false }] }), false);
+      eq('alle -> true', L.allSubtasksDone({ subtasks: [{ done: true }, { done: true }] }), true);
+    },
+    function commitQuest_blocked_until_subtasks_done() {
+      let s = L.defaultState();
+      s.quests.push({ id: 'r1', title: 'Rydd', points: 15, status: 'open', updatedAt: 't0', removed: false, subtasks: [{ id: 'a', text: 'x', done: false }] });
+      const s2 = L.commitQuest(s, { id: 'r1', actor: 'son' }, { now: 't1', id: 'l1' });
+      eq('ikke committet når subtask åpen', s2.quests[0].status, 'open');
+    },
+    function commitQuest_allowed_when_subtasks_done() {
+      let s = L.defaultState();
+      s.quests.push({ id: 'r1', title: 'Rydd', points: 15, status: 'open', updatedAt: 't0', removed: false, subtasks: [{ id: 'a', text: 'x', done: true }] });
+      const s2 = L.commitQuest(s, { id: 'r1', actor: 'son' }, { now: 't1', id: 'l1' });
+      eq('committet når alle subtasks done', s2.quests[0].status, 'done');
     },
     function merge_quests_lww() {
       const a = L.defaultState();
@@ -640,6 +706,54 @@ export function runTests() {
 
     function logic_module_loads() {
       ok('logic module loads', L.APP_LOGIC_VERSION === 1);
+    },
+
+    // --- Daglig rutine (generering) ---
+    function generateDailyRoutine_weekday_creates() {
+      const s = L.defaultState();
+      s.settings.dailyRoutine = { enabled: true, title: 'Rydd', points: 15, subtasks: [{ id: 'm1', text: 'Jakke' }, { id: 'm2', text: 'Sekk' }], updatedAt: 't' };
+      const m = L.generateDailyRoutine(s, '2026-09-04'); // fredag
+      const inst = m.quests.filter((q) => q.source === 'routine');
+      eq('én instans', inst.length, 1);
+      eq('deterministisk id', inst[0].id, 'routine-2026-09-04');
+      eq('routineDate', inst[0].routineDate, '2026-09-04');
+      eq('status open', inst[0].status, 'open');
+      eq('points fra mal', inst[0].points, 15);
+      eq('subtasks kopiert, done=false', inst[0].subtasks, [
+        { id: 'routine-2026-09-04-0', text: 'Jakke', done: false },
+        { id: 'routine-2026-09-04-1', text: 'Sekk', done: false },
+      ]);
+    },
+    function generateDailyRoutine_weekend_skips() {
+      const s = L.defaultState();
+      s.settings.dailyRoutine = { enabled: true, title: 'Rydd', points: 15, subtasks: [], updatedAt: 't' };
+      const m = L.generateDailyRoutine(s, '2026-09-05'); // lørdag
+      eq('ingen instans i helg', m.quests.filter((q) => q.source === 'routine').length, 0);
+    },
+    function generateDailyRoutine_disabled_skips() {
+      const s = L.defaultState();
+      s.settings.dailyRoutine = { enabled: false, title: 'Rydd', points: 15, subtasks: [], updatedAt: 't' };
+      const m = L.generateDailyRoutine(s, '2026-09-04');
+      eq('ingen instans når disabled', m.quests.filter((q) => q.source === 'routine').length, 0);
+    },
+    function generateDailyRoutine_idempotent() {
+      const s = L.defaultState();
+      s.settings.dailyRoutine = { enabled: true, title: 'Rydd', points: 15, subtasks: [], updatedAt: 't' };
+      const m1 = L.generateDailyRoutine(s, '2026-09-04');
+      const m2 = L.generateDailyRoutine(m1, '2026-09-04');
+      eq('fortsatt kun én', m2.quests.filter((q) => q.source === 'routine').length, 1);
+    },
+    function generateDailyRoutine_no_backfill() {
+      const s = L.defaultState();
+      s.settings.dailyRoutine = { enabled: true, title: 'Rydd', points: 15, subtasks: [], updatedAt: 't' };
+      const m = L.generateDailyRoutine(s, '2026-09-04'); // fredag
+      eq('kun for i dag', m.quests.filter((q) => q.routineDate === '2026-09-03').length, 0);
+    },
+    function migrate_runs_generation() {
+      const s = L.defaultState();
+      s.settings.dailyRoutine = { enabled: true, title: 'Rydd', points: 15, subtasks: [], updatedAt: 't' };
+      const m = L.migrate(s, '2026-09-04'); // fredag
+      eq('migrate genererer', m.quests.filter((q) => q.source === 'routine').length, 1);
     },
 
     // --- fag-statistikk ---

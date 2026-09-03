@@ -33,6 +33,7 @@ export function defaultState() {
       bonus: JSON.parse(JSON.stringify(DEFAULT_BONUS)),
       homeworkPoints: 5,
       docendoIcalId: '519a0908-ed7d-47ed-8667-dea07343b693',
+      dailyRoutine: { enabled: false, title: 'Rydd opp etter skolen', points: 10, subtasks: [], updatedAt: null },
       schemaVersion: 2,
       updatedAt: null,
     },
@@ -421,6 +422,40 @@ export function goldStreakInfo(state, monthPrefix, uptoIso) {
 
 // --- Migrering av eldre state -------------------------------------------
 
+// Genererer én rutine-instans for i dag (hverdag) hvis malen er på og ingen finnes.
+// Deterministiske id-er (migrate har ingen ctx.id) gir idempotens + trygg fletting.
+export function generateDailyRoutine(state, todayIso) {
+  const s = clone(state);
+  const r = s.settings && s.settings.dailyRoutine;
+  if (!r || r.enabled !== true) return s;
+  if (!todayIso || weekdayKey(todayIso) === null) return s; // kun hverdag
+  if (!Array.isArray(s.quests)) s.quests = [];
+  const qid = `routine-${todayIso}`;
+  if (s.quests.some((q) => q.id === qid)) return s; // idempotent
+  const stamp = `${todayIso}T00:00:00.000Z`;
+  const subtasks = (r.subtasks || []).map((st, i) => ({ id: `${qid}-${i}`, text: st.text, done: false }));
+  s.quests.push({
+    id: qid,
+    title: r.title,
+    desc: '',
+    points: Number(r.points) || 0,
+    due: null,
+    status: 'open',
+    createdAt: stamp,
+    createdBy: 'system',
+    doneAt: null,
+    approvedAt: null,
+    updatedAt: stamp,
+    removed: false,
+    source: 'routine',
+    routineDate: todayIso,
+    subtasks,
+  });
+  if (!Array.isArray(s.log)) s.log = [];
+  s.log.push({ id: `log-routine-${todayIso}`, at: stamp, actor: 'system', type: 'quest', action: 'create', quest: qid, title: r.title, source: 'routine' });
+  return s;
+}
+
 // Fyller manglende felt og markerer eksisterende dager med innhold som låst,
 // så opptjente poeng ikke forsvinner når «lås styrer alt» tas i bruk. Ren funksjon.
 export function migrate(state, todayIso) {
@@ -437,6 +472,9 @@ export function migrate(state, todayIso) {
   if (!Array.isArray(s.homework)) s.homework = [];
   if (s.settings.homeworkPoints == null) s.settings.homeworkPoints = 5;
   if (!s.settings.docendoIcalId) s.settings.docendoIcalId = '519a0908-ed7d-47ed-8667-dea07343b693';
+  if (!s.settings.dailyRoutine) {
+    s.settings.dailyRoutine = { enabled: false, title: 'Rydd opp etter skolen', points: 10, subtasks: [], updatedAt: null };
+  }
   const stamp = (todayIso || '2000-01-01') + 'T00:00:00.000Z';
   for (const d of Object.keys(s.days || {})) {
     const day = s.days[d];
@@ -448,7 +486,7 @@ export function migrate(state, todayIso) {
       }
     }
   }
-  return s;
+  return generateDailyRoutine(s, todayIso);
 }
 
 // Total streak-bonus over hele historikken (inngår i saldo).
@@ -469,6 +507,12 @@ export function activeQuests(state) {
 // Forfalt = frist passert og ikke godkjent (fortsatt gjørbar – kun et merke).
 export function isQuestOverdue(quest, todayIso) {
   return !!(quest && !quest.removed && quest.due && quest.status !== 'approved' && quest.due < todayIso);
+}
+
+// Alle subtasks huket av? (Ingen/tom liste teller som ferdig.)
+export function allSubtasksDone(quest) {
+  const subs = (quest && quest.subtasks) || [];
+  return subs.every((st) => !!st.done);
 }
 
 // Poeng fra godkjente quests (inngår i saldo). Ventende (done) teller ikke.
@@ -541,6 +585,9 @@ export function updateQuest(state, { id, patch, actor = 'parent' }, ctx) {
   if ('desc' in patch) q.desc = patch.desc;
   if ('points' in patch) q.points = Number(patch.points) || 0;
   if ('due' in patch) q.due = patch.due || null;
+  if ('subtasks' in patch) {
+    q.subtasks = (patch.subtasks || []).map((st) => ({ id: st.id, text: st.text, done: !!st.done }));
+  }
   q.updatedAt = ctx.now;
   s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: 'edit', quest: id, title: q.title });
   return s;
@@ -557,11 +604,26 @@ export function deleteQuest(state, { id, actor = 'parent' }, ctx) {
   return s;
 }
 
+// Forelder oppdaterer malen for daglig rutine.
+export function setDailyRoutine(state, { patch, actor = 'parent' }, ctx) {
+  const s = clone(state);
+  const r = s.settings.dailyRoutine || (s.settings.dailyRoutine = { enabled: false, title: 'Rydd opp etter skolen', points: 10, subtasks: [], updatedAt: null });
+  if ('enabled' in patch) r.enabled = !!patch.enabled;
+  if ('title' in patch) r.title = patch.title;
+  if ('points' in patch) r.points = Number(patch.points) || 0;
+  if ('subtasks' in patch) r.subtasks = (patch.subtasks || []).map((st) => ({ id: st.id, text: st.text }));
+  r.updatedAt = ctx.now;
+  s.settings.updatedAt = ctx.now; // settings flettes whole-object LWW → bump så mal-endringen ikke tapes
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'routine', action: 'edit' });
+  return s;
+}
+
 // Sønn markerer ferdig (commit): open -> done.
 export function commitQuest(state, { id, actor = 'son' }, ctx) {
   const s = clone(state);
   const i = findQuestIdx(s, id);
   if (i < 0) return s;
+  if (!allSubtasksDone(s.quests[i])) return s; // alle subtasks må være huket av
   s.quests[i].status = 'done';
   s.quests[i].doneAt = ctx.now;
   s.quests[i].updatedAt = ctx.now;
@@ -578,6 +640,18 @@ export function uncommitQuest(state, { id, actor = 'son' }, ctx) {
   s.quests[i].doneAt = null;
   s.quests[i].updatedAt = ctx.now;
   s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: 'undo', quest: id, title: s.quests[i].title });
+  return s;
+}
+
+// Sønn veksler én subtask. Bumper quest.updatedAt så fletting (LWW) synker riktig.
+export function toggleQuestSubtask(state, { id, subId, actor = 'son' }, ctx) {
+  const s = clone(state);
+  const i = findQuestIdx(s, id);
+  if (i < 0) return s;
+  const st = (s.quests[i].subtasks || []).find((x) => x.id === subId);
+  if (!st) return s;
+  st.done = !st.done;
+  s.quests[i].updatedAt = ctx.now;
   return s;
 }
 
