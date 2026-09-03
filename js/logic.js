@@ -33,7 +33,8 @@ export function defaultState() {
       bonus: JSON.parse(JSON.stringify(DEFAULT_BONUS)),
       homeworkPoints: 5,
       docendoIcalId: '519a0908-ed7d-47ed-8667-dea07343b693',
-      dailyRoutine: { enabled: false, title: 'Rydd opp etter skolen', points: 10, subtasks: [], updatedAt: null },
+      routines: [],
+      routinesSeeded: false,
       schemaVersion: 2,
       updatedAt: null,
     },
@@ -472,8 +473,34 @@ export function migrate(state, todayIso) {
   if (!Array.isArray(s.homework)) s.homework = [];
   if (s.settings.homeworkPoints == null) s.settings.homeworkPoints = 5;
   if (!s.settings.docendoIcalId) s.settings.docendoIcalId = '519a0908-ed7d-47ed-8667-dea07343b693';
-  if (!s.settings.dailyRoutine) {
-    s.settings.dailyRoutine = { enabled: false, title: 'Rydd opp etter skolen', points: 10, subtasks: [], updatedAt: null };
+  if (!Array.isArray(s.settings.routines)) s.settings.routines = [];
+  // Fold gammel enkelt-mal (settings.dailyRoutine) inn i routines-lista.
+  if (s.settings.dailyRoutine) {
+    if (!s.settings.routines.some((r) => r.id === 'routine')) {
+      const d = s.settings.dailyRoutine;
+      s.settings.routines.push({
+        id: 'routine',
+        title: d.title,
+        points: d.points,
+        subtasks: (d.subtasks || []).map((st) => ({ id: st.id, text: st.text })),
+        weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'],
+        enabled: d.enabled,
+        updatedAt: d.updatedAt || null,
+      });
+    }
+    delete s.settings.dailyRoutine;
+  }
+  // Engangs-seed av familiens tre morgen-rutiner (guardet mot re-add etter sletting).
+  if (!s.settings.routinesSeeded) {
+    const seedRoutine = (id, title, points, weekdays) => {
+      if (!s.settings.routines.some((r) => r.id === id)) {
+        s.settings.routines.push({ id, title, points, subtasks: [], weekdays, enabled: true, updatedAt: null });
+      }
+    };
+    seedRoutine('routine-sekk', 'Pakk sekken', 5, ['mon', 'tue', 'wed', 'thu', 'fri']);
+    seedRoutine('routine-matbag', 'Pakk matbagen', 5, ['mon', 'tue', 'wed', 'thu', 'fri']);
+    seedRoutine('routine-gymbag', 'Pakk gymbagen', 5, ['mon', 'wed', 'thu', 'fri']);
+    s.settings.routinesSeeded = true;
   }
   const stamp = (todayIso || '2000-01-01') + 'T00:00:00.000Z';
   for (const d of Object.keys(s.days || {})) {
