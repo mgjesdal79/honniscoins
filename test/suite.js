@@ -483,6 +483,16 @@ export function runTests() {
       eq('tilbake til open', s.quests[0].status, 'open');
       eq('doneAt nullstilt', s.quests[0].doneAt, null);
     },
+    function toggleQuestSubtask_flips_and_bumps() {
+      let s = L.defaultState();
+      s.quests.push({ id: 'r1', title: 'Rydd', points: 15, status: 'open', updatedAt: 't0', removed: false, subtasks: [{ id: 'a', text: 'x', done: false }, { id: 'b', text: 'y', done: false }] });
+      const s2 = L.toggleQuestSubtask(s, { id: 'r1', subId: 'a', actor: 'son' }, { now: 't1', id: 'l1' });
+      eq('a huket av', s2.quests[0].subtasks[0].done, true);
+      eq('b uendret', s2.quests[0].subtasks[1].done, false);
+      eq('updatedAt bumpet', s2.quests[0].updatedAt, 't1');
+      const s3 = L.toggleQuestSubtask(s2, { id: 'r1', subId: 'a', actor: 'son' }, { now: 't2', id: 'l2' });
+      eq('a av igjen', s3.quests[0].subtasks[0].done, false);
+    },
     function reject_returns_to_open() {
       let s = L.defaultState();
       s = L.addQuest(s, { title: 'X', points: 3 }, { now: 't1', id: 'q1' });

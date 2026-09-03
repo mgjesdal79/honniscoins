@@ -639,6 +639,18 @@ export function uncommitQuest(state, { id, actor = 'son' }, ctx) {
   return s;
 }
 
+// Sønn veksler én subtask. Bumper quest.updatedAt så fletting (LWW) synker riktig.
+export function toggleQuestSubtask(state, { id, subId, actor = 'son' }, ctx) {
+  const s = clone(state);
+  const i = findQuestIdx(s, id);
+  if (i < 0) return s;
+  const st = (s.quests[i].subtasks || []).find((x) => x.id === subId);
+  if (!st) return s;
+  st.done = !st.done;
+  s.quests[i].updatedAt = ctx.now;
+  return s;
+}
+
 // Forelder godkjenner: done -> approved (poeng teller nå).
 export function approveQuest(state, { id, actor = 'parent' }, ctx) {
   const s = clone(state);
