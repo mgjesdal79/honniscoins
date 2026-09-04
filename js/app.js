@@ -708,9 +708,9 @@ function renderParentHome() {
     ['dag', '📝', 'Dag'],
     ['timeplan', '🗓', 'Plan'],
     ['quests', '⭐', 'Quests'],
-    ['poeng', '💵', 'Poeng'],
     ['logg', '📋', 'Logg'],
     ['stat', '📊', 'Stat'],
+    ['poeng', '⚙️', 'Settings'],
   ];
   const bar = tabs
     .map(([k, ic, l]) => {
@@ -1337,32 +1337,55 @@ function renderPoengTab(host) {
       const subs = r0 ? (r0.subtasks || []).map((st) => ({ id: st.id, text: st.text })) : [];
       const renderRSubs = () => {
         subsBox.innerHTML = subs.map((st, i) => `
-          <div class="row" style="gap:8px">
-            <div class="submove">
-              <button data-stup="${i}"${i === 0 ? ' disabled' : ''} title="Flytt opp" aria-label="Flytt opp">▲</button>
-              <button data-stdn="${i}"${i === subs.length - 1 ? ' disabled' : ''} title="Flytt ned" aria-label="Flytt ned">▼</button>
-            </div>
+          <div class="row subrow" data-idx="${i}" style="gap:8px">
+            <button class="draghandle" data-drag title="Dra for å flytte" aria-label="Dra for å flytte">⠿</button>
             <input class="inp" style="width:auto;flex:1;text-align:left" data-sti="${i}" value="${escapeHtml(st.text)}">
             <button class="link" data-stdel="${i}" style="color:var(--bad)">✕</button>
           </div>`).join('') || '<div class="muted" style="font-size:.8rem">Ingen deloppgaver.</div>';
         subsBox.querySelectorAll('[data-sti]').forEach((inp) => {
           inp.onchange = () => { subs[Number(inp.dataset.sti)].text = inp.value; upd({ subtasks: subs }); };
         });
-        const move = (i, j) => {
-          if (j < 0 || j >= subs.length) return;
-          const [it] = subs.splice(i, 1);
-          subs.splice(j, 0, it);
-          upd({ subtasks: subs });
-          renderRSubs();
-        };
-        subsBox.querySelectorAll('[data-stup]').forEach((b) => {
-          b.onclick = () => move(Number(b.dataset.stup), Number(b.dataset.stup) - 1);
-        });
-        subsBox.querySelectorAll('[data-stdn]').forEach((b) => {
-          b.onclick = () => move(Number(b.dataset.stdn), Number(b.dataset.stdn) + 1);
-        });
         subsBox.querySelectorAll('[data-stdel]').forEach((b) => {
           b.onclick = () => { subs.splice(Number(b.dataset.stdel), 1); upd({ subtasks: subs }); renderRSubs(); };
+        });
+        // Dra-og-slipp av deloppgaver (pointer-basert → touch + mus).
+        const afterRow = (y) => {
+          const rows = [...subsBox.querySelectorAll('.subrow:not(.dragging)')];
+          let best = null; let bestOffset = -Infinity;
+          for (const row of rows) {
+            const box = row.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > bestOffset) { bestOffset = offset; best = row; }
+          }
+          return best;
+        };
+        let dragging = null;
+        subsBox.querySelectorAll('[data-drag]').forEach((h) => {
+          h.onpointerdown = (e) => {
+            e.preventDefault();
+            dragging = h.closest('.subrow');
+            dragging.classList.add('dragging');
+            h.setPointerCapture(e.pointerId);
+          };
+          h.onpointermove = (e) => {
+            if (!dragging) return;
+            const after = afterRow(e.clientY);
+            if (after == null) subsBox.appendChild(dragging);
+            else subsBox.insertBefore(dragging, after);
+          };
+          const drop = (e) => {
+            if (!dragging) return;
+            dragging.classList.remove('dragging');
+            try { h.releasePointerCapture(e.pointerId); } catch (_) { /* noop */ }
+            dragging = null;
+            const order = [...subsBox.querySelectorAll('.subrow')].map((r) => Number(r.dataset.idx));
+            const next = order.map((idx) => subs[idx]);
+            subs.length = 0; subs.push(...next);
+            upd({ subtasks: subs });
+            renderRSubs();
+          };
+          h.onpointerup = drop;
+          h.onpointercancel = drop;
         });
       };
       renderRSubs();
