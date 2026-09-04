@@ -121,6 +121,31 @@ export function runTests() {
       const m = L.migrate(s, '2026-09-04'); // fredag → sekk+matbag+gymbag alle aktive
       eq('migrate genererer 3', m.quests.filter((q) => q.source === 'routine').length, 3);
     },
+    function addRoutine_appends_and_stamps() {
+      const s0 = L.defaultState();
+      s0.settings.routines = [];
+      const s = L.addRoutine(s0, { routine: { id: 'r-new', title: 'Test', points: 7, weekdays: ['mon', 'fri'] } }, { now: 't1', id: 'r-new' });
+      eq('lagt til', s.settings.routines.length, 1);
+      eq('felt', [s.settings.routines[0].title, s.settings.routines[0].points, s.settings.routines[0].weekdays, s.settings.routines[0].enabled], ['Test', 7, ['mon', 'fri'], true]);
+      eq('settings bumpet', s.settings.updatedAt, 't1');
+      eq('original uendret', s0.settings.routines.length, 0);
+    },
+    function updateRoutine_patches_and_stamps() {
+      const s0 = L.defaultState();
+      s0.settings.routines = [{ id: 'r1', title: 'A', points: 5, subtasks: [], weekdays: ['mon', 'tue'], enabled: true, updatedAt: 't0' }];
+      const s = L.updateRoutine(s0, { id: 'r1', patch: { title: 'B', points: 9, weekdays: ['wed'], enabled: false, subtasks: [{ id: 's', text: 'x' }] } }, { now: 't2', id: 'l1' });
+      const r = s.settings.routines[0];
+      eq('patchet', [r.title, r.points, r.weekdays, r.enabled, r.subtasks], ['B', 9, ['wed'], false, [{ id: 's', text: 'x' }]]);
+      eq('routine.updatedAt', r.updatedAt, 't2');
+      eq('settings.updatedAt', s.settings.updatedAt, 't2');
+    },
+    function deleteRoutine_removes_and_stamps() {
+      const s0 = L.defaultState();
+      s0.settings.routines = [{ id: 'r1', title: 'A', points: 5, subtasks: [], weekdays: ['mon'], enabled: true, updatedAt: 't0' }];
+      const s = L.deleteRoutine(s0, { id: 'r1' }, { now: 't3', id: 'l1' });
+      eq('fjernet', s.settings.routines.length, 0);
+      eq('settings bumpet', s.settings.updatedAt, 't3');
+    },
     function balance_earned_minus_spent() {
       const s = L.defaultState();
       s.days['2026-08-20'] = lockedDay(['A', 'B'], { 0: 'gull', 1: 'bronse' }); // present

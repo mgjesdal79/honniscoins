@@ -637,17 +637,46 @@ export function deleteQuest(state, { id, actor = 'parent' }, ctx) {
   return s;
 }
 
-// Forelder oppdaterer malen for daglig rutine.
-export function setDailyRoutine(state, { patch, actor = 'parent' }, ctx) {
+// Forelder legger til ny rutine-mal.
+export function addRoutine(state, { routine = {} }, ctx) {
   const s = clone(state);
-  const r = s.settings.dailyRoutine || (s.settings.dailyRoutine = { enabled: false, title: 'Rydd opp etter skolen', points: 10, subtasks: [], updatedAt: null });
-  if ('enabled' in patch) r.enabled = !!patch.enabled;
+  if (!Array.isArray(s.settings.routines)) s.settings.routines = [];
+  s.settings.routines.push({
+    id: routine.id || ctx.id,
+    title: routine.title || 'Ny rutine',
+    points: Number(routine.points) || 0,
+    subtasks: (routine.subtasks || []).map((st) => ({ id: st.id, text: st.text })),
+    weekdays: Array.isArray(routine.weekdays) ? routine.weekdays.slice() : ['mon', 'tue', 'wed', 'thu', 'fri'],
+    enabled: routine.enabled !== false,
+    updatedAt: ctx.now,
+  });
+  s.settings.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor: 'parent', type: 'routine', action: 'add' });
+  return s;
+}
+
+// Forelder oppdaterer en rutine-mal.
+export function updateRoutine(state, { id, patch }, ctx) {
+  const s = clone(state);
+  const r = (s.settings.routines || []).find((x) => x.id === id);
+  if (!r) return s;
   if ('title' in patch) r.title = patch.title;
   if ('points' in patch) r.points = Number(patch.points) || 0;
+  if ('enabled' in patch) r.enabled = !!patch.enabled;
+  if ('weekdays' in patch) r.weekdays = (patch.weekdays || []).slice();
   if ('subtasks' in patch) r.subtasks = (patch.subtasks || []).map((st) => ({ id: st.id, text: st.text }));
   r.updatedAt = ctx.now;
-  s.settings.updatedAt = ctx.now; // settings flettes whole-object LWW → bump så mal-endringen ikke tapes
-  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'routine', action: 'edit' });
+  s.settings.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor: 'parent', type: 'routine', action: 'edit', routine: id });
+  return s;
+}
+
+// Forelder sletter en rutine-mal.
+export function deleteRoutine(state, { id }, ctx) {
+  const s = clone(state);
+  s.settings.routines = (s.settings.routines || []).filter((x) => x.id !== id);
+  s.settings.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor: 'parent', type: 'routine', action: 'delete', routine: id });
   return s;
 }
 
