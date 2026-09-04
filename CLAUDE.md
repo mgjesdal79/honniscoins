@@ -112,6 +112,10 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   Forelder — «Daglige rutiner»-liste i **Poeng-fanen** (mal-kort med på/av, tittel, poeng,
   ukedag-piller Man–Fre `.wdpill`, deloppgave-editor med **▲/▼-rekkefølge** (`.submove`),
   slett, «＋ Ny rutine»). CSS: `.qrec`/`.subs`/`.subchk`/`.subprog`/`.wdrow`/`.wdpill`/`.submove`.
+  **Kortene er sammenleggbare** (`.rhead`/`.rbody`/`.rchev`): klikkbar header viser tittel +
+  sammendrag (ukedager · antall deloppg. · poeng · «(av)»), kropp kollapset som standard.
+  Ekspander-tilstand i `App.routineOpen` (ren visning, ikke persistert); ny rutine åpnes
+  automatisk. Alle input-bindinger kjører også når kroppen er `hidden`.
 - **Rekkefølge på deloppgaver:** forelder styrer sekvensen via ▲/▼ i editoren (rekkefølgen
   = array-rekkefølgen i `settings.routines[].subtasks`). `syncOpenRoutineInstances` synker
   dagens åpne instans og **bevarer sønnens «done» ved å matche på TEKST (ikke indeks)**, så
