@@ -166,11 +166,18 @@
   .statsvg .axc{font-size:13px;font-weight:600}
   .statsvg .axs{font-size:14px;font-weight:600}
   .statsvg text{font-family:var(--font)}
+  /* Mobil: smalere viewBox (se svgWrap) + større tekst → lesbare grafer på liten skjerm */
+  .statsvg.narrow .axl{font-size:16px}
+  .statsvg.narrow .axv{font-size:18px}
+  .statsvg.narrow .axn{font-size:13px}
+  .statsvg.narrow .axc{font-size:16px}
+  .statsvg.narrow .axs{font-size:17px}
   /* dataviz-farger, tilpasset mørkt tema */
   .statgrid{--s1:#3987e5;--s2:#eb6834;--good:#0ca30c;--bad:#e34948;
     --grid:#1c3a63;--ink:#fff;--ink2:#9fb3cf;--null:#0f2547;
     --gull:#eda100;--solv:#9aa0a6;--bronse:#b0703c;
-    --seq1:#123252;--seq2:#184f95;--seq3:#256abf;--seq4:#3987e5;--seq5:#86b6ef}
+    /* Heatmap: divergerende svak→sterk (rød→grå→grønn), monoton lyshet = lesbart også ved fargeblindhet */
+    --hm1:#b23a3f;--hm2:#a4674c;--hm3:#6b7688;--hm4:#4f9e6a;--hm5:#58bd77}
   .qbanner{background:#2a2410;border:1px solid var(--gold);color:var(--gold);border-radius:12px;padding:10px 12px;font-weight:700;font-size:.85rem;text-align:center;margin-bottom:12px}
   .qcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px}
   .qcard.over{border-color:var(--bad)}
@@ -242,7 +249,7 @@
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.09.04 (b38 · lekser: sammenleggbare kort + dominerende Lekser-tittel, uten dag/uke-toggle)';
+    window.APP_VERSION = '2026.09.04 (b39 · stat: mobil-lesbare grafer (smal viewBox) + intuitiv heatmap-farge svak→sterk)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>
