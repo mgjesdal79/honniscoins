@@ -1283,24 +1283,42 @@ function renderPoengTab(host) {
       rhost.innerHTML = '<div class="muted" style="font-size:.85rem;padding:6px 2px">Ingen rutiner ennå.</div>';
       return;
     }
-    rhost.innerHTML = routines.map((r) => `
+    if (!App.routineOpen) App.routineOpen = {};
+    rhost.innerHTML = routines.map((r) => {
+      const open = !!App.routineOpen[r.id];
+      const wdSummary = WD.filter(([k]) => (r.weekdays || []).includes(k)).map(([, l]) => l).join(' ') || 'Ingen dager';
+      const subCount = (r.subtasks || []).length;
+      return `
       <div class="card" data-rid="${r.id}" style="margin-bottom:10px">
-        <label class="row" style="border:none"><div class="lbl">På</div>
-          <input type="checkbox" data-r-enabled ${r.enabled ? 'checked' : ''}></label>
-        <div class="row"><div class="lbl">Tittel</div>
-          <input class="inp" data-r-title style="width:auto;flex:1;text-align:left" value="${escapeHtml(r.title)}"></div>
-        <div class="row"><div class="lbl">Reward 🪙</div>
-          <input class="inp" data-r-points type="number" min="0" value="${r.points}"></div>
-        <div class="lbl" style="margin:8px 2px 4px">Ukedager</div>
-        <div class="wdrow">${WD.map(([k, lbl]) => `<button class="wdpill ${(r.weekdays || []).includes(k) ? 'on' : ''}" data-wd="${k}">${lbl}</button>`).join('')}</div>
-        <div class="lbl" style="margin:10px 2px 4px">Deloppgaver</div>
-        <div data-r-subs></div>
-        <button class="btn ghost" data-r-addsub style="margin-top:6px">+ Legg til deloppgave</button>
-        <button class="link" data-r-del style="color:var(--bad);margin-top:10px;display:block">🗑 Slett rutine</button>
-      </div>`).join('');
+        <div class="rhead" data-r-toggle role="button" tabindex="0">
+          <div style="flex:1;min-width:0">
+            <div class="rtitle">${escapeHtml(r.title || 'Uten navn')}${r.enabled ? '' : ' <span class="roff">(av)</span>'}</div>
+            <div class="rmeta">${wdSummary} · ${subCount} deloppg. · ${r.points} 🪙</div>
+          </div>
+          <span class="rchev">${open ? '▾' : '▸'}</span>
+        </div>
+        <div class="rbody"${open ? '' : ' hidden'}>
+          <label class="row" style="border:none"><div class="lbl">På</div>
+            <input type="checkbox" data-r-enabled ${r.enabled ? 'checked' : ''}></label>
+          <div class="row"><div class="lbl">Tittel</div>
+            <input class="inp" data-r-title style="width:auto;flex:1;text-align:left" value="${escapeHtml(r.title)}"></div>
+          <div class="row"><div class="lbl">Reward 🪙</div>
+            <input class="inp" data-r-points type="number" min="0" value="${r.points}"></div>
+          <div class="lbl" style="margin:8px 2px 4px">Ukedager</div>
+          <div class="wdrow">${WD.map(([k, lbl]) => `<button class="wdpill ${(r.weekdays || []).includes(k) ? 'on' : ''}" data-wd="${k}">${lbl}</button>`).join('')}</div>
+          <div class="lbl" style="margin:10px 2px 4px">Deloppgaver</div>
+          <div data-r-subs></div>
+          <button class="btn ghost" data-r-addsub style="margin-top:6px">+ Legg til deloppgave</button>
+          <button class="link" data-r-del style="color:var(--bad);margin-top:10px;display:block">🗑 Slett rutine</button>
+        </div>
+      </div>`;
+    }).join('');
     rhost.querySelectorAll('[data-rid]').forEach((card) => {
       const id = card.dataset.rid;
       const upd = (patch) => { App.state = updateRoutine(App.state, { id, patch }, { now: nowIso(), id: newId() }); save(); };
+      const toggle = card.querySelector('[data-r-toggle]');
+      toggle.onclick = () => { if (App.routineOpen[id]) delete App.routineOpen[id]; else App.routineOpen[id] = true; renderRoutines(); };
+      toggle.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle.onclick(); } };
       card.querySelector('[data-r-enabled]').onchange = (e) => upd({ enabled: e.target.checked });
       card.querySelector('[data-r-title]').onchange = (e) => upd({ title: e.target.value });
       card.querySelector('[data-r-points]').onchange = (e) => upd({ points: Number(e.target.value) });
@@ -1359,7 +1377,10 @@ function renderPoengTab(host) {
   };
   renderRoutines();
   document.getElementById('rtAddRoutine').onclick = () => {
-    App.state = addRoutine(App.state, { routine: { title: 'Ny rutine', points: 5 } }, { now: nowIso(), id: newId() });
+    const rid = newId();
+    App.state = addRoutine(App.state, { routine: { title: 'Ny rutine', points: 5 } }, { now: nowIso(), id: rid });
+    if (!App.routineOpen) App.routineOpen = {};
+    App.routineOpen[rid] = true; // åpne den nye rutinen for redigering
     save();
     renderRoutines();
   };

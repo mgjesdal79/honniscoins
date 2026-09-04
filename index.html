@@ -222,6 +222,12 @@
   .subchk{width:22px;height:22px;flex:0 0 auto;border-radius:7px;border:2px solid var(--line);background:transparent;color:#04120b;font-size:.8rem;font-weight:800;padding:0}
   .subchk.on{background:var(--good);border-color:var(--good)}
   .subprog{font-size:.76rem;color:var(--muted);margin:2px 2px 0}
+  .rhead{display:flex;align-items:center;gap:10px;cursor:pointer;padding:2px 0}
+  .rhead .rtitle{font-weight:700}
+  .rhead .roff{color:var(--muted);font-weight:400;font-size:.85rem}
+  .rmeta{font-size:.75rem;color:var(--muted);margin:2px 0 0}
+  .rchev{color:var(--muted);font-size:.9rem;flex:0 0 auto}
+  .rbody{margin-top:8px}
   .submove{display:flex;flex-direction:column;gap:2px;flex:0 0 auto}
   .submove button{width:26px;height:18px;padding:0;line-height:1;border-radius:6px;border:1px solid var(--line);background:var(--surface-2,#0f2547);color:var(--muted);font-size:.7rem;cursor:pointer}
   .submove button:disabled{opacity:.3;cursor:default}
@@ -234,7 +240,7 @@
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.09.04 (b33 · styr rekkefølge på deloppgaver i rutiner)';
+    window.APP_VERSION = '2026.09.04 (b34 · sammenleggbare rutine-kort i forelder-editoren)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>
