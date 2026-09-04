@@ -139,6 +139,41 @@ export function runTests() {
       eq('routine.updatedAt', r.updatedAt, 't2');
       eq('settings.updatedAt', s.settings.updatedAt, 't2');
     },
+    function updateRoutine_syncs_todays_open_instance() {
+      const s0 = L.defaultState();
+      s0.settings.routines = [{ id: 'routine-sekk', title: 'Pakk sekken', points: 5, subtasks: [], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], enabled: true, updatedAt: 't' }];
+      s0.settings.routinesSeeded = true;
+      s0.quests = [{ id: 'routine-sekk-2026-09-04', title: 'Pakk sekken', points: 5, status: 'open', source: 'routine', routineId: 'routine-sekk', routineDate: '2026-09-04', subtasks: [], removed: false, updatedAt: 'x' }];
+      const s = L.updateRoutine(s0, { id: 'routine-sekk', patch: { subtasks: [{ id: 'a', text: 'Gymtøy' }, { id: 'b', text: 'Matboks' }] } }, { now: '2026-09-04T10:00:00.000Z', id: 'l1' });
+      const q = s.quests[0];
+      eq('instans fikk subtasks', q.subtasks.map((x) => x.text), ['Gymtøy', 'Matboks']);
+      eq('instans subtask id-scheme', q.subtasks[0].id, 'routine-sekk-2026-09-04-0');
+      eq('nye subtasks done:false', q.subtasks.every((x) => x.done === false), true);
+    },
+    function updateRoutine_sync_preserves_done_and_skips_committed() {
+      const s0 = L.defaultState();
+      s0.settings.routines = [{ id: 'routine-sekk', title: 'Sekk', points: 5, subtasks: [{ id: 'a', text: 'En' }], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], enabled: true, updatedAt: 't' }];
+      s0.settings.routinesSeeded = true;
+      s0.quests = [
+        { id: 'routine-sekk-2026-09-04', title: 'Sekk', points: 5, status: 'open', source: 'routine', routineId: 'routine-sekk', routineDate: '2026-09-04', subtasks: [{ id: 'routine-sekk-2026-09-04-0', text: 'En', done: true }], removed: false, updatedAt: 'x' },
+        { id: 'routine-sekk-2026-09-03', title: 'Sekk', points: 5, status: 'done', source: 'routine', routineId: 'routine-sekk', routineDate: '2026-09-03', subtasks: [], removed: false, updatedAt: 'x' },
+      ];
+      const s = L.updateRoutine(s0, { id: 'routine-sekk', patch: { subtasks: [{ id: 'a', text: 'En' }, { id: 'b', text: 'To' }] } }, { now: '2026-09-04T10:00:00.000Z', id: 'l1' });
+      const today = s.quests.find((q) => q.id === 'routine-sekk-2026-09-04');
+      eq('beholder done på eksisterende', today.subtasks[0].done, true);
+      eq('ny subtask done:false', today.subtasks[1].done, false);
+      const other = s.quests.find((q) => q.id === 'routine-sekk-2026-09-03');
+      eq('rører ikke committed/annen dag', other.subtasks.length, 0);
+    },
+    function updateRoutine_sync_title_points_on_open_instance() {
+      const s0 = L.defaultState();
+      s0.settings.routines = [{ id: 'r1', title: 'Gammel', points: 5, subtasks: [], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], enabled: true, updatedAt: 't' }];
+      s0.settings.routinesSeeded = true;
+      s0.quests = [{ id: 'r1-2026-09-04', title: 'Gammel', points: 5, status: 'open', source: 'routine', routineId: 'r1', routineDate: '2026-09-04', subtasks: [], removed: false, updatedAt: 'x' }];
+      const s = L.updateRoutine(s0, { id: 'r1', patch: { title: 'Ny', points: 8 } }, { now: '2026-09-04T10:00:00.000Z', id: 'l1' });
+      eq('instans-tittel synket', s.quests[0].title, 'Ny');
+      eq('instans-poeng synket', s.quests[0].points, 8);
+    },
     function deleteRoutine_removes_and_stamps() {
       const s0 = L.defaultState();
       s0.settings.routines = [{ id: 'r1', title: 'A', points: 5, subtasks: [], weekdays: ['mon'], enabled: true, updatedAt: 't0' }];
