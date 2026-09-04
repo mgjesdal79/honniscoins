@@ -20,6 +20,13 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   append-only lister (`log`, `payouts`, framtidige `shopItems`/`purchases`). **`quests`** flettes
   derimot **LWW per id** på `updatedAt` (`mergeQuestList`) — ikke union — så statusendringer og
   sletting vinner nyest.
+- **Logg = ren visning** (ingen beregning leser `state.log`; kun fletting + `renderLoggTab`
+  som viser øverste 200). Lagres i sin helhet i rom-blobben → for å hindre uendelig vekst
+  **beskjæres den til de nyeste `LOG_KEEP` (200) hendelsene** via ren fn `pruneLog`, kalt sist
+  i `migrate` (etter fletting + rutine-generering). Kapper både lokal cache og neste
+  remote-lagring; matcher visningens tak. NB: `renderLoggTab` har ingen gren for `type:'routine'`
+  (rutine-mal-endringer blir usynlige rader), og rutine-instansens auto-`quest create` bruker
+  `actor:'system'` som tag-koden viser som «Sønn» — kjent støy, men ruller ut av 200-vinduet.
 - Topp-logo (`brandHtml()` i app.js) viser **alltid saldo**: «Honniscoins: X 🪙», både for sønn
   (over bunn-nav) og forelder (over faner). Regnes via `computeBalance` ved hver render.
 
@@ -215,8 +222,8 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   (sammenslått trend-kort: dag/uke-toggle + felles fagvelger + én periode m/ custom range).
 
 ## Testing
-- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 304 tester per nå (inkl. sidequests
-  m/arkiv, lekser, rutiner inkl. rekkefølge/tekst-synk og statistikk/streak).
+- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 333 tester per nå (inkl. sidequests
+  m/arkiv, lekser, rutiner inkl. rekkefølge/tekst-synk, logg-beskjæring og statistikk/streak).
 - **Kjør:** `/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc -m test/run-jsc.js`
   (jsc støtter ES-moduler; ingen node/deno/bun i miljøet).
 - Nettleser: `test/tests.html` (tynn renderer av samme suite).

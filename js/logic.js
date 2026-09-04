@@ -561,7 +561,22 @@ export function migrate(state, todayIso) {
       }
     }
   }
-  return syncOpenRoutineInstances(generateDailyRoutines(s, todayIso), todayIso);
+  const out = syncOpenRoutineInstances(generateDailyRoutines(s, todayIso), todayIso);
+  out.log = pruneLog(out.log);
+  return out;
+}
+
+// Loggen er ren visning (ingen beregning leser den) og lagres i sin helhet i
+// rom-blobben. For å hindre uendelig vekst beholdes kun de nyeste LOG_KEEP
+// hendelsene (matcher visningens tak) — resten slettes ved migrate/lasting.
+export const LOG_KEEP = 200;
+export function pruneLog(log, keep = LOG_KEEP) {
+  const arr = Array.isArray(log) ? log : [];
+  if (arr.length <= keep) return arr.slice();
+  return arr
+    .slice()
+    .sort((a, b) => (b.at || '').localeCompare(a.at || ''))
+    .slice(0, keep);
 }
 
 // Total streak-bonus over hele historikken (inngår i saldo).
