@@ -223,7 +223,12 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
      - Fag-valg faller tilbake til «Totalt» hvis valgt fag ikke finnes i perioden.
   2. `statBySubject` — snitt-medalje per fag (rangerte stolper, `svgBySubject`).
   3. `statByPosition` — snitt per timenummer (`svgByPosition`).
-  4. `statHeatmap` — ukedag × time (`svgHeatmap`, span2).
+  4. `statHeatmap` — ukedag × time (`svgHeatmap`, span2). **Farge = intuitiv divergerende
+     skala svakt→sterkt** (rød `--hm1` → grå `--hm2/--hm3` → grønn `--hm4/--hm5`), *ikke* den
+     gamle blå enkelt-hue `--seq*`-rampen. `idx(avg)=round((avg-1)/2·4)` mapper snitt 1–3 til de
+     5 trinnene; lysheten øker monotont med verdien (lesbart også ved rød/grønn-fargeblindhet),
+     tallet i cella er ekstra kanal, + `.statlegend` «Svakt 🥉 / Middels 🥈 / Sterkt 🥇». Lyse
+     grønn-trinn får mørk celletekst.
   5. `statMedalDistribution` — andel gull/sølv/bronse per fag (`svgDistribution`).
 - **UI-plassering:** forelder i egen **Stat**-fane (`renderStatistikkTab`); sønn nederst på
   **Poeng**-siden. Begge kaller `statContentHtml(state)` + `bindStatChips(host)` (binder
@@ -231,10 +236,17 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
 - **Bredde:** statistikk bryter ut av mobil-bredden på laptop via `body.statwide` (togglet i
   `routeToView` for forelder-Stat-fane ELLER sønn-Poeng), `@media (min-width:820px)` gir
   2-kolonners `.statgrid` (`.span2` = full bredde). Sønnens Poeng-innhold ligger i `.narrowcol`.
+- **Mobil-lesbarhet:** SVG-ene har fast `viewBox`-bredde `STAT_VBW` (modul-var i app.js).
+  `statContentHtml` setter `STAT_NARROW = !matchMedia('(min-width:820px)')` og `STAT_VBW =
+  narrow ? 380 : 800` FØR grafene bygges. Smal viewBox ⇒ 1 SVG-enhet ≈ 1 skjermpiksel, så
+  teksten skaleres ikke ned til ~6px. Alle `svg*`-fn bruker `const W = STAT_VBW`; `svgWrap`
+  legger klassen `narrow` på `<svg>` → `.statsvg.narrow`-regler bumper skriftstørrelsene.
+  Laptop (≥820px) er uendret (W=800). Re-render skjer via `routeToView` (ikke på ren
+  vindus-resize — kjent, ubetydelig).
 - **SVG-hjelpere (app.js):** `svgWrap`, `niceMax` (pen y-akse), `effortColor`, `hourLabel`,
   `weekSelectHtml`. dataviz-palett tilpasset mørkt tema (`--s1`/`--s2`/`--grid`/`--gull`/
-  `--solv`/`--bronse`). `.statsel`/`.statselwrap` = mørk nedtrekk; `.statperiod` av-scopet fra
-  `#ptab` (gjelder både forelder og sønn).
+  `--solv`/`--bronse`/heatmap `--hm1..--hm5`). `.statsel`/`.statselwrap` = mørk nedtrekk;
+  `.statperiod` av-scopet fra `#ptab` (gjelder både forelder og sønn).
 - **Spec:** `docs/superpowers/specs/2026-09-02-honniscoins-utvikling-daglig-ukentlig-design.md`
   (opprinnelig daglig total + uke-for-uke);
   `docs/superpowers/specs/2026-09-02-honniscoins-streak-fiks-sonn-statistikk-meny-design.md`

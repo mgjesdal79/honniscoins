@@ -1612,7 +1612,18 @@ function periodSpanDays(bounds, recs) {
   return Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
 }
 
+// Statistikk-grafenes viewBox-bredde: full på laptop, smal på mobil (større effektiv tekst).
+// Settes i statContentHtml før SVG-ene bygges; leses av alle svg*-funksjoner + svgWrap.
+let STAT_VBW = 800;
+let STAT_NARROW = false;
+
 function statContentHtml(state) {
+  // Mobil = under 2-kolonnersgrensa (820px). Da krymper vi viewBox slik at 1 SVG-enhet ≈ 1
+  // skjermpiksel → tekst blir lesbar i stedet for å skaleres ned til ~6px.
+  STAT_NARROW = !(typeof window !== 'undefined' && window.matchMedia
+    && window.matchMedia('(min-width:820px)').matches);
+  STAT_VBW = STAT_NARROW ? 380 : 800;
+
   const today = isoDate(new Date());
   const bounds = statBounds(today);
   const recs = filterRecordsByPeriod(effortRecords(state), bounds);
@@ -1720,7 +1731,7 @@ function hourLabel(pos) { return (pos + 1) + '. time'; }
 
 // Visning 1: rangerte horisontale stolper.
 function svgBySubject(bySub) {
-  const W = 800, H = Math.max(160, 40 + bySub.subjects.length * 34), L = 96, R = 54, T = 8, B = 22;
+  const W = STAT_VBW, H = Math.max(160, 40 + bySub.subjects.length * 34), L = 96, R = 54, T = 8, B = 22;
   const iw = W - L - R, ih = H - T - B, rowH = ih / bySub.subjects.length, bh = Math.min(24, rowH * 0.6);
   let g = '';
   for (let v = 0; v <= 3; v++) {
@@ -1742,7 +1753,7 @@ function svgBySubject(bySub) {
 
 // Visning 2: stolper per timenummer.
 function svgByPosition(byPos) {
-  const W = 800, H = 260, L = 40, R = 14, T = 12, B = 42, iw = W - L - R, ih = H - T - B;
+  const W = STAT_VBW, H = 260, L = 40, R = 14, T = 12, B = 42, iw = W - L - R, ih = H - T - B;
   let g = '';
   for (let v = 0; v <= 3; v++) {
     const y = T + ih - ih * (v / 3);
@@ -1764,10 +1775,15 @@ function svgByPosition(byPos) {
 function svgHeatmap(heat) {
   const names = { mon: 'Man', tue: 'Tir', wed: 'Ons', thu: 'Tor', fri: 'Fre' };
   const cols = heat.positions.length || 1;
-  const W = 800, H = 60 + heat.weekdays.length * 42, L = 46, R = 14, T = 26, B = 16;
+  const W = STAT_VBW, H = 60 + heat.weekdays.length * 42, L = 46, R = 14, T = 26, B = 16;
   const iw = W - L - R, ih = H - T - B, cw = iw / cols, ch = ih / heat.weekdays.length, gap = 3;
-  const ramp = ['--seq1', '--seq2', '--seq3', '--seq4', '--seq5'];
-  const colorOf = (avg) => `var(${ramp[Math.min(4, Math.floor((avg / 3) * 5))]})`;
+  // Intuitiv skala: svakt (🥉≈1) rød → middels (🥈≈2) grå → sterkt (🥇≈3) grønn.
+  // [fyllfarge, tekstfarge] – lys grønn krever mørk tekst for kontrast.
+  const ramp = [
+    ['--hm1', '#fff'], ['--hm2', '#fff'], ['--hm3', '#fff'],
+    ['--hm4', '#0a1410'], ['--hm5', '#0a1410'],
+  ];
+  const idx = (avg) => Math.max(0, Math.min(4, Math.round(((avg - 1) / 2) * 4)));
   let g = '';
   heat.positions.forEach((p, j) =>
     (g += `<text x="${L + cw * (j + 0.5)}" y="${T - 9}" text-anchor="middle" class="axl">${hourLabel(p)}</text>`));
@@ -1779,12 +1795,18 @@ function svgHeatmap(heat) {
       if (!c) {
         g += `<rect x="${x}" y="${y}" width="${cw - gap}" height="${ch - gap}" rx="5" fill="var(--null)" stroke="var(--grid)"/>`;
       } else {
-        g += `<rect x="${x}" y="${y}" width="${cw - gap}" height="${ch - gap}" rx="5" fill="${colorOf(c.avg)}"/>`;
-        g += `<text x="${L + cw * (j + 0.5)}" y="${T + ch * (i + 0.5) + 4}" text-anchor="middle" fill="${c.avg / 3 > 0.6 ? '#fff' : 'var(--ink)'}" class="axc">${c.avg.toFixed(1)}</text>`;
+        const [fill, ink] = ramp[idx(c.avg)];
+        g += `<rect x="${x}" y="${y}" width="${cw - gap}" height="${ch - gap}" rx="5" fill="var(${fill})"/>`;
+        g += `<text x="${L + cw * (j + 0.5)}" y="${T + ch * (i + 0.5) + 4}" text-anchor="middle" fill="${ink}" class="axc">${c.avg.toFixed(1)}</text>`;
       }
     });
   });
-  return svgWrap(W, H, g);
+  // Forklaring på fargeskalaen (svak → sterk) – ekstra kanal i tillegg til tallene i cellene.
+  const legend = `<div class="statlegend">
+    <span><i style="background:var(--hm1)"></i>Svakt 🥉</span>
+    <span><i style="background:var(--hm3)"></i>Middels 🥈</span>
+    <span><i style="background:var(--hm5)"></i>Sterkt 🥇</span></div>`;
+  return legend + svgWrap(W, H, g);
 }
 
 // Pen y-akse-maks (rundet opp til 1/2/5 × 10ⁿ).
@@ -1807,7 +1829,7 @@ function weekSelectHtml(subjects, sel) {
 
 // Visning 4: sum innsats-poeng per dag – stablede medalje-søyler (bronse|sølv|gull).
 function svgDailyTotal(daily) {
-  const W = 800, H = 260, L = 40, R = 16, T = 14, B = 34, iw = W - L - R, ih = H - T - B;
+  const W = STAT_VBW, H = 260, L = 40, R = 16, T = 14, B = 34, iw = W - L - R, ih = H - T - B;
   const legend = `<div class="statlegend">
     <span><i style="background:var(--gull)"></i>Gull</span>
     <span><i style="background:var(--solv)"></i>Sølv</span>
@@ -1848,7 +1870,7 @@ function svgDailyTotal(daily) {
 
 // Visning 5: sum innsats-poeng per uke – stablede medalje-søyler (fagvelger over).
 function svgWeeklyTotal(weekly) {
-  const W = 800, H = 260, L = 40, R = 16, T = 14, B = 34, iw = W - L - R, ih = H - T - B;
+  const W = STAT_VBW, H = 260, L = 40, R = 16, T = 14, B = 34, iw = W - L - R, ih = H - T - B;
   const legend = `<div class="statlegend">
     <span><i style="background:var(--gull)"></i>Gull</span>
     <span><i style="background:var(--solv)"></i>Sølv</span>
@@ -1889,7 +1911,7 @@ function svgWeeklyTotal(weekly) {
 
 // Visning 5: 100 % stablet gull/sølv/bronse.
 function svgDistribution(dist) {
-  const W = 800, H = Math.max(160, 30 + dist.length * 36), L = 96, R = 14, T = 8, B = 20;
+  const W = STAT_VBW, H = Math.max(160, 30 + dist.length * 36), L = 96, R = 14, T = 8, B = 20;
   const iw = W - L - R, ih = H - T - B, rowH = ih / dist.length, bh = Math.min(26, rowH * 0.6);
   const parts = [['gull', 'var(--gull)'], ['solv', 'var(--solv)'], ['bronse', 'var(--bronse)']];
   let g = '';
@@ -1908,7 +1930,7 @@ function svgDistribution(dist) {
 }
 
 function svgWrap(w, h, inner) {
-  return `<svg class="statsvg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" role="img">${inner}</svg>`;
+  return `<svg class="statsvg${STAT_NARROW ? ' narrow' : ''}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" role="img">${inner}</svg>`;
 }
 
 function routeToView() {
