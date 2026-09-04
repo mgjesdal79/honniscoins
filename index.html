@@ -226,11 +226,12 @@
   .rhead .rtitle{font-weight:700}
   .rhead .roff{color:var(--muted);font-weight:400;font-size:.85rem}
   .rmeta{font-size:.75rem;color:var(--muted);margin:2px 0 0}
-  .rchev{color:var(--muted);font-size:.9rem;flex:0 0 auto}
+  .rchev{color:var(--text);font-size:1.5rem;line-height:1;flex:0 0 auto;width:34px;text-align:center}
   .rbody{margin-top:8px}
-  .submove{display:flex;flex-direction:column;gap:2px;flex:0 0 auto}
-  .submove button{width:26px;height:18px;padding:0;line-height:1;border-radius:6px;border:1px solid var(--line);background:var(--surface-2,#0f2547);color:var(--muted);font-size:.7rem;cursor:pointer}
-  .submove button:disabled{opacity:.3;cursor:default}
+  .subrow{transition:background .12s}
+  .subrow.dragging{opacity:.55;background:var(--surface-2,#0f2547);border-radius:8px}
+  .draghandle{cursor:grab;touch-action:none;flex:0 0 auto;width:32px;height:32px;padding:0;border:1px solid var(--line);border-radius:8px;background:var(--surface-2,#0f2547);color:var(--muted);font-size:1.15rem;line-height:1}
+  .draghandle:active{cursor:grabbing}
   .wdrow{display:flex;gap:6px;flex-wrap:wrap}
   .wdpill{padding:6px 0;width:44px;text-align:center;border-radius:8px;font-size:.78rem;font-weight:700;background:var(--surface-2,#0f2547);border:1px solid var(--line);color:var(--muted);cursor:pointer}
   .wdpill.on{background:var(--accent,#3b6fe0);color:#fff;border-color:var(--accent,#3b6fe0)}
@@ -240,7 +241,7 @@
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.09.04 (b34 · sammenleggbare rutine-kort i forelder-editoren)';
+    window.APP_VERSION = '2026.09.04 (b35 · Settings-fane til høyre, større expand-piler, dra-og-slipp deloppgaver)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>
