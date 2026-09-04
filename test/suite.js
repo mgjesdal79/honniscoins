@@ -235,6 +235,33 @@ export function runTests() {
       eq('fjernet', s.settings.routines.length, 0);
       eq('settings bumpet', s.settings.updatedAt, 't3');
     },
+    function pruneLog_keeps_newest_and_drops_rest() {
+      const log = [];
+      for (let i = 0; i < 250; i++) log.push({ id: 'e' + i, at: '2026-01-01T' + String(i % 24).padStart(2, '0') + ':' + String(i % 60).padStart(2, '0') + ':00.000Z' });
+      // gjør «at» strengt økende så nyeste er entydig
+      for (let i = 0; i < 250; i++) log[i].at = '2026-' + String(1 + Math.floor(i / 28)).padStart(2, '0') + '-' + String(1 + (i % 28)).padStart(2, '0') + 'T00:00:00.000Z';
+      const kept = L.pruneLog(log, 200);
+      eq('kappet til 200', kept.length, 200);
+      const ids = new Set(kept.map((x) => x.id));
+      eq('nyeste beholdt', ids.has('e249'), true);
+      eq('eldste slettet', ids.has('e0'), false);
+    },
+    function pruneLog_noop_when_under_cap() {
+      const log = [{ id: 'a', at: '2026-01-01T00:00:00.000Z' }, { id: 'b', at: '2026-01-02T00:00:00.000Z' }];
+      const kept = L.pruneLog(log, 200);
+      eq('under tak = urørt lengde', kept.length, 2);
+      eq('tom logg ok', L.pruneLog(undefined, 200).length, 0);
+    },
+    function migrate_prunes_log_to_cap() {
+      const s0 = L.defaultState();
+      s0.log = [];
+      for (let i = 0; i < 260; i++) s0.log.push({ id: 'e' + i, at: '2026-' + String(1 + Math.floor(i / 28)).padStart(2, '0') + '-' + String(1 + (i % 28)).padStart(2, '0') + 'T00:00:00.000Z', actor: 'parent', type: 'lock' });
+      const m = L.migrate(s0, '2026-09-04');
+      eq('migrate kappet loggen', m.log.length, 200);
+      const ids = new Set(m.log.map((x) => x.id));
+      eq('migrate beholdt nyeste', ids.has('e259'), true);
+      eq('migrate slettet eldste', ids.has('e0'), false);
+    },
     function balance_earned_minus_spent() {
       const s = L.defaultState();
       s.days['2026-08-20'] = lockedDay(['A', 'B'], { 0: 'gull', 1: 'bronse' }); // present
