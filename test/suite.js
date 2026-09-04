@@ -34,36 +34,117 @@ export function runTests() {
       eq('weekLocks empty', s.weekLocks, {});
       eq('days empty', s.days, {});
     },
-    function dailyRoutine_default_shape() {
+    function routines_default_shape() {
       const s = L.defaultState();
-      eq('routine enabled default false', s.settings.dailyRoutine.enabled, false);
-      eq('routine title default', s.settings.dailyRoutine.title, 'Rydd opp etter skolen');
-      eq('routine points default', s.settings.dailyRoutine.points, 10);
-      eq('routine subtasks default', s.settings.dailyRoutine.subtasks, []);
+      eq('routines default []', s.settings.routines, []);
+      eq('routinesSeeded default false', s.settings.routinesSeeded, false);
+      eq('ingen dailyRoutine igjen', s.settings.dailyRoutine, undefined);
     },
-    function dailyRoutine_migrate_fills_missing() {
+    function migrate_folds_legacy_dailyRoutine() {
       const s = L.defaultState();
-      delete s.settings.dailyRoutine;
-      const m = L.migrate(s, '2026-09-04');
-      eq('migrate adds routine', !!m.settings.dailyRoutine, true);
-      eq('migrate routine disabled', m.settings.dailyRoutine.enabled, false);
-      ok('migrate keeps existing routine', (() => {
-        const s2 = L.defaultState();
-        s2.settings.dailyRoutine = { enabled: true, title: 'Egen', points: 20, subtasks: [{ id: 'a', text: 'x' }], updatedAt: 't' };
-        const m2 = L.migrate(s2, '2026-09-04');
-        return m2.settings.dailyRoutine.title === 'Egen' && m2.settings.dailyRoutine.points === 20;
-      })());
+      s.settings.routines = [];
+      s.settings.routinesSeeded = true; // isoler folde-logikken fra seeding
+      s.settings.dailyRoutine = { enabled: true, title: 'Rydd', points: 12, subtasks: [{ id: 'a', text: 'x' }], updatedAt: 't' };
+      const m = L.migrate(s, '2026-09-05'); // lørdag → ingen generering
+      const r = m.settings.routines.find((x) => x.id === 'routine');
+      eq('foldet inn', !!r, true);
+      eq('beholder title', r.title, 'Rydd');
+      eq('beholder points', r.points, 12);
+      eq('weekdays man-fre', r.weekdays, ['mon', 'tue', 'wed', 'thu', 'fri']);
+      eq('beholder enabled', r.enabled, true);
+      eq('dailyRoutine slettet', m.settings.dailyRoutine, undefined);
     },
-    function setDailyRoutine_updates_and_stamps() {
+    function migrate_seeds_three_routines() {
+      const s = L.defaultState();
+      const m = L.migrate(s, '2026-09-05'); // lørdag → ingen generering
+      const ids = m.settings.routines.map((r) => r.id);
+      ok('sekk seeded', ids.includes('routine-sekk'));
+      ok('matbag seeded', ids.includes('routine-matbag'));
+      ok('gymbag seeded', ids.includes('routine-gymbag'));
+      const gym = m.settings.routines.find((r) => r.id === 'routine-gymbag');
+      eq('gymbag uten tirsdag', gym.weekdays, ['mon', 'wed', 'thu', 'fri']);
+      eq('routinesSeeded satt', m.settings.routinesSeeded, true);
+    },
+    function migrate_seed_idempotent_and_respects_delete() {
+      const s = L.defaultState();
+      const m1 = L.migrate(s, '2026-09-05');
+      // forelder sletter gymbag
+      m1.settings.routines = m1.settings.routines.filter((r) => r.id !== 'routine-gymbag');
+      const m2 = L.migrate(m1, '2026-09-05');
+      eq('gymbag kommer ikke tilbake', m2.settings.routines.filter((r) => r.id === 'routine-gymbag').length, 0);
+      eq('sekk ikke duplisert', m2.settings.routines.filter((r) => r.id === 'routine-sekk').length, 1);
+    },
+    function generateDailyRoutines_creates_per_active_routine() {
+      const s = L.defaultState();
+      s.settings.routines = [
+        { id: 'routine-sekk', title: 'Pakk sekken', points: 5, subtasks: [{ id: 'm', text: 'Bøker' }], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], enabled: true, updatedAt: 't' },
+        { id: 'routine-gymbag', title: 'Gymbag', points: 5, subtasks: [], weekdays: ['mon', 'wed', 'thu', 'fri'], enabled: true, updatedAt: 't' },
+      ];
+      s.settings.routinesSeeded = true;
+      const m = L.generateDailyRoutines(s, '2026-09-04'); // fredag
+      const inst = m.quests.filter((q) => q.source === 'routine');
+      eq('to instanser på fredag', inst.length, 2);
+      const sekk = inst.find((q) => q.id === 'routine-sekk-2026-09-04');
+      eq('sekk id', !!sekk, true);
+      eq('routineId satt', sekk.routineId, 'routine-sekk');
+      eq('subtasks kopiert', sekk.subtasks, [{ id: 'routine-sekk-2026-09-04-0', text: 'Bøker', done: false }]);
+    },
+    function generateDailyRoutines_gymbag_skips_tuesday() {
+      const s = L.defaultState();
+      s.settings.routines = [{ id: 'routine-gymbag', title: 'Gymbag', points: 5, subtasks: [], weekdays: ['mon', 'wed', 'thu', 'fri'], enabled: true, updatedAt: 't' }];
+      s.settings.routinesSeeded = true;
+      const tue = L.generateDailyRoutines(s, '2026-09-01'); // tirsdag
+      eq('ingen gymbag tirsdag', tue.quests.filter((q) => q.source === 'routine').length, 0);
+      const wed = L.generateDailyRoutines(s, '2026-09-02'); // onsdag
+      eq('gymbag onsdag', wed.quests.filter((q) => q.source === 'routine').length, 1);
+    },
+    function generateDailyRoutines_disabled_and_weekend() {
+      const s = L.defaultState();
+      s.settings.routines = [{ id: 'routine-sekk', title: 'Sekk', points: 5, subtasks: [], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], enabled: false, updatedAt: 't' }];
+      s.settings.routinesSeeded = true;
+      eq('disabled → ingen', L.generateDailyRoutines(s, '2026-09-04').quests.filter((q) => q.source === 'routine').length, 0);
+      const s2 = JSON.parse(JSON.stringify(s));
+      s2.settings.routines[0].enabled = true;
+      eq('helg → ingen', L.generateDailyRoutines(s2, '2026-09-05').quests.filter((q) => q.source === 'routine').length, 0);
+    },
+    function generateDailyRoutines_idempotent_and_legacy_id() {
+      const s = L.defaultState();
+      s.settings.routines = [{ id: 'routine', title: 'Rydd', points: 10, subtasks: [], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], enabled: true, updatedAt: 't' }];
+      s.settings.routinesSeeded = true;
+      const m1 = L.generateDailyRoutines(s, '2026-09-04');
+      eq('legacy id-kompat', m1.quests[0].id, 'routine-2026-09-04');
+      const m2 = L.generateDailyRoutines(m1, '2026-09-04');
+      eq('idempotent', m2.quests.filter((q) => q.source === 'routine').length, 1);
+    },
+    function migrate_runs_multi_generation() {
+      const s = L.defaultState();
+      const m = L.migrate(s, '2026-09-04'); // fredag → sekk+matbag+gymbag alle aktive
+      eq('migrate genererer 3', m.quests.filter((q) => q.source === 'routine').length, 3);
+    },
+    function addRoutine_appends_and_stamps() {
       const s0 = L.defaultState();
-      const s = L.setDailyRoutine(s0, { patch: { enabled: true, title: 'Rydd', points: 15, subtasks: [{ id: 's1', text: 'Heng opp jakke' }] } }, { now: 't1', id: 'r1' });
-      eq('enabled', s.settings.dailyRoutine.enabled, true);
-      eq('title', s.settings.dailyRoutine.title, 'Rydd');
-      eq('points', s.settings.dailyRoutine.points, 15);
-      eq('subtasks', s.settings.dailyRoutine.subtasks, [{ id: 's1', text: 'Heng opp jakke' }]);
-      eq('updatedAt stamped', s.settings.dailyRoutine.updatedAt, 't1');
-      eq('settings.updatedAt bumpet (merge-safe)', s.settings.updatedAt, 't1');
-      eq('original uendret', s0.settings.dailyRoutine.enabled, false);
+      s0.settings.routines = [];
+      const s = L.addRoutine(s0, { routine: { id: 'r-new', title: 'Test', points: 7, weekdays: ['mon', 'fri'] } }, { now: 't1', id: 'r-new' });
+      eq('lagt til', s.settings.routines.length, 1);
+      eq('felt', [s.settings.routines[0].title, s.settings.routines[0].points, s.settings.routines[0].weekdays, s.settings.routines[0].enabled], ['Test', 7, ['mon', 'fri'], true]);
+      eq('settings bumpet', s.settings.updatedAt, 't1');
+      eq('original uendret', s0.settings.routines.length, 0);
+    },
+    function updateRoutine_patches_and_stamps() {
+      const s0 = L.defaultState();
+      s0.settings.routines = [{ id: 'r1', title: 'A', points: 5, subtasks: [], weekdays: ['mon', 'tue'], enabled: true, updatedAt: 't0' }];
+      const s = L.updateRoutine(s0, { id: 'r1', patch: { title: 'B', points: 9, weekdays: ['wed'], enabled: false, subtasks: [{ id: 's', text: 'x' }] } }, { now: 't2', id: 'l1' });
+      const r = s.settings.routines[0];
+      eq('patchet', [r.title, r.points, r.weekdays, r.enabled, r.subtasks], ['B', 9, ['wed'], false, [{ id: 's', text: 'x' }]]);
+      eq('routine.updatedAt', r.updatedAt, 't2');
+      eq('settings.updatedAt', s.settings.updatedAt, 't2');
+    },
+    function deleteRoutine_removes_and_stamps() {
+      const s0 = L.defaultState();
+      s0.settings.routines = [{ id: 'r1', title: 'A', points: 5, subtasks: [], weekdays: ['mon'], enabled: true, updatedAt: 't0' }];
+      const s = L.deleteRoutine(s0, { id: 'r1' }, { now: 't3', id: 'l1' });
+      eq('fjernet', s.settings.routines.length, 0);
+      eq('settings bumpet', s.settings.updatedAt, 't3');
     },
     function balance_earned_minus_spent() {
       const s = L.defaultState();
@@ -708,53 +789,6 @@ export function runTests() {
       ok('logic module loads', L.APP_LOGIC_VERSION === 1);
     },
 
-    // --- Daglig rutine (generering) ---
-    function generateDailyRoutine_weekday_creates() {
-      const s = L.defaultState();
-      s.settings.dailyRoutine = { enabled: true, title: 'Rydd', points: 15, subtasks: [{ id: 'm1', text: 'Jakke' }, { id: 'm2', text: 'Sekk' }], updatedAt: 't' };
-      const m = L.generateDailyRoutine(s, '2026-09-04'); // fredag
-      const inst = m.quests.filter((q) => q.source === 'routine');
-      eq('én instans', inst.length, 1);
-      eq('deterministisk id', inst[0].id, 'routine-2026-09-04');
-      eq('routineDate', inst[0].routineDate, '2026-09-04');
-      eq('status open', inst[0].status, 'open');
-      eq('points fra mal', inst[0].points, 15);
-      eq('subtasks kopiert, done=false', inst[0].subtasks, [
-        { id: 'routine-2026-09-04-0', text: 'Jakke', done: false },
-        { id: 'routine-2026-09-04-1', text: 'Sekk', done: false },
-      ]);
-    },
-    function generateDailyRoutine_weekend_skips() {
-      const s = L.defaultState();
-      s.settings.dailyRoutine = { enabled: true, title: 'Rydd', points: 15, subtasks: [], updatedAt: 't' };
-      const m = L.generateDailyRoutine(s, '2026-09-05'); // lørdag
-      eq('ingen instans i helg', m.quests.filter((q) => q.source === 'routine').length, 0);
-    },
-    function generateDailyRoutine_disabled_skips() {
-      const s = L.defaultState();
-      s.settings.dailyRoutine = { enabled: false, title: 'Rydd', points: 15, subtasks: [], updatedAt: 't' };
-      const m = L.generateDailyRoutine(s, '2026-09-04');
-      eq('ingen instans når disabled', m.quests.filter((q) => q.source === 'routine').length, 0);
-    },
-    function generateDailyRoutine_idempotent() {
-      const s = L.defaultState();
-      s.settings.dailyRoutine = { enabled: true, title: 'Rydd', points: 15, subtasks: [], updatedAt: 't' };
-      const m1 = L.generateDailyRoutine(s, '2026-09-04');
-      const m2 = L.generateDailyRoutine(m1, '2026-09-04');
-      eq('fortsatt kun én', m2.quests.filter((q) => q.source === 'routine').length, 1);
-    },
-    function generateDailyRoutine_no_backfill() {
-      const s = L.defaultState();
-      s.settings.dailyRoutine = { enabled: true, title: 'Rydd', points: 15, subtasks: [], updatedAt: 't' };
-      const m = L.generateDailyRoutine(s, '2026-09-04'); // fredag
-      eq('kun for i dag', m.quests.filter((q) => q.routineDate === '2026-09-03').length, 0);
-    },
-    function migrate_runs_generation() {
-      const s = L.defaultState();
-      s.settings.dailyRoutine = { enabled: true, title: 'Rydd', points: 15, subtasks: [], updatedAt: 't' };
-      const m = L.migrate(s, '2026-09-04'); // fredag
-      eq('migrate genererer', m.quests.filter((q) => q.source === 'routine').length, 1);
-    },
 
     // --- fag-statistikk ---
     function effortRecords_filters_and_maps() {

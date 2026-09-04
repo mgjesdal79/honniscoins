@@ -80,33 +80,41 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
 - **Spec:** `docs/superpowers/specs/2026-08-22-honniscoins-sidequests-design.md`.
   Mockup: `mockups/sidequests.html`.
 
-## Daglig rutine (gjentakende sidequest)
-- **Konsept:** én fast, redigerbar mal genererer automatisk én avkryssbar «rydd opp etter skolen»-
-  sidequest per hverdag (man–fre), uten manuell oppretting. Instansen ER en vanlig quest →
-  arver all quest-maskineri (commit/godkjenn/poeng/arkiv/logg/fletting).
-- **Mal-datamodell:** `settings.dailyRoutine = {enabled, title, points, subtasks:[{id,text}],
-  updatedAt}` (default `enabled:false`, tittel 'Rydd opp etter skolen', 10 poeng). Flettes
-  med settings-LWW.
-- **Instans-felt (utover vanlig quest):** `source:'routine'`, `routineDate:'YYYY-MM-DD'`,
+## Daglige rutiner (gjentakende sidequests)
+- **Konsept:** flere redigerbare maler genererer automatisk avkryssbare sidequests per
+  hverdag (f.eks. «Pakk sekken», «Pakk gymbagen»), uten manuell oppretting. Instansen ER
+  en vanlig quest → arver all quest-maskineri (commit/godkjenn/poeng/arkiv/logg/fletting).
+- **Mal-datamodell:** `settings.routines = [{id, title, points, subtasks:[{id,text}],
+  weekdays:['mon'..'fri'], enabled, updatedAt}]` + topp-nivå `settings.routinesSeeded`
+  (engangs seed-guard). Flettes som hel-objekt settings-LWW → hver mal-mutasjon bumper
+  `settings.updatedAt`.
+- **Migrering (`migrate`):** folder gammel `settings.dailyRoutine` inn i lista (id `'routine'`,
+  weekdays man–fre) og sletter den; seeder tre familie-rutiner guardet av `routinesSeeded`:
+  `routine-sekk` «Pakk sekken» (man–fre), `routine-matbag` «Pakk matbagen» (man–fre),
+  `routine-gymbag` «Pakk gymbagen» (man/ons/tor/fre — IKKE tirsdag), alle 5 poeng, enabled.
+  Slettet seed kommer ikke tilbake.
+- **Generering (`generateDailyRoutines`, kalt sist i `migrate`):** én instans per aktiv mal
+  hvis dagens `weekdayKey` er i malens `weekdays`; deterministiske id-er `<routineId>-<dato>`
+  (id `routine` → legacy `routine-<dato>`); kun i dag (ingen backfill); idempotent via
+  `mergeQuestList` (LWW).
+- **Instans-felt (utover vanlig quest):** `source:'routine'`, `routineId`, `routineDate:'YYYY-MM-DD'`,
   `subtasks:[{id,text,done}]`. Manuelle quests har ingen `subtasks`/`source` → all UI/logikk
   tåler manglende subtasks (tom liste).
-- **Generering (`generateDailyRoutine`, kalt sist i `migrate`):** kun hvis `enabled`, kun
-  hverdag (`weekdayKey`), kun i dag (ingen backfill), idempotent via **deterministiske id-er**
-  `routine-<date>` (subtask `routine-<date>-<n>`, logg `log-routine-<date>`) → to enheter
-  samme dag lager samme id, `mergeQuestList` (LWW) kolliderer ikke.
-- **Regler (rene fn i logic.js):** `allSubtasksDone(quest)` (tom liste = true);
-  `commitQuest` gatet — sønn kan ikke markere ferdig før alle subtasks er huket av;
-  `toggleQuestSubtask(state,{id,subId},ctx)` (bumper `quest.updatedAt`, logges ikke);
-  `setDailyRoutine(state,{patch},ctx)` (forelder-mal-CRUD); `updateQuest` utvidet med
+- **Mutasjoner (rene fn i logic.js):** `addRoutine(state,{routine},ctx)` (legger til ny mal),
+  `updateRoutine(state,{id,patch},ctx)` (oppdaterer mal), `deleteRoutine(state,{id},ctx)`
+  (fjerner mal) — erstatter `setDailyRoutine`. Alle bumper `settings.updatedAt` og logger
+  `type:'routine'`. Uendret: `allSubtasksDone(quest)` (tom liste = true), `commitQuest` gatet
+  (sønn kan ikke markere ferdig før alle subtasks er huket av), `toggleQuestSubtask(state,
+  {id,subId},ctx)` (bumper `quest.updatedAt`, logges ikke), `updateQuest` utvidet med
   `subtasks`-patch (finjustere dagens instans uten å røre malen).
-- **UI:** sønn — instans-kort i Sidequests («🔁 Daglig · <dato>»-badge, avkryssbar subtask-liste,
+- **UI:** sønn — instans-kort i Sidequests («🔁 Rutine · <dato>»-badge, avkryssbar subtask-liste,
   «X av N gjort», låst «Marker som ferdig» til alt er huket av; helper `routineDateLabel`).
-  Forelder — «Daglig rutine»-seksjon i **Poeng-fanen** (på/av, tittel, reward-stepper,
-  redigerbar deloppgave-liste). CSS: `.qrec`/`.subs`/`.subchk`/`.subprog`.
-- **Future (ikke bygget):** ferie-modus (skru av rating + rutine på gitte datoer), generelt
-  recurring-system (flere maler/planer), flerbruker/deling.
-- **Spec/plan:** `docs/superpowers/specs/2026-09-04-honniscoins-daglig-rutine-design.md`,
-  `docs/superpowers/plans/2026-09-04-honniscoins-daglig-rutine.md`.
+  Forelder — «Daglige rutiner»-liste i **Poeng-fanen** (mal-kort med på/av, tittel, poeng,
+  ukedag-piller Man–Fre `.wdpill`, deloppgave-editor, slett, «＋ Ny rutine»). CSS:
+  `.qrec`/`.subs`/`.subchk`/`.subprog`/`.wdrow`/`.wdpill`.
+- **Future (ikke bygget):** ferie-modus (skru av rating + rutine på gitte datoer), flerbruker/deling.
+- **Spec/plan:** `docs/superpowers/specs/2026-09-04-honniscoins-flere-rutiner-design.md`,
+  `docs/superpowers/plans/2026-09-04-honniscoins-flere-rutiner.md`.
 
 ## Lekser (skolelekser per dag)
 - **Konsept:** forelder registrerer lekser per dag (fag, tekst, poeng, evt. «hele uka»). Sønn
@@ -195,8 +203,8 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   (sammenslått trend-kort: dag/uke-toggle + felles fagvelger + én periode m/ custom range).
 
 ## Testing
-- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 256 tester per nå (inkl. sidequests
-  m/arkiv, lekser og statistikk/streak).
+- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 304 tester per nå (inkl. sidequests
+  m/arkiv, lekser, rutiner og statistikk/streak).
 - **Kjør:** `/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc -m test/run-jsc.js`
   (jsc støtter ES-moduler; ingen node/deno/bun i miljøet).
 - Nettleser: `test/tests.html` (tynn renderer av samme suite).

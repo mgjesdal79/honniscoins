@@ -7,7 +7,8 @@ import {
   isDayLocked, isWeekClosed, canSonEditDay, lockDay, closeWeek, reopenWeek, weekStartIso,
   weeklyMedalCounts, weeklyStreakBonus, silverStreakInfo, goldStreakInfo,
   activeQuests, isQuestOverdue, questPointsPending, questArchiveSplit, allSubtasksDone,
-  addQuest, updateQuest, deleteQuest, commitQuest, uncommitQuest, approveQuest, rejectQuest, toggleQuestSubtask, setDailyRoutine,
+  addQuest, updateQuest, deleteQuest, commitQuest, uncommitQuest, approveQuest, rejectQuest, toggleQuestSubtask,
+  addRoutine, updateRoutine, deleteRoutine,
   homeworkForWeek, homeworkPointsPending, activeHomework,
   addHomework, updateHomework, deleteHomework, hideHomework,
   commitHomework, uncommitHomework, approveHomework, rejectHomework,
@@ -541,7 +542,7 @@ function renderSidequestsPage(host) {
 
   const routineBadge = (q) =>
     q.source === 'routine'
-      ? `<span class="qrec">🔁 Daglig · ${routineDateLabel(q.routineDate)}</span>`
+      ? `<span class="qrec">🔁 Rutine · ${routineDateLabel(q.routineDate)}</span>`
       : '';
   const subtaskList = (q, interactive) => {
     const subs = q.subtasks || [];
@@ -1242,19 +1243,10 @@ function renderPoengTab(host) {
       <div class="row" style="border:none"><div class="lbl">Kr per Honniscoin</div>
         <input class="inp" id="krRate" type="number" min="0" step="0.5" value="${s.settings.krPerCoin}"></div>
     </div>
-    <div class="sec">Daglig rutine (rydd opp etter skolen)</div>
-    <div class="card" id="routineCard">
-      <label class="row" style="border:none"><div class="lbl">På hverdager</div>
-        <input type="checkbox" id="rtEnabled" ${s.settings.dailyRoutine.enabled ? 'checked' : ''}></label>
-      <div class="row"><div class="lbl">Tittel</div>
-        <input class="inp" id="rtTitle" style="width:auto;flex:1;text-align:left" value="${escapeHtml(s.settings.dailyRoutine.title)}"></div>
-      <div class="row"><div class="lbl">Reward 🪙</div>
-        <input class="inp" id="rtPoints" type="number" min="0" value="${s.settings.dailyRoutine.points}"></div>
-      <div class="lbl" style="margin:10px 2px 6px">Deloppgaver</div>
-      <div id="rtSubs"></div>
-      <button class="btn ghost" id="rtAdd" style="margin-top:6px">+ Legg til deloppgave</button>
-      <div class="muted" style="font-size:.78rem;margin-top:10px">Endring gjelder neste hverdag. Dagens instans finjusterer du i Quests-fanen.</div>
-    </div>
+    <div class="sec">Daglige rutiner</div>
+    <div id="routinesHost"></div>
+    <button class="btn ghost" id="rtAddRoutine" style="margin-top:6px">＋ Ny rutine</button>
+    <div class="muted" style="font-size:.78rem;margin:8px 2px 0">Endring gjelder neste dag rutinen er aktiv. Dagens instans finjusterer du i Quests-fanen.</div>
     <div id="payoutHost"></div>`;
   const bind = (id, field) => {
     document.getElementById(id).onchange = (e) => {
@@ -1283,39 +1275,76 @@ function renderPoengTab(host) {
     );
     save();
   };
-  // Arbeidskopi av malen (redigeres lokalt, lagres via setDailyRoutine).
-  const rt = {
-    enabled: s.settings.dailyRoutine.enabled,
-    title: s.settings.dailyRoutine.title,
-    points: s.settings.dailyRoutine.points,
-    subtasks: (s.settings.dailyRoutine.subtasks || []).map((st) => ({ id: st.id, text: st.text })),
+  const WD = [['mon', 'Man'], ['tue', 'Tir'], ['wed', 'Ons'], ['thu', 'Tor'], ['fri', 'Fre']];
+  const renderRoutines = () => {
+    const rhost = document.getElementById('routinesHost');
+    const routines = App.state.settings.routines || [];
+    if (!routines.length) {
+      rhost.innerHTML = '<div class="muted" style="font-size:.85rem;padding:6px 2px">Ingen rutiner ennå.</div>';
+      return;
+    }
+    rhost.innerHTML = routines.map((r) => `
+      <div class="card" data-rid="${r.id}" style="margin-bottom:10px">
+        <label class="row" style="border:none"><div class="lbl">På</div>
+          <input type="checkbox" data-r-enabled ${r.enabled ? 'checked' : ''}></label>
+        <div class="row"><div class="lbl">Tittel</div>
+          <input class="inp" data-r-title style="width:auto;flex:1;text-align:left" value="${escapeHtml(r.title)}"></div>
+        <div class="row"><div class="lbl">Reward 🪙</div>
+          <input class="inp" data-r-points type="number" min="0" value="${r.points}"></div>
+        <div class="lbl" style="margin:8px 2px 4px">Ukedager</div>
+        <div class="wdrow">${WD.map(([k, lbl]) => `<button class="wdpill ${(r.weekdays || []).includes(k) ? 'on' : ''}" data-wd="${k}">${lbl}</button>`).join('')}</div>
+        <div class="lbl" style="margin:10px 2px 4px">Deloppgaver</div>
+        <div data-r-subs></div>
+        <button class="btn ghost" data-r-addsub style="margin-top:6px">+ Legg til deloppgave</button>
+        <button class="link" data-r-del style="color:var(--bad);margin-top:10px;display:block">🗑 Slett rutine</button>
+      </div>`).join('');
+    rhost.querySelectorAll('[data-rid]').forEach((card) => {
+      const id = card.dataset.rid;
+      const upd = (patch) => { App.state = updateRoutine(App.state, { id, patch }, { now: nowIso(), id: newId() }); save(); };
+      card.querySelector('[data-r-enabled]').onchange = (e) => upd({ enabled: e.target.checked });
+      card.querySelector('[data-r-title]').onchange = (e) => upd({ title: e.target.value });
+      card.querySelector('[data-r-points]').onchange = (e) => upd({ points: Number(e.target.value) });
+      card.querySelectorAll('[data-wd]').forEach((b) => {
+        b.onclick = () => {
+          const r = (App.state.settings.routines || []).find((x) => x.id === id);
+          const cur = new Set(r ? r.weekdays || [] : []);
+          const k = b.dataset.wd;
+          if (cur.has(k)) cur.delete(k); else cur.add(k);
+          upd({ weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'].filter((x) => cur.has(x)) });
+          renderRoutines();
+        };
+      });
+      const subsBox = card.querySelector('[data-r-subs]');
+      const r0 = (App.state.settings.routines || []).find((x) => x.id === id);
+      const subs = r0 ? (r0.subtasks || []).map((st) => ({ id: st.id, text: st.text })) : [];
+      const renderRSubs = () => {
+        subsBox.innerHTML = subs.map((st, i) => `
+          <div class="row" style="gap:8px">
+            <input class="inp" style="width:auto;flex:1;text-align:left" data-sti="${i}" value="${escapeHtml(st.text)}">
+            <button class="link" data-stdel="${i}" style="color:var(--bad)">✕</button>
+          </div>`).join('') || '<div class="muted" style="font-size:.8rem">Ingen deloppgaver.</div>';
+        subsBox.querySelectorAll('[data-sti]').forEach((inp) => {
+          inp.onchange = () => { subs[Number(inp.dataset.sti)].text = inp.value; upd({ subtasks: subs }); };
+        });
+        subsBox.querySelectorAll('[data-stdel]').forEach((b) => {
+          b.onclick = () => { subs.splice(Number(b.dataset.stdel), 1); upd({ subtasks: subs }); renderRSubs(); };
+        });
+      };
+      renderRSubs();
+      card.querySelector('[data-r-addsub]').onclick = () => { subs.push({ id: newId(), text: '' }); upd({ subtasks: subs }); renderRSubs(); };
+      card.querySelector('[data-r-del]').onclick = () => {
+        if (!confirm('Slette denne rutinen?')) return;
+        App.state = deleteRoutine(App.state, { id }, { now: nowIso(), id: newId() });
+        save();
+        renderRoutines();
+      };
+    });
   };
-  const saveRoutine = () => {
-    App.state = setDailyRoutine(App.state, { patch: rt, actor: 'parent' }, { now: nowIso(), id: newId() });
+  renderRoutines();
+  document.getElementById('rtAddRoutine').onclick = () => {
+    App.state = addRoutine(App.state, { routine: { title: 'Ny rutine', points: 5 } }, { now: nowIso(), id: newId() });
     save();
-  };
-  const renderSubs = () => {
-    const box = document.getElementById('rtSubs');
-    box.innerHTML = rt.subtasks.map((st, i) =>
-      `<div class="row" style="gap:8px">
-         <input class="inp" style="width:auto;flex:1;text-align:left" data-sti="${i}" value="${escapeHtml(st.text)}">
-         <button class="link" data-stdel="${i}" style="color:var(--bad)">✕</button>
-       </div>`).join('') || '<div class="muted" style="font-size:.8rem">Ingen deloppgaver ennå.</div>';
-    box.querySelectorAll('[data-sti]').forEach((inp) => {
-      inp.onchange = () => { rt.subtasks[Number(inp.dataset.sti)].text = inp.value; saveRoutine(); };
-    });
-    box.querySelectorAll('[data-stdel]').forEach((b) => {
-      b.onclick = () => { rt.subtasks.splice(Number(b.dataset.stdel), 1); saveRoutine(); renderSubs(); };
-    });
-  };
-  renderSubs();
-  document.getElementById('rtEnabled').onchange = (e) => { rt.enabled = e.target.checked; saveRoutine(); };
-  document.getElementById('rtTitle').onchange = (e) => { rt.title = e.target.value; saveRoutine(); };
-  document.getElementById('rtPoints').onchange = (e) => { rt.points = Number(e.target.value); saveRoutine(); };
-  document.getElementById('rtAdd').onclick = () => {
-    rt.subtasks.push({ id: newId(), text: '' });
-    saveRoutine();
-    renderSubs();
+    renderRoutines();
   };
   renderPayoutSection(document.getElementById('payoutHost'));
 }

@@ -33,7 +33,8 @@ export function defaultState() {
       bonus: JSON.parse(JSON.stringify(DEFAULT_BONUS)),
       homeworkPoints: 5,
       docendoIcalId: '519a0908-ed7d-47ed-8667-dea07343b693',
-      dailyRoutine: { enabled: false, title: 'Rydd opp etter skolen', points: 10, subtasks: [], updatedAt: null },
+      routines: [],
+      routinesSeeded: false,
       schemaVersion: 2,
       updatedAt: null,
     },
@@ -422,37 +423,43 @@ export function goldStreakInfo(state, monthPrefix, uptoIso) {
 
 // --- Migrering av eldre state -------------------------------------------
 
-// Genererer én rutine-instans for i dag (hverdag) hvis malen er på og ingen finnes.
+// Genererer rutine-instanser for i dag (hverdag) fra aktive maler hvis ingen finnes.
 // Deterministiske id-er (migrate har ingen ctx.id) gir idempotens + trygg fletting.
-export function generateDailyRoutine(state, todayIso) {
+export function generateDailyRoutines(state, todayIso) {
   const s = clone(state);
-  const r = s.settings && s.settings.dailyRoutine;
-  if (!r || r.enabled !== true) return s;
-  if (!todayIso || weekdayKey(todayIso) === null) return s; // kun hverdag
+  if (!todayIso) return s;
+  const wk = weekdayKey(todayIso);
+  if (wk === null) return s; // kun hverdag
+  const routines = (s.settings && s.settings.routines) || [];
   if (!Array.isArray(s.quests)) s.quests = [];
-  const qid = `routine-${todayIso}`;
-  if (s.quests.some((q) => q.id === qid)) return s; // idempotent
-  const stamp = `${todayIso}T00:00:00.000Z`;
-  const subtasks = (r.subtasks || []).map((st, i) => ({ id: `${qid}-${i}`, text: st.text, done: false }));
-  s.quests.push({
-    id: qid,
-    title: r.title,
-    desc: '',
-    points: Number(r.points) || 0,
-    due: null,
-    status: 'open',
-    createdAt: stamp,
-    createdBy: 'system',
-    doneAt: null,
-    approvedAt: null,
-    updatedAt: stamp,
-    removed: false,
-    source: 'routine',
-    routineDate: todayIso,
-    subtasks,
-  });
   if (!Array.isArray(s.log)) s.log = [];
-  s.log.push({ id: `log-routine-${todayIso}`, at: stamp, actor: 'system', type: 'quest', action: 'create', quest: qid, title: r.title, source: 'routine' });
+  const stamp = `${todayIso}T00:00:00.000Z`;
+  for (const r of routines) {
+    if (!r || r.enabled !== true) continue;
+    if (!Array.isArray(r.weekdays) || !r.weekdays.includes(wk)) continue;
+    const qid = `${r.id}-${todayIso}`;
+    if (s.quests.some((q) => q.id === qid)) continue; // idempotent
+    const subtasks = (r.subtasks || []).map((st, i) => ({ id: `${qid}-${i}`, text: st.text, done: false }));
+    s.quests.push({
+      id: qid,
+      title: r.title,
+      desc: '',
+      points: Number(r.points) || 0,
+      due: null,
+      status: 'open',
+      createdAt: stamp,
+      createdBy: 'system',
+      doneAt: null,
+      approvedAt: null,
+      updatedAt: stamp,
+      removed: false,
+      source: 'routine',
+      routineId: r.id,
+      routineDate: todayIso,
+      subtasks,
+    });
+    s.log.push({ id: `log-${qid}`, at: stamp, actor: 'system', type: 'quest', action: 'create', quest: qid, title: r.title, source: 'routine' });
+  }
   return s;
 }
 
@@ -472,8 +479,34 @@ export function migrate(state, todayIso) {
   if (!Array.isArray(s.homework)) s.homework = [];
   if (s.settings.homeworkPoints == null) s.settings.homeworkPoints = 5;
   if (!s.settings.docendoIcalId) s.settings.docendoIcalId = '519a0908-ed7d-47ed-8667-dea07343b693';
-  if (!s.settings.dailyRoutine) {
-    s.settings.dailyRoutine = { enabled: false, title: 'Rydd opp etter skolen', points: 10, subtasks: [], updatedAt: null };
+  if (!Array.isArray(s.settings.routines)) s.settings.routines = [];
+  // Fold gammel enkelt-mal (settings.dailyRoutine) inn i routines-lista.
+  if (s.settings.dailyRoutine) {
+    if (!s.settings.routines.some((r) => r.id === 'routine')) {
+      const d = s.settings.dailyRoutine;
+      s.settings.routines.push({
+        id: 'routine',
+        title: d.title,
+        points: d.points,
+        subtasks: (d.subtasks || []).map((st) => ({ id: st.id, text: st.text })),
+        weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'],
+        enabled: d.enabled,
+        updatedAt: d.updatedAt || null,
+      });
+    }
+    delete s.settings.dailyRoutine;
+  }
+  // Engangs-seed av familiens tre morgen-rutiner (guardet mot re-add etter sletting).
+  if (!s.settings.routinesSeeded) {
+    const seedRoutine = (id, title, points, weekdays) => {
+      if (!s.settings.routines.some((r) => r.id === id)) {
+        s.settings.routines.push({ id, title, points, subtasks: [], weekdays, enabled: true, updatedAt: null });
+      }
+    };
+    seedRoutine('routine-sekk', 'Pakk sekken', 5, ['mon', 'tue', 'wed', 'thu', 'fri']);
+    seedRoutine('routine-matbag', 'Pakk matbagen', 5, ['mon', 'tue', 'wed', 'thu', 'fri']);
+    seedRoutine('routine-gymbag', 'Pakk gymbagen', 5, ['mon', 'wed', 'thu', 'fri']);
+    s.settings.routinesSeeded = true;
   }
   const stamp = (todayIso || '2000-01-01') + 'T00:00:00.000Z';
   for (const d of Object.keys(s.days || {})) {
@@ -486,7 +519,7 @@ export function migrate(state, todayIso) {
       }
     }
   }
-  return generateDailyRoutine(s, todayIso);
+  return generateDailyRoutines(s, todayIso);
 }
 
 // Total streak-bonus over hele historikken (inngår i saldo).
@@ -604,17 +637,46 @@ export function deleteQuest(state, { id, actor = 'parent' }, ctx) {
   return s;
 }
 
-// Forelder oppdaterer malen for daglig rutine.
-export function setDailyRoutine(state, { patch, actor = 'parent' }, ctx) {
+// Forelder legger til ny rutine-mal.
+export function addRoutine(state, { routine = {} }, ctx) {
   const s = clone(state);
-  const r = s.settings.dailyRoutine || (s.settings.dailyRoutine = { enabled: false, title: 'Rydd opp etter skolen', points: 10, subtasks: [], updatedAt: null });
-  if ('enabled' in patch) r.enabled = !!patch.enabled;
+  if (!Array.isArray(s.settings.routines)) s.settings.routines = [];
+  s.settings.routines.push({
+    id: routine.id || ctx.id,
+    title: routine.title || 'Ny rutine',
+    points: Number(routine.points) || 0,
+    subtasks: (routine.subtasks || []).map((st) => ({ id: st.id, text: st.text })),
+    weekdays: Array.isArray(routine.weekdays) ? routine.weekdays.slice() : ['mon', 'tue', 'wed', 'thu', 'fri'],
+    enabled: routine.enabled !== false,
+    updatedAt: ctx.now,
+  });
+  s.settings.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor: 'parent', type: 'routine', action: 'add' });
+  return s;
+}
+
+// Forelder oppdaterer en rutine-mal.
+export function updateRoutine(state, { id, patch }, ctx) {
+  const s = clone(state);
+  const r = (s.settings.routines || []).find((x) => x.id === id);
+  if (!r) return s;
   if ('title' in patch) r.title = patch.title;
   if ('points' in patch) r.points = Number(patch.points) || 0;
+  if ('enabled' in patch) r.enabled = !!patch.enabled;
+  if ('weekdays' in patch) r.weekdays = (patch.weekdays || []).slice();
   if ('subtasks' in patch) r.subtasks = (patch.subtasks || []).map((st) => ({ id: st.id, text: st.text }));
   r.updatedAt = ctx.now;
-  s.settings.updatedAt = ctx.now; // settings flettes whole-object LWW → bump så mal-endringen ikke tapes
-  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'routine', action: 'edit' });
+  s.settings.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor: 'parent', type: 'routine', action: 'edit', routine: id });
+  return s;
+}
+
+// Forelder sletter en rutine-mal.
+export function deleteRoutine(state, { id }, ctx) {
+  const s = clone(state);
+  s.settings.routines = (s.settings.routines || []).filter((x) => x.id !== id);
+  s.settings.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor: 'parent', type: 'routine', action: 'delete', routine: id });
   return s;
 }
 
