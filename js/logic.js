@@ -667,6 +667,26 @@ export function updateRoutine(state, { id, patch }, ctx) {
   if ('subtasks' in patch) r.subtasks = (patch.subtasks || []).map((st) => ({ id: st.id, text: st.text }));
   r.updatedAt = ctx.now;
   s.settings.updatedAt = ctx.now;
+  // Synk dagens ikke-innsendte instans så mal-endringen vises hos sønnen med en gang
+  // (rører ikke oppgaver som alt er sendt til godkjenning / godkjent, eller andre dager).
+  const today = (ctx.now || '').slice(0, 10);
+  if (today && Array.isArray(s.quests)) {
+    for (const q of s.quests) {
+      if (q.source !== 'routine' || q.routineId !== id || q.removed) continue;
+      if (q.routineDate !== today || q.status !== 'open') continue;
+      if ('title' in patch) q.title = r.title;
+      if ('points' in patch) q.points = r.points;
+      if ('subtasks' in patch) {
+        const prev = q.subtasks || [];
+        q.subtasks = r.subtasks.map((st, i) => ({
+          id: `${q.id}-${i}`,
+          text: st.text,
+          done: prev[i] ? !!prev[i].done : false,
+        }));
+      }
+      q.updatedAt = ctx.now;
+    }
+  }
   s.log.push({ id: ctx.id, at: ctx.now, actor: 'parent', type: 'routine', action: 'edit', routine: id });
   return s;
 }
