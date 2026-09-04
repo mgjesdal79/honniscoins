@@ -34,8 +34,8 @@ const App = {
   mondayDismissed: false,
   editQuestId: null,
   questArchiveOpen: false, // «Vis arkiv» for godkjente sidequests (visningstilstand)
-  homeworkView: 'day', // 'day' | 'week' – sønn Uken-lekser
   editHwId: null,      // forelder redigerer lekse
+  homeworkOpen: {},    // {hwId: true} – ekspanderte lekse-kort hos forelder (visningstilstand)
 };
 
 // --- hjelpere ------------------------------------------------------------
@@ -241,53 +241,38 @@ function weekHasContent(s, iso) {
 
 // Uken: mandag-prompt + ukestrip (5 dager) + stor aktiv dag + lås.
 // Sønn: HTML for lekse-seksjonen i Uken. view = 'day' | 'week'.
-function homeworkSectionHtml(s, date, view) {
+function homeworkSectionHtml(s, date) {
   const week = homeworkForWeek(s, date);
   if (week.length === 0) return '';
-  const toggle = `<div class="hwseg">
-      <button class="s ${view === 'day' ? 'on' : ''}" data-hwview="day">📅 Dag for dag</button>
-      <button class="s ${view === 'week' ? 'on' : ''}" data-hwview="week">📚 Hele uka (fag)</button>
-    </div>`;
 
-  const card = (h, showDay) => {
+  const card = (h) => {
     const days = homeworkDays(h);
-    const weekTag = h.groupId
+    const tag = h.groupId
       ? `<span class="hwdaytag">🔁 daglig</span>`
       : days.length > 1
       ? `<span class="weektag">📄 frist ${WD_SHORT[weekdayKey(h.date)]}</span>`
       : '';
-    const dayTag = showDay ? `<span class="hwdaytag">${WD_SHORT[weekdayKey(h.date)]} ${fmtDayLabel(h.date).dm}</span>` : '';
     let action = '';
     if (h.status === 'open') action = `<button class="btn good" data-hwdone="${h.id}">Marker som gjort</button>`;
     else if (h.status === 'done') action = `<div class="muted">⏳ Sendt til godkjenning <button class="link" data-hwundo="${h.id}">Angre</button></div>`;
     else action = `<div class="muted">✅ Godkjent · lagt i potten</div>`;
     const cls = h.status === 'done' ? ' done' : h.status === 'approved' ? ' approved' : '';
     return `<div class="hwcard${cls}">
-        <div class="hwtop"><span class="hwsubj">${escapeHtml(h.subject)}${weekTag}${dayTag}</span><span class="hwpts">+${h.points} 🪙</span></div>
+        <div class="hwtop"><span class="hwsubj">${escapeHtml(h.subject)}${tag}</span><span class="hwpts">+${h.points} 🪙</span></div>
         ${h.text ? `<div class="hwtext">${escapeHtml(h.text)}</div>` : ''}
         ${action}
       </div>`;
   };
 
-  let body = '';
-  if (view === 'day') {
-    const forDay = week.filter((h) => homeworkDays(h).includes(date));
-    body = forDay.length
-      ? forDay.map((h) => card(h, false)).join('')
-      : `<div class="muted" style="margin:2px">Ingen lekser denne dagen 🎉</div>`;
-  } else {
-    const bySubject = {};
-    for (const h of week) (bySubject[h.subject || '—'] ||= []).push(h);
-    body = Object.keys(bySubject).sort((a, b) => a.localeCompare(b)).map((subj) =>
-      `<div class="hwsubjhead">📚 ${escapeHtml(subj)}</div>` + bySubject[subj].map((h) => card(h, true)).join('')
-    ).join('');
-  }
+  const forDay = week.filter((h) => homeworkDays(h).includes(date));
+  const body = forDay.length
+    ? forDay.map((h) => card(h)).join('')
+    : `<div class="muted" style="margin:2px">Ingen lekser i dag 🎉</div>`;
 
-  return `<div class="hwsec">📚 Lekser</div>${toggle}${body}`;
+  return `<div class="hwtitle">📚 Lekser</div>${body}`;
 }
 
 function bindHomeworkSon(host) {
-  host.querySelectorAll('[data-hwview]').forEach((b) => (b.onclick = () => { App.homeworkView = b.dataset.hwview; renderSon(); }));
   host.querySelectorAll('[data-hwdone]').forEach((b) => (b.onclick = () => {
     App.state = commitHomework(App.state, { id: b.dataset.hwdone }, { now: nowIso(), id: newId() });
     save(); renderSon();
@@ -375,7 +360,7 @@ function renderUkenPage(host) {
       </div>
       <div style="margin-top:14px">${lockBtn}</div>
       ${closeWeekBtn}
-      ${homeworkSectionHtml(s, date, App.homeworkView)}
+      ${homeworkSectionHtml(s, date)}
     </div>`;
 
   // ukesnavigasjon + dagsvalg
@@ -857,21 +842,37 @@ function parentHomeworkHtml(s, date) {
     ? `<span class="weektag">📄 frist ${WD_SHORT[weekdayKey(h.date)]}</span>`
     : '';
 
+  const statusMeta = (h) => h.status === 'done'
+    ? '⏳ venter'
+    : h.status === 'approved'
+    ? '✅ godkjent'
+    : 'ikke gjort';
+
   const listHtml = all.length
     ? `<div class="hwsec">📚 Lekser · ${fmtDayLabel(date).dm}</div>` +
-      all.map((h) => h.id === App.editHwId
-        ? editFormFor(h)
-        : `<div class="hwcard${h.hidden ? ' approved' : ''}">
-        <div class="hwtop"><span class="hwsubj">${escapeHtml(h.subject)}${badge(h)}${h.hidden ? '<span class="hwdaytag">skjult</span>' : ''}</span><span class="hwpts">+${h.points} 🪙</span></div>
-        ${h.text ? `<div class="hwtext">${escapeHtml(h.text)}</div>` : ''}
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          ${homeworkDays(h).length > 1 ? '' : `<button class="btn ghost" data-hwmove="${h.id}" data-dir="-1" title="Flytt til forrige dag">◀︎ Dag</button>
-          <button class="btn ghost" data-hwmove="${h.id}" data-dir="1" title="Flytt til neste dag">Dag ▶︎</button>`}
-          <button class="btn ghost" data-hwedit="${h.id}">✏️ Rediger</button>
-          <button class="btn ghost" data-hwhide="${h.id}" data-hidden="${h.hidden ? '1' : '0'}">${h.hidden ? '👁 Vis' : '🙈 Skjul'}</button>
-          <button class="btn ghost" data-hwdel="${h.id}">🗑 Slett</button>
-          ${h.groupId ? `<button class="btn ghost" data-hwdelseries="${h.groupId}">🗑 Slett serie</button>` : ''}
-        </div></div>`).join('')
+      all.map((h) => {
+        if (h.id === App.editHwId) return editFormFor(h);
+        const open = !!App.homeworkOpen[h.id];
+        return `<div class="hwcard${h.hidden ? ' approved' : ''}" data-hwid="${h.id}">
+        <div class="rhead" data-hw-toggle role="button" tabindex="0">
+          <div style="flex:1;min-width:0">
+            <div class="rtitle">${escapeHtml(h.subject) || '—'}${badge(h)}${h.hidden ? '<span class="hwdaytag">skjult</span>' : ''}</div>
+            <div class="rmeta">${statusMeta(h)} · +${h.points} 🪙</div>
+          </div>
+          <span class="rchev">${open ? '▾' : '▸'}</span>
+        </div>
+        <div class="rbody"${open ? '' : ' hidden'}>
+          ${h.text ? `<div class="hwtext">${escapeHtml(h.text)}</div>` : ''}
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${homeworkDays(h).length > 1 ? '' : `<button class="btn ghost" data-hwmove="${h.id}" data-dir="-1" title="Flytt til forrige dag">◀︎ Dag</button>
+            <button class="btn ghost" data-hwmove="${h.id}" data-dir="1" title="Flytt til neste dag">Dag ▶︎</button>`}
+            <button class="btn ghost" data-hwedit="${h.id}">✏️ Rediger</button>
+            <button class="btn ghost" data-hwhide="${h.id}" data-hidden="${h.hidden ? '1' : '0'}">${h.hidden ? '👁 Vis' : '🙈 Skjul'}</button>
+            <button class="btn ghost" data-hwdel="${h.id}">🗑 Slett</button>
+            ${h.groupId ? `<button class="btn ghost" data-hwdelseries="${h.groupId}">🗑 Slett serie</button>` : ''}
+          </div>
+        </div></div>`;
+      }).join('')
     : `<div class="muted" style="margin:2px">Ingen lekser på denne dagen ennå.</div>`;
 
   return `<div class="hwsec" style="margin-top:20px">📚 LEKSER</div>${pendingHtml}${addForm}${listHtml}`;
@@ -918,6 +919,13 @@ function bindParentHomework(host, date) {
   };
   const cancel = host.querySelector('#hwCancel');
   if (cancel) cancel.onclick = () => { App.editHwId = null; routeToView(); };
+  host.querySelectorAll('[data-hwid]').forEach((card) => {
+    const id = card.dataset.hwid;
+    const toggle = card.querySelector('[data-hw-toggle]');
+    if (!toggle) return;
+    toggle.onclick = () => { if (App.homeworkOpen[id]) delete App.homeworkOpen[id]; else App.homeworkOpen[id] = true; routeToView(); };
+    toggle.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle.onclick(); } };
+  });
   host.querySelectorAll('[data-hwedit]').forEach((b) => (b.onclick = () => {
     App.editHwId = b.dataset.hwedit;
     routeToView();

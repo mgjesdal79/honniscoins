@@ -167,13 +167,17 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   dato→fag). Sletting = `removed:true`-tombstone. Alle logger `type:'homework'`.
 - **Fletting:** `homework` flettes **LWW per id** på `updatedAt` (`mergeHomeworkList`) — som
   quests, ikke union — så statusendringer og sletting vinner nyest.
-- **UI:** sønn i **Uken**-siden (`homeworkSectionHtml`, dag/uke-toggle, «📄 frist»/«🔁 daglig»-
-  merker; dag-visning filtrerer via `homeworkDays`); forelder i **Dag**-fanen
-  (`parentHomeworkHtml`: godkjenningskø + «Legg til»-skjema med **type-velger** `#hwNewType`
-  (📄 én innlevering / 🔁 daglig) + **ukedag-avhuking** `.hwNewDay` for gjeldende uke + dynamisk
-  poeng-etikett `#hwPtsLabel`; liste med rediger/skjul/slett, «🗑 Slett serie» på daglig-poster,
-  flytt-piler skjult for multi-dag). Poeng-siden viser `homeworkPointsPending`
-  («📚 X 🪙 fra lekser venter på godkjenning»).
+- **UI:** sønn i **Uken**-siden (`homeworkSectionHtml`) viser **kun valgt dags** lekser under en
+  dominerende **«📚 Lekser»**-tittel (`.hwtitle`) — ingen dag/uke-toggle lenger (multi-dag-leksa
+  dukker uansett opp på hver av sine dager). «📄 frist»/«🔁 daglig»-merker; filtrerer via
+  `homeworkDays`. Forelder i **Dag**-fanen (`parentHomeworkHtml`): godkjenningskø + «Legg til»-
+  skjema med **type-velger** `#hwNewType` (📄 én innlevering / 🔁 daglig) + **ukedag-avhuking**
+  `.hwNewDay` for gjeldende uke + dynamisk poeng-etikett `#hwPtsLabel`; liste med
+  **sammenleggbare kort** (`.rhead`/`.rbody`/`.rchev`, samme mønster som rutiner; header = fag +
+  merke + status·poeng, kropp = tekst + knapper; ekspander-tilstand i `App.homeworkOpen`, ren
+  visning, ikke persistert), rediger/skjul/slett, «🗑 Slett serie» på daglig-poster, flytt-piler
+  skjult for multi-dag. Poeng-siden viser `homeworkPointsPending` («📚 X 🪙 fra lekser venter på
+  godkjenning»).
 - **Sønnens «gjør ferdig»-knapp:** tekst «Marker som gjort» (imperativ, ikke «✓ Gjort» som
   leste som status) + grønn `.btn.good` (klassen manglet før → falt tilbake til blå nav-stil).
 - **Inline redigering (forelder):** «✏️ Rediger» rendrer rediger-skjemaet DER leksa står i lista
