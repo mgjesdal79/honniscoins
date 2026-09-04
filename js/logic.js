@@ -463,6 +463,39 @@ export function generateDailyRoutines(state, todayIso) {
   return s;
 }
 
+// Selv-heling: holder dagens IKKE-innsendte rutine-instanser i sync med malen
+// (tittel/poeng/deloppgaver), så mal-endringer også slår gjennom på instanser som
+// alt var laget. Bevarer done-status (per posisjon); rører ikke committede/godkjente
+// eller andre dager. Ren funksjon. `stamp` (valgfri) bumper updatedAt kun ved faktisk
+// endring — utelates ved last (deterministisk selv-heling uten flette-støy).
+export function syncOpenRoutineInstances(state, todayIso, stamp) {
+  const s = clone(state);
+  if (!todayIso || !Array.isArray(s.quests)) return s;
+  const routines = (s.settings && s.settings.routines) || [];
+  for (const q of s.quests) {
+    if (q.source !== 'routine' || q.removed || q.status !== 'open') continue;
+    if (q.routineDate !== todayIso) continue;
+    const r = routines.find((x) => x.id === q.routineId);
+    if (!r) continue;
+    const prev = q.subtasks || [];
+    const nextSubs = (r.subtasks || []).map((st, i) => ({
+      id: `${q.id}-${i}`,
+      text: st.text,
+      done: prev[i] ? !!prev[i].done : false,
+    }));
+    const pts = Number(r.points) || 0;
+    const changed =
+      q.title !== r.title ||
+      q.points !== pts ||
+      prev.map((x) => x.text).join('') !== nextSubs.map((x) => x.text).join('');
+    q.title = r.title;
+    q.points = pts;
+    q.subtasks = nextSubs;
+    if (changed && stamp) q.updatedAt = stamp;
+  }
+  return s;
+}
+
 // Fyller manglende felt og markerer eksisterende dager med innhold som låst,
 // så opptjente poeng ikke forsvinner når «lås styrer alt» tas i bruk. Ren funksjon.
 export function migrate(state, todayIso) {
@@ -519,7 +552,7 @@ export function migrate(state, todayIso) {
       }
     }
   }
-  return generateDailyRoutines(s, todayIso);
+  return syncOpenRoutineInstances(generateDailyRoutines(s, todayIso), todayIso);
 }
 
 // Total streak-bonus over hele historikken (inngår i saldo).
@@ -667,28 +700,9 @@ export function updateRoutine(state, { id, patch }, ctx) {
   if ('subtasks' in patch) r.subtasks = (patch.subtasks || []).map((st) => ({ id: st.id, text: st.text }));
   r.updatedAt = ctx.now;
   s.settings.updatedAt = ctx.now;
-  // Synk dagens ikke-innsendte instans så mal-endringen vises hos sønnen med en gang
-  // (rører ikke oppgaver som alt er sendt til godkjenning / godkjent, eller andre dager).
-  const today = (ctx.now || '').slice(0, 10);
-  if (today && Array.isArray(s.quests)) {
-    for (const q of s.quests) {
-      if (q.source !== 'routine' || q.routineId !== id || q.removed) continue;
-      if (q.routineDate !== today || q.status !== 'open') continue;
-      if ('title' in patch) q.title = r.title;
-      if ('points' in patch) q.points = r.points;
-      if ('subtasks' in patch) {
-        const prev = q.subtasks || [];
-        q.subtasks = r.subtasks.map((st, i) => ({
-          id: `${q.id}-${i}`,
-          text: st.text,
-          done: prev[i] ? !!prev[i].done : false,
-        }));
-      }
-      q.updatedAt = ctx.now;
-    }
-  }
   s.log.push({ id: ctx.id, at: ctx.now, actor: 'parent', type: 'routine', action: 'edit', routine: id });
-  return s;
+  // Synk dagens ikke-innsendte instans med en gang (bumper updatedAt så det flettes til sønnen).
+  return syncOpenRoutineInstances(s, (ctx.now || '').slice(0, 10), ctx.now);
 }
 
 // Forelder sletter en rutine-mal.

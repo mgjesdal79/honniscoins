@@ -174,6 +174,42 @@ export function runTests() {
       eq('instans-tittel synket', s.quests[0].title, 'Ny');
       eq('instans-poeng synket', s.quests[0].points, 8);
     },
+    function syncOpenRoutine_heals_empty_instance_on_load() {
+      const s0 = L.defaultState();
+      s0.settings.routines = [{ id: 'routine-sekk', title: 'Pakk sekken', points: 5, subtasks: [{ id: 'a', text: 'Bøker' }, { id: 'b', text: 'Penal' }], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], enabled: true, updatedAt: 't' }];
+      s0.settings.routinesSeeded = true;
+      // instans laget i en eldre tilstand: 0 poeng, ingen deloppgaver
+      s0.quests = [{ id: 'routine-sekk-2026-09-04', title: 'Pakk sekken', points: 0, status: 'open', source: 'routine', routineId: 'routine-sekk', routineDate: '2026-09-04', subtasks: [], removed: false, updatedAt: '2026-09-04T00:00:00.000Z' }];
+      const s = L.syncOpenRoutineInstances(s0, '2026-09-04');
+      const q = s.quests[0];
+      eq('poeng helet fra mal', q.points, 5);
+      eq('deloppgaver helet fra mal', q.subtasks.map((x) => x.text), ['Bøker', 'Penal']);
+      eq('subtask id-scheme', q.subtasks[0].id, 'routine-sekk-2026-09-04-0');
+      eq('uten stamp: updatedAt urørt', q.updatedAt, '2026-09-04T00:00:00.000Z');
+    },
+    function syncOpenRoutine_skips_committed_and_other_days() {
+      const s0 = L.defaultState();
+      s0.settings.routines = [{ id: 'r1', title: 'A', points: 9, subtasks: [{ id: 'x', text: 'ny' }], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], enabled: true, updatedAt: 't' }];
+      s0.settings.routinesSeeded = true;
+      s0.quests = [
+        { id: 'r1-2026-09-04', title: 'A', points: 0, status: 'done', source: 'routine', routineId: 'r1', routineDate: '2026-09-04', subtasks: [], removed: false, updatedAt: 'x' },
+        { id: 'r1-2026-09-03', title: 'A', points: 0, status: 'open', source: 'routine', routineId: 'r1', routineDate: '2026-09-03', subtasks: [], removed: false, updatedAt: 'x' },
+      ];
+      const s = L.syncOpenRoutineInstances(s0, '2026-09-04');
+      eq('committed rørt ikke', s.quests[0].points, 0);
+      eq('committed uten subtasks', s.quests[0].subtasks.length, 0);
+      eq('annen dag rørt ikke', s.quests[1].points, 0);
+    },
+    function migrate_selfheals_todays_open_instance() {
+      const s0 = L.defaultState();
+      s0.settings.routines = [{ id: 'routine-sekk', title: 'Pakk sekken', points: 5, subtasks: [{ id: 'a', text: 'Bøker' }], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], enabled: true, updatedAt: 't' }];
+      s0.settings.routinesSeeded = true;
+      s0.quests = [{ id: 'routine-sekk-2026-09-04', title: 'Pakk sekken', points: 0, status: 'open', source: 'routine', routineId: 'routine-sekk', routineDate: '2026-09-04', subtasks: [], removed: false, updatedAt: '2026-09-04T00:00:00.000Z' }];
+      const m = L.migrate(s0, '2026-09-04'); // fredag
+      const q = m.quests.find((x) => x.id === 'routine-sekk-2026-09-04');
+      eq('migrate helet poeng', q.points, 5);
+      eq('migrate helet deloppgaver', q.subtasks.map((x) => x.text), ['Bøker']);
+    },
     function deleteRoutine_removes_and_stamps() {
       const s0 = L.defaultState();
       s0.settings.routines = [{ id: 'r1', title: 'A', points: 5, subtasks: [], weekdays: ['mon'], enabled: true, updatedAt: 't0' }];
