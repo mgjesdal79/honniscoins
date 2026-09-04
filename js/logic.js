@@ -478,10 +478,19 @@ export function syncOpenRoutineInstances(state, todayIso, stamp) {
     const r = routines.find((x) => x.id === q.routineId);
     if (!r) continue;
     const prev = q.subtasks || [];
+    // Bevar «done» ved å matche på tekst (ikke indeks), så omrokkering av
+    // deloppgaver i malen ikke flytter avkryssingen til feil oppgave. Like
+    // tekster konsumeres i rekkefølge; fallback = ikke gjort (ny/omdøpt).
+    const prevPool = prev.map((x) => ({ text: x.text, done: !!x.done, used: false }));
+    const takeDone = (text) => {
+      const hit = prevPool.find((p) => !p.used && p.text === text);
+      if (hit) { hit.used = true; return hit.done; }
+      return false;
+    };
     const nextSubs = (r.subtasks || []).map((st, i) => ({
       id: `${q.id}-${i}`,
       text: st.text,
-      done: prev[i] ? !!prev[i].done : false,
+      done: takeDone(st.text),
     }));
     const pts = Number(r.points) || 0;
     const changed =

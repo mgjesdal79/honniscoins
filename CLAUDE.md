@@ -110,8 +110,13 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
 - **UI:** sønn — instans-kort i Sidequests («🔁 Rutine · <dato>»-badge, avkryssbar subtask-liste,
   «X av N gjort», låst «Marker som ferdig» til alt er huket av; helper `routineDateLabel`).
   Forelder — «Daglige rutiner»-liste i **Poeng-fanen** (mal-kort med på/av, tittel, poeng,
-  ukedag-piller Man–Fre `.wdpill`, deloppgave-editor, slett, «＋ Ny rutine»). CSS:
-  `.qrec`/`.subs`/`.subchk`/`.subprog`/`.wdrow`/`.wdpill`.
+  ukedag-piller Man–Fre `.wdpill`, deloppgave-editor med **▲/▼-rekkefølge** (`.submove`),
+  slett, «＋ Ny rutine»). CSS: `.qrec`/`.subs`/`.subchk`/`.subprog`/`.wdrow`/`.wdpill`/`.submove`.
+- **Rekkefølge på deloppgaver:** forelder styrer sekvensen via ▲/▼ i editoren (rekkefølgen
+  = array-rekkefølgen i `settings.routines[].subtasks`). `syncOpenRoutineInstances` synker
+  dagens åpne instans og **bevarer sønnens «done» ved å matche på TEKST (ikke indeks)**, så
+  omrokkering ikke flytter avkryssingen til feil oppgave (like tekster konsumeres i rekkefølge;
+  ukjent/omdøpt tekst = ikke gjort).
 - **Future (ikke bygget):** ferie-modus (skru av rating + rutine på gitte datoer), flerbruker/deling.
 - **Spec/plan:** `docs/superpowers/specs/2026-09-04-honniscoins-flere-rutiner-design.md`,
   `docs/superpowers/plans/2026-09-04-honniscoins-flere-rutiner.md`.
@@ -204,7 +209,7 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
 
 ## Testing
 - Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 304 tester per nå (inkl. sidequests
-  m/arkiv, lekser, rutiner og statistikk/streak).
+  m/arkiv, lekser, rutiner inkl. rekkefølge/tekst-synk og statistikk/streak).
 - **Kjør:** `/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc -m test/run-jsc.js`
   (jsc støtter ES-moduler; ingen node/deno/bun i miljøet).
 - Nettleser: `test/tests.html` (tynn renderer av samme suite).

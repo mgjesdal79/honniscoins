@@ -174,6 +174,24 @@ export function runTests() {
       eq('instans-tittel synket', s.quests[0].title, 'Ny');
       eq('instans-poeng synket', s.quests[0].points, 8);
     },
+    function updateRoutine_reorder_preserves_done_by_text() {
+      const s0 = L.defaultState();
+      s0.settings.routines = [{ id: 'r1', title: 'R', points: 5, subtasks: [{ id: 'a', text: 'En' }, { id: 'b', text: 'To' }, { id: 'c', text: 'Tre' }], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], enabled: true, updatedAt: 't' }];
+      s0.settings.routinesSeeded = true;
+      // sønn har krysset av «To» (indeks 1) på dagens instans
+      s0.quests = [{ id: 'r1-2026-09-04', title: 'R', points: 5, status: 'open', source: 'routine', routineId: 'r1', routineDate: '2026-09-04', subtasks: [
+        { id: 'r1-2026-09-04-0', text: 'En', done: false },
+        { id: 'r1-2026-09-04-1', text: 'To', done: true },
+        { id: 'r1-2026-09-04-2', text: 'Tre', done: false },
+      ], removed: false, updatedAt: 'x' }];
+      // forelder omrokkerer: To flyttes øverst
+      const s = L.updateRoutine(s0, { id: 'r1', patch: { subtasks: [{ id: 'b', text: 'To' }, { id: 'a', text: 'En' }, { id: 'c', text: 'Tre' }] } }, { now: '2026-09-04T10:00:00.000Z', id: 'l1' });
+      const q = s.quests.find((x) => x.id === 'r1-2026-09-04');
+      eq('ny rekkefølge på instans', q.subtasks.map((x) => x.text), ['To', 'En', 'Tre']);
+      eq('done følger «To» til ny posisjon', q.subtasks[0].done, true);
+      eq('«En» fortsatt ikke gjort', q.subtasks[1].done, false);
+      eq('«Tre» fortsatt ikke gjort', q.subtasks[2].done, false);
+    },
     function syncOpenRoutine_heals_empty_instance_on_load() {
       const s0 = L.defaultState();
       s0.settings.routines = [{ id: 'routine-sekk', title: 'Pakk sekken', points: 5, subtasks: [{ id: 'a', text: 'Bøker' }, { id: 'b', text: 'Penal' }], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], enabled: true, updatedAt: 't' }];
