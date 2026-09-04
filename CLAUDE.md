@@ -136,42 +136,59 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   `docs/superpowers/plans/2026-09-04-honniscoins-flere-rutiner.md`.
 
 ## Lekser (skolelekser per dag)
-- **Konsept:** forelder registrerer lekser per dag (fag, tekst, poeng, evt. «hele uka»). Sønn
-  «committer» når ferdig → forelder godkjenner (poeng i potten) eller sender tilbake. Samme
-  livssyklus som Sidequests.
-- **Datamodell:** topp-nivå `homework: []`. Hver: `{id, date, subject, text, points, status,
-  wholeWeek, hidden, source, docendoUid, edited, doneAt, approvedAt, createdAt, createdBy,
-  updatedAt, removed}`. `status ∈ {open, done, approved}`. `source ∈ {manual, docendo}`.
+- **Konsept:** forelder registrerer lekser (fag, tekst, poeng, hvilke dager). Sønn «committer»
+  når ferdig → forelder godkjenner (poeng i potten) eller sender tilbake. Samme livssyklus som
+  Sidequests.
+- **To typer over flere dager (erstatter «hele uka»-toggelen):**
+  - **Én innlevering** (matteark til fredag): **én** post med `days:[datoer]`, delt fullføring —
+    vises på hver dag som påminnelse, gjort/godkjent én gang = gjort-gjort overalt, **poeng én gang**.
+    `date` = frist (siste dag i `days`). Badge «📄 frist <dag>».
+  - **Daglig oppgave** (les litt hver dag): **N** poster (én per dag) med delt `groupId`, egne
+    poeng/status per dag; gjort mandag ≠ gjort tirsdag; godkjennes per dag. Badge «🔁 daglig».
+- **Datamodell:** topp-nivå `homework: []`. Hver: `{id, date, days?, groupId, subject, text, points,
+  status, hidden, source, docendoUid, edited, doneAt, approvedAt, createdAt, createdBy, updatedAt,
+  removed}`. `days` settes KUN på én-innlevering over flere dager; `groupId` KUN på daglig-serier
+  (`null` ellers). Helper `homeworkDays(h)` = `days?.length ? days : [date]` — all dag-filtrering
+  bruker denne. `status ∈ {open, done, approved}`. `source ∈ {manual, docendo}`.
+  (`wholeWeek`-feltet er fjernet; `migrate` stripper det fra gamle poster.)
 - **Poeng teller KUN ved `status==='approved' && !hidden`** (`homeworkPointsTotal`, inngår i
   `computeBalance`). Ventende (`done`) vises separat via `homeworkPointsPending`, teller ikke i
-  saldo. `wholeWeek` er kun et visnings-merke («🗓 hele uka») — leksa ligger som en ordinær lekse
-  på sin dag, IKKE en pinnet seksjon.
+  saldo. Én innlevering = én post → teller én gang; daglig = N poster → per godkjent dag.
 - **Innstillinger:** `settings.homeworkPoints` (default 5, brukes som standard-poeng ved add),
   `settings.docendoIcalId` (default `519a0908-ed7d-47ed-8667-dea07343b693`, for Fase 2).
-- **Livssyklus (logic.js, rene fn):** `addHomework`/`updateHomework`/`deleteHomework` (forelder;
-  `updateHomework` setter `edited:true`), `commitHomework`/`uncommitHomework` (sønn: open↔done),
-  `approveHomework`/`rejectHomework` (forelder: done→approved / done→open), `hideHomework`
-  (skjul/vis uten sletting). Avledet: `activeHomework` (!removed), `homeworkForWeek(state, iso)`
-  (!hidden, sortert dato→fag). Sletting = `removed:true`-tombstone. Alle logger `type:'homework'`.
+- **Livssyklus (logic.js, rene fn):** `addHomework(state,{date,days,mode,...})` — `mode:'once'`
+  lager én post (m/ `days` når >1 dag), `mode:'daily'` lager N poster m/ delt `groupId` og
+  deterministiske id-er `${ctx.id}-${dato}`. `updateHomework` (forelder; setter `edited:true`;
+  `days`-patch erstatter gammel `wholeWeek`-patch), `deleteHomework` (én post),
+  `deleteHomeworkGroup({groupId})` (hele daglig-serien), `commitHomework`/`uncommitHomework`
+  (sønn: open↔done), `approveHomework`/`rejectHomework` (forelder: done→approved / done→open),
+  `hideHomework` (skjul/vis uten sletting). Avledet: `activeHomework` (!removed), `homeworkDays`,
+  `homeworkForWeek(state, iso)` (!hidden, tar med multi-dag hvis én dag treffer uka, sortert
+  dato→fag). Sletting = `removed:true`-tombstone. Alle logger `type:'homework'`.
 - **Fletting:** `homework` flettes **LWW per id** på `updatedAt` (`mergeHomeworkList`) — som
   quests, ikke union — så statusendringer og sletting vinner nyest.
-- **UI:** sønn i **Uken**-siden (`homeworkSectionHtml`, dag/uke-toggle, «🗓 hele uka»-merke);
-  forelder i **Dag**-fanen (`parentHomeworkHtml`: godkjenningskø + «Legg til»-skjema øverst +
-  liste med rediger/skjul/slett). Poeng-siden viser `homeworkPointsPending`
+- **UI:** sønn i **Uken**-siden (`homeworkSectionHtml`, dag/uke-toggle, «📄 frist»/«🔁 daglig»-
+  merker; dag-visning filtrerer via `homeworkDays`); forelder i **Dag**-fanen
+  (`parentHomeworkHtml`: godkjenningskø + «Legg til»-skjema med **type-velger** `#hwNewType`
+  (📄 én innlevering / 🔁 daglig) + **ukedag-avhuking** `.hwNewDay` for gjeldende uke + dynamisk
+  poeng-etikett `#hwPtsLabel`; liste med rediger/skjul/slett, «🗑 Slett serie» på daglig-poster,
+  flytt-piler skjult for multi-dag). Poeng-siden viser `homeworkPointsPending`
   («📚 X 🪙 fra lekser venter på godkjenning»).
 - **Sønnens «gjør ferdig»-knapp:** tekst «Marker som gjort» (imperativ, ikke «✓ Gjort» som
   leste som status) + grønn `.btn.good` (klassen manglet før → falt tilbake til blå nav-stil).
 - **Inline redigering (forelder):** «✏️ Rediger» rendrer rediger-skjemaet DER leksa står i lista
   (`editFormFor(h)` når `h.id === App.editHwId`), ikke øverst i seksjonen — unngår scroll til
   toppen. Skjemaet har `id="hwEditForm"` + accent-ramme og `scrollIntoView` ved åpning. Samme
-  input-id-er (`hwSubject`/`hwText`/`hwPoints`/`hwWeek`/`hwSave`/`hwCancel`) som før, så
-  `bindParentHomework` er uendret. (Sidequests i Quests-fanen har fortsatt skjema-på-toppen.)
+  input-id-er (`hwSubject`/`hwText`/`hwPoints`/`hwSave`/`hwCancel`) + ukedag-avhuking `.hwEditDay`
+  (kun på én-innlevering, ikke på daglig-serie-instans). (Sidequests i Quests-fanen har fortsatt
+  skjema-på-toppen.)
 - **Docendo-import = Fase 2 (utsatt):** auto-import fra Docendo ICS-feed (proxy-edge-function +
   `parseIcs`/`homeworkFromIcs`/`mergeHomeworkImport` + «Hent lekser»-knapp) er planlagt, ikke
   bygget. Lekser legges foreløpig inn manuelt (evt. seedet i rom via engangs-skript).
-- **Spec:** `docs/superpowers/specs/2026-08-23-honniscoins-lekser-design.md`.
-  Plan: `docs/superpowers/plans/2026-08-23-honniscoins-lekser.md` (Fase 1 = Task 1–11 manuelt,
-  Fase 2 = Task 12–15 Docendo). Mockup: `mockups/lekser-v2.html`.
+- **Spec:** `docs/superpowers/specs/2026-08-23-honniscoins-lekser-design.md` (opprinnelig);
+  `docs/superpowers/specs/2026-09-04-honniscoins-lekser-flere-dager-typer-design.md` (flere dager
+  + to typer, erstatter «hele uka»-toggelen). Plan: `docs/superpowers/plans/2026-08-23-honniscoins-lekser.md`
+  (Fase 1 = Task 1–11 manuelt, Fase 2 = Task 12–15 Docendo). Mockup: `mockups/lekser-v2.html`.
 
 ## Statistikk (innsats-analyse)
 - **Innsats-poeng per medalje:** 🥇 gull = 3, 🥈 sølv = 2, 🥉 bronse = 1 (`EFFORT_SCORE`).

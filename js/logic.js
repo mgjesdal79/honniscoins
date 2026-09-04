@@ -519,6 +519,8 @@ export function migrate(state, todayIso) {
   if (!s.weekLocks) s.weekLocks = {};
   if (!Array.isArray(s.quests)) s.quests = [];
   if (!Array.isArray(s.homework)) s.homework = [];
+  // «🗓 hele uka»-flagget er fjernet til fordel for `days[]`/`groupId`; rydd bort gammelt felt.
+  for (const h of s.homework) { if ('wholeWeek' in h) delete h.wholeWeek; }
   if (s.settings.homeworkPoints == null) s.settings.homeworkPoints = 5;
   if (!s.settings.docendoIcalId) s.settings.docendoIcalId = '519a0908-ed7d-47ed-8667-dea07343b693';
   if (!Array.isArray(s.settings.routines)) s.settings.routines = [];
@@ -993,11 +995,19 @@ export function homeworkPointsPending(state) {
     .reduce((a, h) => a + (Number(h.points) || 0), 0);
 }
 
+// Dagene en lekse vises på. «Én innlevering» har `days: [...]` (flere dager, delt fullføring);
+// alt annet (vanlig én-dags + daglig-serie-post) faller tilbake til [date].
+export function homeworkDays(h) {
+  if (h && Array.isArray(h.days) && h.days.length) return h.days;
+  return h && h.date ? [h.date] : [];
+}
+
 // Ikke-skjulte lekser i uka som `iso` ligger i, sortert på dato deretter fag.
+// En «én innlevering» over flere dager tas med hvis MINST én av dagene ligger i uka.
 export function homeworkForWeek(state, iso) {
   const ws = weekStartIso(iso);
   return activeHomework(state)
-    .filter((h) => !h.hidden && h.date && weekStartIso(h.date) === ws)
+    .filter((h) => !h.hidden && homeworkDays(h).some((d) => weekStartIso(d) === ws))
     .sort((a, b) => (a.date === b.date ? String(a.subject || '').localeCompare(String(b.subject || '')) : a.date < b.date ? -1 : 1));
 }
 
@@ -1006,18 +1016,24 @@ function findHomeworkIdx(s, id) {
 }
 
 // Opprett lekse (forelder eller import). ctx.id blir lekse-id.
-export function addHomework(state, { date, subject = '', text = '', points, wholeWeek = false, source = 'manual', docendoUid = null, actor = 'parent' }, ctx) {
+// `days`: valgfri liste med datoer leksa vises på. `mode`:
+//   'once'  = én post; over flere dager delt fullføring (matteark til fredag), poeng én gang.
+//   'daily' = én post PER dag (les litt hver dag), delt `groupId`, egne poeng/status per dag.
+// Uten `days`/`mode` oppfører den seg som før (enkel én-dags).
+export function addHomework(state, { date, days = null, mode = 'once', subject = '', text = '', points, source = 'manual', docendoUid = null, actor = 'parent' }, ctx) {
   const s = clone(state);
   if (!Array.isArray(s.homework)) s.homework = [];
   const pts = points == null ? (s.settings.homeworkPoints ?? 5) : Number(points) || 0;
-  s.homework.push({
-    id: ctx.id,
-    date,
+  const dayList = Array.isArray(days) && days.length
+    ? [...new Set(days)].sort()
+    : (date ? [date] : []);
+  const base = (id, d, extra) => ({
+    id,
+    date: d,
     subject,
     text,
     points: pts,
     status: 'open',
-    wholeWeek: !!wholeWeek,
     hidden: false,
     source,
     docendoUid,
@@ -1028,8 +1044,21 @@ export function addHomework(state, { date, subject = '', text = '', points, whol
     createdBy: actor,
     updatedAt: ctx.now,
     removed: false,
+    groupId: null,
+    ...extra,
   });
-  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'homework', action: 'create', hw: ctx.id, subject, date });
+
+  if (mode === 'daily' && dayList.length) {
+    const groupId = ctx.id;
+    for (const d of dayList) s.homework.push(base(`${ctx.id}-${d}`, d, { groupId }));
+    s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'homework', action: 'create-series', hw: groupId, subject, date: dayList[dayList.length - 1] });
+    return s;
+  }
+
+  // Én innlevering (eller enkel én-dags). `date` = frist (siste dag).
+  const due = dayList.length ? dayList[dayList.length - 1] : date;
+  s.homework.push(base(ctx.id, due, dayList.length > 1 ? { days: dayList } : {}));
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'homework', action: 'create', hw: ctx.id, subject, date: due });
   return s;
 }
 
@@ -1043,7 +1072,11 @@ export function updateHomework(state, { id, patch, actor = 'parent' }, ctx) {
   if ('text' in patch) h.text = patch.text;
   if ('points' in patch) h.points = Number(patch.points) || 0;
   if ('date' in patch) h.date = patch.date;
-  if ('wholeWeek' in patch) h.wholeWeek = !!patch.wholeWeek;
+  if ('days' in patch) {
+    const dl = Array.isArray(patch.days) && patch.days.length ? [...new Set(patch.days)].sort() : null;
+    if (dl && dl.length > 1) { h.days = dl; h.date = dl[dl.length - 1]; }
+    else { delete h.days; if (dl && dl.length === 1) h.date = dl[0]; }
+  }
   h.edited = true;
   h.updatedAt = ctx.now;
   s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'homework', action: 'edit', hw: id, subject: h.subject });
@@ -1058,6 +1091,21 @@ export function deleteHomework(state, { id, actor = 'parent' }, ctx) {
   s.homework[i].removed = true;
   s.homework[i].updatedAt = ctx.now;
   s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'homework', action: 'delete', hw: id, subject: s.homework[i].subject });
+  return s;
+}
+
+// Slett en hel daglig-serie (alle poster med samme groupId).
+export function deleteHomeworkGroup(state, { groupId, actor = 'parent' }, ctx) {
+  const s = clone(state);
+  let n = 0;
+  for (const h of (s.homework || [])) {
+    if (h.groupId && h.groupId === groupId && !h.removed) {
+      h.removed = true;
+      h.updatedAt = ctx.now;
+      n++;
+    }
+  }
+  if (n) s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'homework', action: 'delete-series', hw: groupId });
   return s;
 }
 

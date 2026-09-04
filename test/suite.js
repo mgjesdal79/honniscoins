@@ -854,12 +854,12 @@ export function runTests() {
       eq('add status', h.status, 'open');
       eq('add points default', h.points, 5);
       eq('add source', h.source, 'manual');
-      eq('add wholeWeek', h.wholeWeek, false);
+      eq('add enkel én-dags: ingen days', h.days, undefined);
+      eq('add groupId null', h.groupId, null);
       eq('add log', s.log[s.log.length - 1].type, 'homework');
-      s = L.addHomework(L.defaultState(), { date: '2026-08-24', subject: 'KRLE', text: 'x', points: 10, wholeWeek: true }, CTX('t', 'h2'));
+      s = L.addHomework(L.defaultState(), { date: '2026-08-24', subject: 'KRLE', text: 'x', points: 10 }, CTX('t', 'h2'));
       eq('add points eksplisitt', s.homework[0].points, 10);
-      eq('add wholeWeek true', s.homework[0].wholeWeek, true);
-      s = L.updateHomework(s, { id: 'h2', patch: { text: 'y', points: 7, wholeWeek: false } }, CTX('t2', 'l'));
+      s = L.updateHomework(s, { id: 'h2', patch: { text: 'y', points: 7 } }, CTX('t2', 'l'));
       eq('update text', s.homework[0].text, 'y');
       eq('update points', s.homework[0].points, 7);
       eq('update edited', s.homework[0].edited, true);
@@ -899,6 +899,60 @@ export function runTests() {
       const c = L.defaultState();
       c.homework = [{ id: 'h1', updatedAt: '2026-08-24T11:00:00Z', removed: true }];
       eq('tombstone bevart', L.mergeState(a, c).homework.find((h) => h.id === 'h1').removed, true);
+    },
+
+    function homework_days_helper_and_multiday() {
+      const CTX = (n, id) => ({ now: n, id });
+      // homeworkDays: fallback til [date], ellers days.
+      eq('homeworkDays fallback', L.homeworkDays({ date: '2026-08-24' }).join(','), '2026-08-24');
+      eq('homeworkDays tom days', L.homeworkDays({ date: '2026-08-24', days: [] }).join(','), '2026-08-24');
+      eq('homeworkDays days', L.homeworkDays({ date: '2026-08-28', days: ['2026-08-24', '2026-08-28'] }).join(','), '2026-08-24,2026-08-28');
+
+      // Én innlevering over flere dager: ÉN post, date = siste dag, vises alle dager.
+      let s = L.addHomework(L.defaultState(), {
+        subject: 'Matte', text: 'ark', points: 5, mode: 'once',
+        days: ['2026-08-26', '2026-08-24', '2026-08-28'],
+      }, CTX('t', 'once1'));
+      eq('once: én post', s.homework.length, 1);
+      eq('once: date = frist', s.homework[0].date, '2026-08-28');
+      eq('once: days sortert', s.homework[0].days.join(','), '2026-08-24,2026-08-26,2026-08-28');
+      eq('once: groupId null', s.homework[0].groupId, null);
+      // vises på hver dag i uka
+      const wk = L.homeworkForWeek(s, '2026-08-24');
+      eq('once: i uka én gang', wk.length, 1);
+      ok('once: dekker mandag', L.homeworkDays(wk[0]).includes('2026-08-24'));
+      // commit én dag → done på samme post; approve → poeng ÉN gang
+      let a = L.approveHomework(L.commitHomework(s, { id: 'once1' }, CTX('t2', 'l1')), { id: 'once1' }, CTX('t3', 'l2'));
+      eq('once: gjort-gjort status', a.homework[0].status, 'approved');
+      eq('once: poeng én gang', L.homeworkPointsTotal(a), 5);
+
+      // Daglig serie: N poster, delt groupId, egne poeng per dag.
+      let d = L.addHomework(L.defaultState(), {
+        subject: 'Lesing', text: 'les', points: 2, mode: 'daily',
+        days: ['2026-08-24', '2026-08-25', '2026-08-26'],
+      }, CTX('t', 'grp'));
+      eq('daily: N poster', d.homework.length, 3);
+      ok('daily: delt groupId', d.homework.every((h) => h.groupId === 'grp'));
+      ok('daily: unike id-er', new Set(d.homework.map((h) => h.id)).size === 3);
+      // godkjenn kun mandagens post → 2 poeng, tirsdag urørt
+      const monId = d.homework.find((h) => h.date === '2026-08-24').id;
+      let d2 = L.approveHomework(L.commitHomework(d, { id: monId }, CTX('t2', 'l3')), { id: monId }, CTX('t3', 'l4'));
+      eq('daily: poeng per godkjent dag', L.homeworkPointsTotal(d2), 2);
+      eq('daily: tirsdag fortsatt open', d2.homework.find((h) => h.date === '2026-08-25').status, 'open');
+      // slett hele serien
+      let d3 = L.deleteHomeworkGroup(d2, { groupId: 'grp' }, CTX('t4', 'l5'));
+      eq('daily: slett serie', L.activeHomework(d3).length, 0);
+
+      // updateHomework days-patch: enkelt→multi og tilbake
+      let u = L.updateHomework(s, { id: 'once1', patch: { days: ['2026-08-24'] } }, CTX('t5', 'l6'));
+      eq('update days → én dag fjerner days', u.homework[0].days, undefined);
+      eq('update days → date settes', u.homework[0].date, '2026-08-24');
+    },
+    function homework_migrate_drops_wholeweek() {
+      const st = { settings: {}, days: {}, log: [], homework: [{ id: 'x', date: '2026-08-24', wholeWeek: true, status: 'open' }] };
+      const m = L.migrate(st, '2026-08-24');
+      ok('migrate fjerner wholeWeek', !('wholeWeek' in m.homework[0]));
+      eq('migrate beholder dato', m.homework[0].date, '2026-08-24');
     },
 
     function logic_module_loads() {

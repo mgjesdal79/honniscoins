@@ -9,8 +9,8 @@ import {
   activeQuests, isQuestOverdue, questPointsPending, questArchiveSplit, allSubtasksDone,
   addQuest, updateQuest, deleteQuest, commitQuest, uncommitQuest, approveQuest, rejectQuest, toggleQuestSubtask,
   addRoutine, updateRoutine, deleteRoutine,
-  homeworkForWeek, homeworkPointsPending, activeHomework,
-  addHomework, updateHomework, deleteHomework, hideHomework,
+  homeworkForWeek, homeworkPointsPending, activeHomework, homeworkDays,
+  addHomework, updateHomework, deleteHomework, deleteHomeworkGroup, hideHomework,
   commitHomework, uncommitHomework, approveHomework, rejectHomework,
   effortRecords, periodBounds, filterRecordsByPeriod,
   statBySubject, statByPosition, statHeatmap, statDailyTotal, statWeeklyTotal, statMedalDistribution,
@@ -250,7 +250,12 @@ function homeworkSectionHtml(s, date, view) {
     </div>`;
 
   const card = (h, showDay) => {
-    const weekTag = h.wholeWeek ? `<span class="weektag">🗓 hele uka</span>` : '';
+    const days = homeworkDays(h);
+    const weekTag = h.groupId
+      ? `<span class="hwdaytag">🔁 daglig</span>`
+      : days.length > 1
+      ? `<span class="weektag">📄 frist ${WD_SHORT[weekdayKey(h.date)]}</span>`
+      : '';
     const dayTag = showDay ? `<span class="hwdaytag">${WD_SHORT[weekdayKey(h.date)]} ${fmtDayLabel(h.date).dm}</span>` : '';
     let action = '';
     if (h.status === 'open') action = `<button class="btn good" data-hwdone="${h.id}">Marker som gjort</button>`;
@@ -266,7 +271,7 @@ function homeworkSectionHtml(s, date, view) {
 
   let body = '';
   if (view === 'day') {
-    const forDay = week.filter((h) => h.date === date);
+    const forDay = week.filter((h) => homeworkDays(h).includes(date));
     body = forDay.length
       ? forDay.map((h) => card(h, false)).join('')
       : `<div class="muted" style="margin:2px">Ingen lekser denne dagen 🎉</div>`;
@@ -798,8 +803,12 @@ function renderUkeTab(host) {
 
 // Forelder: HTML for lekse-administrasjon på valgt dag.
 function parentHomeworkHtml(s, date) {
-  const all = activeHomework(s).filter((h) => h.date === date);
+  const all = activeHomework(s).filter((h) => homeworkDays(h).includes(date));
   const pending = activeHomework(s).filter((h) => h.status === 'done' && !h.hidden);
+  const weekDates = weekdaysOf(date);
+  const dayCheckboxes = (cls, selected) => weekDates.map((d) =>
+    `<label style="display:inline-flex;align-items:center;gap:3px;font-size:.82rem;margin:0 8px 4px 0">
+       <input type="checkbox" class="${cls}" data-day="${d}" ${selected.includes(d) ? 'checked' : ''}> ${WD_SHORT[weekdayKey(d)]} ${fmtDayLabel(d).dm}</label>`).join('');
 
   const pendingHtml = pending.length
     ? `<div class="hwsec">⏳ Lekser til godkjenning <span class="badge">${pending.length}</span></div>` +
@@ -813,12 +822,14 @@ function parentHomeworkHtml(s, date) {
     : '';
 
   // Rediger-skjema rendres INLINE der leksa står (ingen scroll til toppen).
+  // Dager kan bare endres på «én innlevering»-poster (ikke på en daglig-serie-instans).
   const editFormFor = (editing) => `<div class="hwcard" id="hwEditForm" style="border-color:var(--accent)">
          <div class="hwsubjhead" style="margin:0 0 8px">✏️ Rediger lekse ${editing.edited ? '<span class="hwedited">endret – beskyttet</span>' : ''}</div>
          <input class="inp" id="hwSubject" value="${escapeHtml(editing.subject)}" placeholder="Fag">
          <textarea class="inp" id="hwText" placeholder="Beskrivelse">${escapeHtml(editing.text)}</textarea>
          <label class="muted" style="display:block;margin:2px 0 8px">Poeng <input class="inp" id="hwPoints" type="number" value="${editing.points}" style="width:80px;display:inline-block"></label>
-         <label class="muted" style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="checkbox" id="hwWeek" ${editing.wholeWeek ? 'checked' : ''}> 🗓 Gjelder hele uka</label>
+         ${editing.groupId ? '' : `<div class="muted" style="font-size:.8rem;margin:2px 0 2px">Vis på dager:</div>
+         <div style="margin:0 0 10px">${dayCheckboxes('hwEditDay', homeworkDays(editing))}</div>`}
          <div style="display:flex;gap:8px">
            <button class="btn" id="hwSave" style="flex:1">💾 Lagre</button>
            <button class="btn ghost" id="hwCancel" style="flex:1">Avbryt</button>
@@ -829,22 +840,37 @@ function parentHomeworkHtml(s, date) {
        <div class="hwcard">
          <input class="inp" id="hwNewSubject" placeholder="Fag (f.eks. Tysk)">
          <textarea class="inp" id="hwNewText" placeholder="Hva skal gjøres?"></textarea>
-         <label class="muted" style="display:block;margin:2px 0 8px">Poeng <input class="inp" id="hwNewPoints" type="number" value="${s.settings.homeworkPoints ?? 5}" style="width:80px;display:inline-block"></label>
-         <label class="muted" style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="checkbox" id="hwNewWeek"> 🗓 Gjelder hele uka</label>
-         <button class="btn" id="hwAdd">➕ Legg til på ${fmtDayLabel(date).dm}</button>
+         <div class="hwseg" id="hwNewType" style="margin:2px 0 6px">
+           <button type="button" class="s on" data-hwtype="once">📄 Én innlevering</button>
+           <button type="button" class="s" data-hwtype="daily">🔁 Daglig oppgave</button>
+         </div>
+         <div class="muted" style="font-size:.78rem;margin:0 0 8px" id="hwTypeHint">Gjort én dag = ferdig alle dager. Poeng gis én gang.</div>
+         <div class="muted" style="font-size:.8rem;margin:2px 0 2px">Vis på dager:</div>
+         <div style="margin:0 0 8px">${dayCheckboxes('hwNewDay', [date])}</div>
+         <label class="muted" style="display:block;margin:2px 0 10px"><span id="hwPtsLabel">Poeng</span> <input class="inp" id="hwNewPoints" type="number" value="${s.settings.homeworkPoints ?? 5}" style="width:80px;display:inline-block"></label>
+         <button class="btn" id="hwAdd">➕ Legg til</button>
        </div>`;
+
+  const badge = (h) => h.groupId
+    ? '<span class="hwdaytag">🔁 daglig</span>'
+    : homeworkDays(h).length > 1
+    ? `<span class="weektag">📄 frist ${WD_SHORT[weekdayKey(h.date)]}</span>`
+    : '';
 
   const listHtml = all.length
     ? `<div class="hwsec">📚 Lekser · ${fmtDayLabel(date).dm}</div>` +
       all.map((h) => h.id === App.editHwId
         ? editFormFor(h)
         : `<div class="hwcard${h.hidden ? ' approved' : ''}">
-        <div class="hwtop"><span class="hwsubj">${escapeHtml(h.subject)}${h.wholeWeek ? '<span class="weektag">🗓 hele uka</span>' : ''}${h.hidden ? '<span class="hwdaytag">skjult</span>' : ''}</span><span class="hwpts">+${h.points} 🪙</span></div>
+        <div class="hwtop"><span class="hwsubj">${escapeHtml(h.subject)}${badge(h)}${h.hidden ? '<span class="hwdaytag">skjult</span>' : ''}</span><span class="hwpts">+${h.points} 🪙</span></div>
         ${h.text ? `<div class="hwtext">${escapeHtml(h.text)}</div>` : ''}
         <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${homeworkDays(h).length > 1 ? '' : `<button class="btn ghost" data-hwmove="${h.id}" data-dir="-1" title="Flytt til forrige dag">◀︎ Dag</button>
+          <button class="btn ghost" data-hwmove="${h.id}" data-dir="1" title="Flytt til neste dag">Dag ▶︎</button>`}
           <button class="btn ghost" data-hwedit="${h.id}">✏️ Rediger</button>
           <button class="btn ghost" data-hwhide="${h.id}" data-hidden="${h.hidden ? '1' : '0'}">${h.hidden ? '👁 Vis' : '🙈 Skjul'}</button>
           <button class="btn ghost" data-hwdel="${h.id}">🗑 Slett</button>
+          ${h.groupId ? `<button class="btn ghost" data-hwdelseries="${h.groupId}">🗑 Slett serie</button>` : ''}
         </div></div>`).join('')
     : `<div class="muted" style="margin:2px">Ingen lekser på denne dagen ennå.</div>`;
 
@@ -853,14 +879,28 @@ function parentHomeworkHtml(s, date) {
 
 // Bind forelder-lekse-hendelser (kalles etter innsetting i DOM).
 function bindParentHomework(host, date) {
+  // Type-velger (én innlevering / daglig) styrer poeng-etikett + hint.
+  let hwType = 'once';
+  const typeBox = host.querySelector('#hwNewType');
+  if (typeBox) typeBox.querySelectorAll('[data-hwtype]').forEach((b) => (b.onclick = () => {
+    hwType = b.dataset.hwtype;
+    typeBox.querySelectorAll('[data-hwtype]').forEach((x) => x.classList.toggle('on', x === b));
+    const lbl = host.querySelector('#hwPtsLabel');
+    const hint = host.querySelector('#hwTypeHint');
+    if (lbl) lbl.textContent = hwType === 'daily' ? 'Poeng per dag' : 'Poeng';
+    if (hint) hint.textContent = hwType === 'daily'
+      ? 'Egen oppgave hver dag – egne poeng, godkjennes per dag.'
+      : 'Gjort én dag = ferdig alle dager. Poeng gis én gang.';
+  }));
   const add = host.querySelector('#hwAdd');
   if (add) add.onclick = () => {
     const subject = host.querySelector('#hwNewSubject').value.trim();
     const text = host.querySelector('#hwNewText').value.trim();
     const points = host.querySelector('#hwNewPoints').value;
-    const wholeWeek = host.querySelector('#hwNewWeek').checked;
+    const days = [...host.querySelectorAll('.hwNewDay:checked')].map((c) => c.dataset.day);
     if (!subject && !text) return;
-    App.state = addHomework(App.state, { date, subject, text, points, wholeWeek }, { now: nowIso(), id: newId() });
+    if (!days.length) days.push(date);
+    App.state = addHomework(App.state, { date, days, mode: hwType, subject, text, points }, { now: nowIso(), id: newId() });
     save(); routeToView();
   };
   const save1 = host.querySelector('#hwSave');
@@ -869,8 +909,9 @@ function bindParentHomework(host, date) {
       subject: host.querySelector('#hwSubject').value.trim(),
       text: host.querySelector('#hwText').value.trim(),
       points: host.querySelector('#hwPoints').value,
-      wholeWeek: host.querySelector('#hwWeek').checked,
     };
+    const editDays = [...host.querySelectorAll('.hwEditDay:checked')].map((c) => c.dataset.day);
+    if (host.querySelector('.hwEditDay')) patch.days = editDays.length ? editDays : [date];
     App.state = updateHomework(App.state, { id: App.editHwId, patch }, { now: nowIso(), id: newId() });
     App.editHwId = null;
     save(); routeToView();
@@ -885,6 +926,16 @@ function bindParentHomework(host, date) {
   }));
   host.querySelectorAll('[data-hwdel]').forEach((b) => (b.onclick = () => {
     App.state = deleteHomework(App.state, { id: b.dataset.hwdel }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  host.querySelectorAll('[data-hwdelseries]').forEach((b) => (b.onclick = () => {
+    App.state = deleteHomeworkGroup(App.state, { groupId: b.dataset.hwdelseries }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  host.querySelectorAll('[data-hwmove]').forEach((b) => (b.onclick = () => {
+    const newDate = stepWeekday(date, Number(b.dataset.dir));
+    App.state = updateHomework(App.state, { id: b.dataset.hwmove, patch: { date: newDate } }, { now: nowIso(), id: newId() });
+    App.currentDate = newDate; // følg leksa til den nye dagen
     save(); routeToView();
   }));
   host.querySelectorAll('[data-hwhide]').forEach((b) => (b.onclick = () => {
