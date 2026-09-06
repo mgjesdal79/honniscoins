@@ -17,9 +17,9 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
 - `js/app.js` – DOM/rendering. `App`-objekt holder `role`/`currentDate`/`sonPage`/`parentTab`.
 - `index.html` – all CSS + `APP_VERSION` + `EDGE_FUNCTION_URL`. Bump `APP_VERSION` ved hver deploy.
 - Fletting: LWW per felt (`updatedAt`/`sickAt`/`lockedAt`/`weekLocks[].at`), union-by-id for
-  append-only lister (`log`, `payouts`, framtidige `shopItems`/`purchases`). **`quests`** flettes
-  derimot **LWW per id** på `updatedAt` (`mergeQuestList`) — ikke union — så statusendringer og
-  sletting vinner nyest.
+  append-only lister (`log`, `payouts`). **`quests`**, **`homework`** og **`shopItems`/
+  `purchases`** flettes derimot **LWW per id** på `updatedAt` (`mergeQuestList`/
+  `mergeHomeworkList`/`mergeById`) — ikke union — så statusendringer og sletting vinner nyest.
 - **Logg = ren visning** (ingen beregning leser `state.log`; kun fletting + `renderLoggTab`
   som viser øverste 200). Lagres i sin helhet i rom-blobben → for å hindre uendelig vekst
   **beskjæres den til de nyeste `LOG_KEEP` (200) hendelsene** via ren fn `pruneLog`, kalt sist
@@ -49,8 +49,8 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
 - **Migrering** (`migrate`, kjøres i `loadState`): fyller `settings.bonus`/`weekLocks` og låser
   eksisterende dager med innhold, så gamle opptjente poeng ikke forsvinner.
 - **Sønn-sider (pager):** Uken / Poeng (💵) / Sidequests (⭐) / Shop (🛒) — bunn-nav + sveip +
-  prikker (`SON_PAGES` i app.js). Sidequests-ikonet har badge = antall åpne quests. Shop er
-  fortsatt placeholder.
+  prikker (`SON_PAGES` i app.js). Sidequests-ikonet har badge = antall åpne quests. Shop lar
+  sønn bruke opptjente coins på ekte premier (se «## Shop»).
 - **Uke-stripe-badge (`renderUkenPage`):** låst dag = «🔒 +X» (grønn), ulåst dag med opptjente
   poeng = «~X» (dempet, klasse `.b.prev`), tom/ingen poeng = «·». Ikke bare «·» overalt.
 - **Forelder-faner (ikon + kort tekst, `renderParentHome`):** Uke 📅 / Dag 📝 / Plan 🗓 /
@@ -254,9 +254,58 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   `docs/superpowers/specs/2026-09-02-honniscoins-samlet-trend-design.md`
   (sammenslått trend-kort: dag/uke-toggle + felles fagvelger + én periode m/ custom range).
 
+## Shop (kjøp premier med Honniscoins)
+- **Konsept:** erstatter placeholderen på sønnens 🛒-side. V-bucks-inspirerte fargekort
+  (Variant A). **Delt ønskeliste:** både forelder OG sønn legger til/fjerner varer. Kjøp går
+  via request → commit (samme mønster som quests/lekser); forelder styrer økonomien.
+- **Flyt:** forelder/sønn legger til vare (bilde, tittel, link, farge, pris) → sønnens varer
+  uten pris = `wish` (ingen kjøp-knapp) til forelder setter pris → `available` → sønn «Kjøp»
+  (kun hvis råd) → `requested` (coins **reservert visuelt** + forelder varsles badge+epost) →
+  forelder bestiller IRL + «Bestilt – trekk coins» → **commit**: post i `purchases`-boka,
+  coins trukket permanent, varen forlater shopen. Sønn ser «Kjøpt» + «brukt totalt».
+- **Datamodell (to topp-nivå-lister):**
+  - `shopItems: []` — `{id, title, link, image (base64 PNG), color, price, priceSet, status,
+    createdBy, createdAt, requestedAt, updatedAt, removed}`. `status ∈ {wish, available,
+    requested}`.
+  - `purchases: []` — permanent kvitteringsbok (skrives ved commit, aldri slettet):
+    `{id, itemId, title, image, color, price (snapshot), at, by, hidden, updatedAt}`. `hidden`
+    = ren visning (sønn kan rydde bort kort; beløp/historikk står fast).
+- **Poeng/saldo (rene fn):** `shopSpentTotal` = Σ `purchases[].price` (uansett hidden) trekkes
+  i `computeBalance`. `reservedTotal` = Σ pris på `requested`-varer (teller IKKE i ekte saldo).
+  `availableBalance = computeBalance − reservedTotal`. Kjøp-knapp gatet på `availableBalance ≥
+  price`; `requestShopItem` håndhever samme regel (returnerer uendret state hvis ikke råd).
+- **Livssyklus (logic.js, rene fn, bumper updatedAt, logger `type:'shop'`):** `addShopItem`
+  (`available` hvis `priceSet && price>0`, ellers `wish`), `setShopPrice`, `updateShopItem`
+  (price-patch: `wish↔available`-veksling når pris settes/nullstilles), `deleteShopItem`
+  (tombstone), `requestShopItem` (gatet), `cancelShopRequest`, `commitShopPurchase` (atomisk:
+  push purchase-snapshot + item `removed:true`+`status:'committed'`), `hidePurchase`. Avledet:
+  `activeShopItems`, `shopItemsByStatus`, `activePurchases` (sortert `at` desc), `visiblePurchases`.
+- **Fletting:** `shopItems`/`purchases` flettes **LWW per id** (`mergeById`) — statusendring/
+  sletting/hidden vinner nyest.
+- **Bilder:** `resizeImageToSquarePng(file, size=400)` (app.js) → transparent kvadratisk 400×400
+  PNG (contain/sentrert), lagres base64 i `shopItems[].image`. **Blob-vekst boundet:**
+  `pruneShopImages(state, keep=SHOP_IMG_KEEP=20)` beholder base64 kun på de 20 nyeste kjøpene,
+  nuller eldre; kalt SIST i `migrate` (`return pruneShopImages(out);` etter `pruneLog`).
+- **Farger:** `SHOP_COLORS` i app.js = **12 gradienter** (green/blue/purple/orange +
+  red/pink/rose/yellow/lime/teal/cyan/indigo), `color` lagrer id-en, `shopGrad(id)` slår opp.
+  Delt fargevelger (`.colorpick` m/ `flex-wrap`) i `renderShopAddForm` (sønn + forelder).
+- **Lenker saniteres:** `safeShopHref(url)` — kun `http(s)://`, ellers `#` (blokkerer
+  `javascript:`/`data:`); escapes via `escapeHtml`.
+- **UI:** sønn `renderShopPage`/`bindSonShop` (seksjoner Til salgs / reservert / ønsker / Kjøpt +
+  `renderShopAddForm`). Forelder ny **Shop-fane** 🛒 (`renderShopTab`, `App.parentTab='shop'`,
+  badge = antall `requested`): forespørsler-kø (commit/avvis), sett pris på `wish`, aktive varer.
+- **Varsling:** `settings.notifyEmail` (tom = kun badge). `requestShopItem` → `notifyRequest(room,
+  {to,title,link,price})` i store.js → POST `action:'notify'` til edge-funksjonen; feiler stille.
+  **Edge-funksjonen (`notify`+Resend) må deployes SEPARAT** — dokumentert i
+  `docs/superpowers/specs/shop-edge-notify.md` (env `RESEND_API_KEY`, `NOTIFY_FROM`). Ikke bygget/
+  deployet ennå per nå; badge er primær.
+- **Spec/plan:** `docs/superpowers/specs/2026-09-06-honniscoins-shop-design.md`,
+  `docs/superpowers/plans/2026-09-06-honniscoins-shop.md`.
+
 ## Testing
-- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 333 tester per nå (inkl. sidequests
-  m/arkiv, lekser, rutiner inkl. rekkefølge/tekst-synk, logg-beskjæring og statistikk/streak).
+- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 428 assertions per nå (inkl. sidequests
+  m/arkiv, lekser, rutiner inkl. rekkefølge/tekst-synk, shop m/saldo·reservasjon·commit·fletting,
+  logg-beskjæring og statistikk/streak).
 - **Kjør:** `/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc -m test/run-jsc.js`
   (jsc støtter ES-moduler; ingen node/deno/bun i miljøet).
 - Nettleser: `test/tests.html` (tynn renderer av samme suite).
