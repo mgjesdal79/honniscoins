@@ -50,6 +50,31 @@ function nowIso() {
 function newId() {
   return crypto.randomUUID();
 }
+// Leser en bildefil, tegner den kvadratisk (contain, transparent padding) på et
+// 400x400 canvas og returnerer en base64 PNG-dataURL (beholder transparens).
+function resizeImageToSquarePng(file, size = 400) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('lesefeil'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('bildefeil'));
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const scale = Math.min(size / img.width, size / img.height);
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        ctx.drawImage(img, Math.round((size - w) / 2), Math.round((size - h) / 2), w, h);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
@@ -169,6 +194,15 @@ const SON_PAGES = [
   { key: 'sidequests', icon: '⭐', label: 'Sidequests' },
   { key: 'shop', icon: '🛒', label: 'Shop' },
 ];
+
+// Forhåndsdefinerte kort-farger (id -> gradient bak produktbildet).
+const SHOP_COLORS = [
+  { id: 'green', grad: 'radial-gradient(120% 120% at 50% 0,#39d353,#0f8a2e)' },
+  { id: 'blue', grad: 'radial-gradient(120% 120% at 50% 0,#37a6ff,#1660c0)' },
+  { id: 'purple', grad: 'radial-gradient(120% 120% at 50% 0,#b06bff,#6a27b8)' },
+  { id: 'orange', grad: 'radial-gradient(120% 120% at 50% 0,#ff9f43,#e0621a)' },
+];
+const shopGrad = (id) => (SHOP_COLORS.find((c) => c.id === id) || SHOP_COLORS[0]).grad;
 
 function setSonPage(key) {
   App.sonPage = key;
