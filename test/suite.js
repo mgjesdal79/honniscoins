@@ -1202,6 +1202,25 @@ export function runTests() {
       eq('purchases fylt', s.purchases, []);
       eq('notifyEmail fylt', s.settings.notifyEmail, null);
     },
+    function shop_merge_lww_shopItems() {
+      const local = { settings: {}, shopItems: [{ id: 'a', title: 'Gammel', status: 'available', updatedAt: '2026-01-01' }] };
+      const remote = { settings: {}, shopItems: [{ id: 'a', title: 'Ny', status: 'requested', updatedAt: '2026-02-01' }] };
+      const out = L.mergeState(local, remote);
+      eq('nyeste vinner', out.shopItems[0].title, 'Ny');
+      eq('status nyeste', out.shopItems[0].status, 'requested');
+    },
+    function shop_merge_lww_delete_wins() {
+      const local = { settings: {}, shopItems: [{ id: 'a', title: 'X', updatedAt: '2026-02-01', removed: false }] };
+      const remote = { settings: {}, shopItems: [{ id: 'a', title: 'X', updatedAt: '2026-03-01', removed: true }] };
+      const out = L.mergeState(local, remote);
+      eq('sletting nyest vinner', out.shopItems[0].removed, true);
+    },
+    function shop_merge_lww_purchases_hidden() {
+      const local = { settings: {}, purchases: [{ id: 'p', price: 10, updatedAt: '2026-02-01', hidden: false }] };
+      const remote = { settings: {}, purchases: [{ id: 'p', price: 10, updatedAt: '2026-03-01', hidden: true }] };
+      const out = L.mergeState(local, remote);
+      eq('hidden nyest vinner', out.purchases[0].hidden, true);
+    },
   ];
 
   for (const t of tests) {

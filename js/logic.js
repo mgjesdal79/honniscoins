@@ -1032,9 +1032,9 @@ export function mergeState(local, remote) {
   if (local.quests || remote.quests) out.quests = mergeQuestList(local.quests, remote.quests);
   // homework: LWW per id på updatedAt (som quests)
   if (local.homework || remote.homework) out.homework = mergeHomeworkList(local.homework, remote.homework);
-  // fremtidige felt flettes allerede (bygges ikke nå):
+  // shop: LWW per id på updatedAt (statusendringer/sletting/hidden vinner nyest)
   for (const key of ['shopItems', 'purchases']) {
-    if (local[key] || remote[key]) out[key] = unionById(local[key], remote[key]);
+    if (local[key] || remote[key]) out[key] = mergeById(local[key], remote[key]);
   }
   return out;
 }
@@ -1046,6 +1046,17 @@ function mergeQuestList(a = [], b = []) {
   for (const q of b || []) {
     const cur = map.get(q.id);
     if (!cur || (q.updatedAt || '') > (cur.updatedAt || '')) map.set(q.id, clone(q));
+  }
+  return [...map.values()];
+}
+
+// LWW per id på updatedAt. Poster som kun finnes én side tas med.
+function mergeById(a = [], b = []) {
+  const map = new Map();
+  for (const x of a || []) map.set(x.id, clone(x));
+  for (const x of b || []) {
+    const cur = map.get(x.id);
+    if (!cur || (x.updatedAt || '') > (cur.updatedAt || '')) map.set(x.id, clone(x));
   }
   return [...map.values()];
 }
