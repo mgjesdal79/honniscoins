@@ -245,6 +245,40 @@
   .wdrow{display:flex;gap:6px;flex-wrap:wrap}
   .wdpill{padding:6px 0;width:44px;text-align:center;border-radius:8px;font-size:.78rem;font-weight:700;background:var(--surface-2,#0f2547);border:1px solid var(--line);color:var(--muted);cursor:pointer}
   .wdpill.on{background:var(--accent,#3b6fe0);color:#fff;border-color:var(--accent,#3b6fe0)}
+
+  /* --- shop --- */
+  .shopbal{display:flex;justify-content:space-between;align-items:center;background:linear-gradient(160deg,var(--surface-2),var(--surface));border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px}
+  .shopbal .big{font-size:1.4rem;font-weight:800;color:var(--gold)}
+  .shopbal .res{font-size:.78rem;color:var(--muted);text-align:right}
+  .shopbal .res b{color:var(--gold)}
+  .shopgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .shopcard{border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 6px 18px rgba(0,0,0,.45);border:none}
+  .shopcard .img{height:118px;display:flex;align-items:center;justify-content:center;position:relative}
+  .shopcard .img img{max-width:82%;max-height:82%;object-fit:contain}
+  .shopcard .img .ph{font-size:3rem}
+  .shopcard .body{background:#0d1f3d;padding:10px;flex:1;display:flex;flex-direction:column;gap:8px}
+  .shopcard .ttl{font-weight:800;font-size:.92rem;line-height:1.15}
+  .shopcard .price{display:flex;align-items:center;gap:4px;font-weight:800;color:var(--gold);font-size:1rem}
+  .shopbuy{margin-top:auto;background:var(--gold);color:#1a1400;border:none;border-radius:10px;padding:9px;font-weight:800;font-size:.9rem;width:100%}
+  .shopbuy.lock{background:#26324a;color:#7f93b3}
+  .shopreq{display:flex;gap:11px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:8px}
+  .shopreq .th{width:46px;height:46px;border-radius:10px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex-shrink:0;overflow:hidden}
+  .shopreq .th img{width:100%;height:100%;object-fit:contain}
+  .shopreq .info{flex:1;min-width:0}
+  .shopreq .info b{font-size:.9rem}
+  .shopreq .info .s{font-size:.76rem;color:var(--muted)}
+  .shopreq .info .s.res{color:var(--gold);font-weight:700}
+  .shophist{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:4px 12px}
+  .shophist .hrow{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-size:.86rem}
+  .shophist .hrow:last-child{border-bottom:none}
+  .shophist .hrow .d{color:var(--muted);font-size:.74rem}
+  .shophist .hrow .amt{color:var(--gold);font-weight:800}
+  .shophist .htot{display:flex;justify-content:space-between;padding:11px 0 6px;font-weight:800}
+  .shophist .htot .amt{color:var(--gold)}
+  .shopadd{width:100%;background:transparent;border:1px dashed var(--line);color:var(--muted);border-radius:14px;padding:13px;font-weight:700;margin-top:10px}
+  .colorpick{display:flex;gap:8px;margin:8px 0}
+  .colorpick .sw{width:30px;height:30px;border-radius:9px;border:2px solid transparent;cursor:pointer}
+  .colorpick .sw.sel{border-color:#fff}
 </style>
 </head>
 <body>
