@@ -1198,8 +1198,9 @@ export function runTests() {
     },
     function shop_migrate_fills_defaults() {
       const s = L.migrate({ settings: {}, days: {}, log: [] }, '2026-09-06');
-      eq('shopItems fylt', Array.isArray(s.shopItems), true);
-      eq('purchases fylt', Array.isArray(s.purchases), true);
+      eq('shopItems fylt', s.shopItems, []);
+      eq('purchases fylt', s.purchases, []);
+      eq('notifyEmail fylt', s.settings.notifyEmail, null);
     },
   ];
 
