@@ -14,6 +14,13 @@ export function runTests() {
     return { subjects, marks, locked: true, lockedAt: 't' };
   };
 
+  // Hjelper: state med nok saldo (én låst gull-dag = 6 coins).
+  function shopStateWithCoins() {
+    const s = L.defaultState();
+    s.days = { '2026-09-01': { subjects: ['a', 'b'], marks: { 0: { medal: 'gull' }, 1: { medal: 'gull' } }, locked: true, lockedAt: 't' } };
+    return s; // 6 coins
+  }
+
   const tests = [
     // --- poeng ---
     function medalPoints_basics() {
@@ -1284,6 +1291,50 @@ export function runTests() {
       let s = L.addShopItem(L.defaultState(), { title: 'X', by: 'son' }, c1);
       s = L.deleteShopItem(s, { id: 'i5', by: 'son' }, { now: '2026-09-06T11:00:00.000Z', id: 'l3' });
       eq('removed true', s.shopItems[0].removed, true);
+    },
+    function shop_requestShopItem_gated_by_affordability() {
+      const c = { now: '2026-09-06T10:00:00.000Z', id: 'i1' };
+      let s = L.addShopItem(shopStateWithCoins(), { title: 'Dyr', price: 999, priceSet: true, by: 'parent' }, c);
+      const s2 = L.requestShopItem(s, { id: 'i1' }, { now: '2026-09-06T11:00:00.000Z', id: 'r1' });
+      eq('ikke råd -> uendret status', s2.shopItems[0].status, 'available');
+    },
+    function shop_requestShopItem_ok() {
+      const c = { now: '2026-09-06T10:00:00.000Z', id: 'i2' };
+      let s = L.addShopItem(shopStateWithCoins(), { title: 'Billig', price: 5, priceSet: true, by: 'parent' }, c);
+      s = L.requestShopItem(s, { id: 'i2' }, { now: '2026-09-06T11:00:00.000Z', id: 'r2' });
+      eq('status requested', s.shopItems[0].status, 'requested');
+      eq('requestedAt satt', !!s.shopItems[0].requestedAt, true);
+      eq('reservert', L.reservedTotal(s), 5);
+    },
+    function shop_cancelShopRequest() {
+      const c = { now: '2026-09-06T10:00:00.000Z', id: 'i3' };
+      let s = L.addShopItem(shopStateWithCoins(), { title: 'B', price: 5, priceSet: true, by: 'parent' }, c);
+      s = L.requestShopItem(s, { id: 'i3' }, { now: 't2', id: 'r3' });
+      s = L.cancelShopRequest(s, { id: 'i3' }, { now: 't3', id: 'r4' });
+      eq('tilbake til available', s.shopItems[0].status, 'available');
+      eq('ingen reservasjon', L.reservedTotal(s), 0);
+    },
+    function shop_commitShopPurchase() {
+      const c = { now: '2026-09-06T10:00:00.000Z', id: 'i4' };
+      let s = L.addShopItem(shopStateWithCoins(), { title: 'Kjøp', price: 4, priceSet: true, color: 'green', by: 'parent' }, c);
+      s = L.requestShopItem(s, { id: 'i4' }, { now: 't2', id: 'r5' });
+      const balFør = L.computeBalance(s);
+      s = L.commitShopPurchase(s, { id: 'i4' }, { now: 't3', id: 'pu1' });
+      eq('item fjernet', s.shopItems[0].removed, true);
+      eq('purchase skrevet', s.purchases.length, 1);
+      eq('snapshot tittel', s.purchases[0].title, 'Kjøp');
+      eq('saldo trukket', L.computeBalance(s), balFør - 4);
+      eq('ingen reservasjon igjen', L.reservedTotal(s), 0);
+    },
+    function shop_hidePurchase_still_counts() {
+      const c = { now: '2026-09-06T10:00:00.000Z', id: 'i5' };
+      let s = L.addShopItem(shopStateWithCoins(), { title: 'K', price: 3, priceSet: true, by: 'parent' }, c);
+      s = L.requestShopItem(s, { id: 'i5' }, { now: 't2', id: 'r6' });
+      s = L.commitShopPurchase(s, { id: 'i5' }, { now: 't3', id: 'pu2' });
+      const pid = s.purchases[0].id;
+      s = L.hidePurchase(s, { id: pid, hidden: true }, { now: 't4', id: 'l9' });
+      eq('hidden true', s.purchases[0].hidden, true);
+      eq('teller fortsatt', L.shopSpentTotal(s), 3);
     },
   ];
 

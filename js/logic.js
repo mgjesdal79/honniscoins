@@ -1349,6 +1349,67 @@ export function deleteShopItem(state, { id, by = 'parent' }, ctx) {
   return s;
 }
 
+export function requestShopItem(state, { id, actor = 'son' }, ctx) {
+  const s = clone(state);
+  const i = findShopIdx(s, id);
+  if (i < 0) return s;
+  const it = s.shopItems[i];
+  if (it.status !== 'available' || !it.priceSet) return s;
+  if (availableBalance(s) < (Number(it.price) || 0)) return s; // råd-sperre
+  it.status = 'requested';
+  it.requestedAt = ctx.now;
+  it.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'shop', action: 'request', item: id, title: it.title });
+  return s;
+}
+
+export function cancelShopRequest(state, { id, actor = 'son' }, ctx) {
+  const s = clone(state);
+  const i = findShopIdx(s, id);
+  if (i < 0) return s;
+  if (s.shopItems[i].status !== 'requested') return s;
+  s.shopItems[i].status = 'available';
+  s.shopItems[i].requestedAt = null;
+  s.shopItems[i].updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'shop', action: 'cancel', item: id, title: s.shopItems[i].title });
+  return s;
+}
+
+export function commitShopPurchase(state, { id, by = 'parent' }, ctx) {
+  const s = clone(state);
+  const i = findShopIdx(s, id);
+  if (i < 0) return s;
+  const it = s.shopItems[i];
+  if (it.status !== 'requested') return s;
+  if (!Array.isArray(s.purchases)) s.purchases = [];
+  s.purchases.push({
+    id: ctx.id,
+    itemId: it.id,
+    title: it.title,
+    image: it.image || null,
+    color: it.color || null,
+    price: Number(it.price) || 0,
+    at: ctx.now,
+    by,
+    hidden: false,
+    updatedAt: ctx.now,
+  });
+  it.removed = true;
+  it.status = 'committed';
+  it.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor: by, type: 'shop', action: 'commit', item: id, title: it.title, price: it.price });
+  return s;
+}
+
+export function hidePurchase(state, { id, hidden = true }, ctx) {
+  const s = clone(state);
+  const p = (s.purchases || []).find((x) => x.id === id);
+  if (!p) return s;
+  p.hidden = !!hidden;
+  p.updatedAt = ctx.now;
+  return s;
+}
+
 // --- Fag-statistikk (forelder, kun visning) ------------------------------
 
 export const EFFORT_SCORE = { bronse: 1, solv: 2, gull: 3 };
