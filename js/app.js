@@ -204,6 +204,14 @@ const SHOP_COLORS = [
   { id: 'blue', grad: 'radial-gradient(120% 120% at 50% 0,#37a6ff,#1660c0)' },
   { id: 'purple', grad: 'radial-gradient(120% 120% at 50% 0,#b06bff,#6a27b8)' },
   { id: 'orange', grad: 'radial-gradient(120% 120% at 50% 0,#ff9f43,#e0621a)' },
+  { id: 'red', grad: 'radial-gradient(120% 120% at 50% 0,#ff5a52,#c81e14)' },
+  { id: 'pink', grad: 'radial-gradient(120% 120% at 50% 0,#ff6bd6,#c81e9e)' },
+  { id: 'rose', grad: 'radial-gradient(120% 120% at 50% 0,#ff5a8a,#c81450)' },
+  { id: 'yellow', grad: 'radial-gradient(120% 120% at 50% 0,#ffd93b,#e0a81a)' },
+  { id: 'lime', grad: 'radial-gradient(120% 120% at 50% 0,#b6f542,#6a9e1a)' },
+  { id: 'teal', grad: 'radial-gradient(120% 120% at 50% 0,#2fd6c3,#0f8a7e)' },
+  { id: 'cyan', grad: 'radial-gradient(120% 120% at 50% 0,#37d6ff,#1690c0)' },
+  { id: 'indigo', grad: 'radial-gradient(120% 120% at 50% 0,#7b6bff,#3a27b8)' },
 ];
 const shopGrad = (id) => (SHOP_COLORS.find((c) => c.id === id) || SHOP_COLORS[0]).grad;
 // Trygg href for bruker-oppgitte produktlenker: kun http(s), ellers '#'
