@@ -206,6 +206,14 @@ const SHOP_COLORS = [
   { id: 'orange', grad: 'radial-gradient(120% 120% at 50% 0,#ff9f43,#e0621a)' },
 ];
 const shopGrad = (id) => (SHOP_COLORS.find((c) => c.id === id) || SHOP_COLORS[0]).grad;
+// Trygg href for bruker-oppgitte produktlenker: kun http(s), ellers '#'
+// (blokkerer javascript:/data:-URL-er). Attributt-escaping via escapeHtml.
+function safeShopHref(url) {
+  const raw = (url || '').trim();
+  if (!raw) return '#';
+  const ok = /^https?:\/\//i.test(raw);
+  return escapeHtml(ok ? raw : '#');
+}
 
 function setSonPage(key) {
   App.sonPage = key;
@@ -705,7 +713,7 @@ function renderShopPage(host) {
       <div class="body">
         <div class="ttl">${escapeHtml(it.title)}</div>
         <div class="price">🪙 ${it.price || 0}</div>
-        ${it.link ? `<a class="link" href="${it.link}" target="_blank" rel="noopener">Se produkt</a>` : ''}
+        ${it.link ? `<a class="link" href="${safeShopHref(it.link)}" target="_blank" rel="noopener">Se produkt</a>` : ''}
         ${btn}
       </div></div>`;
   };
@@ -1522,7 +1530,7 @@ function renderShopTab(host) {
     <div style="display:flex;gap:10px;align-items:center">
       <div class="shopreq"><div class="th" style="background:${shopGrad(it.color)}">${it.image ? `<img src="${it.image}" alt="">` : '🎁'}</div></div>
       <div style="flex:1;min-width:0"><b>${escapeHtml(it.title)}</b>
-        <div class="muted" style="font-size:.8rem">${it.price || 0} 🪙${it.link ? ` · <a class="link" href="${it.link}" target="_blank" rel="noopener">åpne lenke</a>` : ''}</div></div>
+        <div class="muted" style="font-size:.8rem">${it.price || 0} 🪙${it.link ? ` · <a class="link" href="${safeShopHref(it.link)}" target="_blank" rel="noopener">åpne lenke</a>` : ''}</div></div>
     </div>
     <div style="display:flex;gap:8px;margin-top:10px">
       <button class="btn good" data-shopcommit="${it.id}">Bestilt – trekk coins</button>
@@ -1530,7 +1538,7 @@ function renderShopTab(host) {
     </div></div>`;
 
   const wishCard = (it) => `<div class="card" style="margin-bottom:8px">
-    <b>${escapeHtml(it.title)}</b>${it.link ? ` · <a class="link" href="${it.link}" target="_blank" rel="noopener">lenke</a>` : ''}
+    <b>${escapeHtml(it.title)}</b>${it.link ? ` · <a class="link" href="${safeShopHref(it.link)}" target="_blank" rel="noopener">lenke</a>` : ''}
     <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
       <input class="inp" type="number" min="0" placeholder="coins" data-priceinput="${it.id}">
       <button class="btn good" data-setprice="${it.id}">Sett pris</button>
