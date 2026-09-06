@@ -183,6 +183,7 @@
   .qcard.over{border-color:var(--bad)}
   .qcard.done{border-color:var(--gold);background:linear-gradient(160deg,#241f0e,var(--surface))}
   .qcard.approved{opacity:.72}
+  .qcard.skipped{opacity:.66;border-style:dashed}
   .qtop{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
   .qtitle{font-size:1rem;font-weight:800}
   .qpts{color:var(--gold);font-weight:800;font-size:.9rem;white-space:nowrap}
@@ -224,6 +225,7 @@
   .hwedited{font-size:.66rem;color:#c3b9ff;font-weight:800;background:#171438;border:1px solid #3a2f7a;border-radius:7px;padding:1px 6px}
   .hwsubjhead{display:flex;align-items:center;gap:7px;margin:14px 2px 7px;font-weight:800;font-size:.95rem}
   .qrec{display:inline-block;font-size:.68rem;font-weight:800;padding:3px 8px;border-radius:999px;background:#122a52;color:#8fb4ff;border:1px solid #2c5db8;margin:2px 0 6px}
+  .qrec.lead{background:#2a1f4d;color:#c3b0ff;border-color:#5a45a8}
   .subs{list-style:none;margin:8px 0 4px;padding:0;display:flex;flex-direction:column;gap:7px}
   .subs li{display:flex;align-items:center;gap:9px;font-size:.92rem}
   .subs li.done span{color:var(--muted);text-decoration:line-through}
@@ -249,7 +251,7 @@
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.09.04 (b39 · stat: mobil-lesbare grafer (smal viewBox) + intuitiv heatmap-farge svak→sterk)';
+    window.APP_VERSION = '2026.09.06 (b40 · rutiner: vis fra dagen før + «ikke gjort»-lukking, aldri to synlige)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>
