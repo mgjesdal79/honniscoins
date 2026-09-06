@@ -886,18 +886,21 @@ let editWeekday = 'mon';
 
 function renderParentHome() {
   const pendingQuests = activeQuests(App.state).filter((q) => q.status === 'done').length;
+  const pendingShop = shopItemsByStatus(App.state, 'requested').length;
   const tabs = [
     ['uke', '📅', 'Uke'],
     ['dag', '📝', 'Dag'],
     ['timeplan', '🗓', 'Plan'],
     ['quests', '⭐', 'Quests'],
+    ['shop', '🛒', 'Shop'],
     ['logg', '📋', 'Logg'],
     ['stat', '📊', 'Stat'],
     ['poeng', '⚙️', 'Settings'],
   ];
   const bar = tabs
     .map(([k, ic, l]) => {
-      const badge = k === 'quests' && pendingQuests ? `<span class="navbadge">${pendingQuests}</span>` : '';
+      const badge = (k === 'quests' && pendingQuests) ? `<span class="navbadge">${pendingQuests}</span>`
+        : (k === 'shop' && pendingShop) ? `<span class="navbadge">${pendingShop}</span>` : '';
       return `<button class="t ${App.parentTab === k ? 'on' : ''}" data-tab="${k}">
         <span class="ti">${ic}${badge}</span><span class="tl">${l}</span></button>`;
     })
@@ -921,6 +924,7 @@ function renderParentHome() {
   if (App.parentTab === 'dag') return renderDayBody(host);
   if (App.parentTab === 'timeplan') return renderTimeplanTab(host);
   if (App.parentTab === 'quests') return renderQuestsTab(host);
+  if (App.parentTab === 'shop') return renderShopTab(host);
   if (App.parentTab === 'poeng') return renderPoengTab(host);
   if (App.parentTab === 'logg') return renderLoggTab(host);
   if (App.parentTab === 'stat') return renderStatistikkTab(host);
@@ -1507,6 +1511,64 @@ function renderQuestsTab(host) {
       App.editQuestId = null;
       routeToView();
     };
+}
+
+function renderShopTab(host) {
+  const requested = shopItemsByStatus(App.state, 'requested');
+  const wishes = shopItemsByStatus(App.state, 'wish');
+  const active = activeShopItems(App.state).filter((x) => x.status === 'available');
+
+  const reqCard = (it) => `<div class="card" style="margin-bottom:8px">
+    <div style="display:flex;gap:10px;align-items:center">
+      <div class="shopreq"><div class="th" style="background:${shopGrad(it.color)}">${it.image ? `<img src="${it.image}" alt="">` : '🎁'}</div></div>
+      <div style="flex:1;min-width:0"><b>${escapeHtml(it.title)}</b>
+        <div class="muted" style="font-size:.8rem">${it.price || 0} 🪙${it.link ? ` · <a class="link" href="${it.link}" target="_blank" rel="noopener">åpne lenke</a>` : ''}</div></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn good" data-shopcommit="${it.id}">Bestilt – trekk coins</button>
+      <button class="btn ghost" data-shopreject="${it.id}">Avvis</button>
+    </div></div>`;
+
+  const wishCard = (it) => `<div class="card" style="margin-bottom:8px">
+    <b>${escapeHtml(it.title)}</b>${it.link ? ` · <a class="link" href="${it.link}" target="_blank" rel="noopener">lenke</a>` : ''}
+    <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+      <input class="inp" type="number" min="0" placeholder="coins" data-priceinput="${it.id}">
+      <button class="btn good" data-setprice="${it.id}">Sett pris</button>
+      <button class="btn ghost" data-shopdelp="${it.id}">Slett</button>
+    </div></div>`;
+
+  const activeCard = (it) => `<div class="card" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+    <div><b>${escapeHtml(it.title)}</b> <span class="muted">· ${it.price || 0} 🪙</span></div>
+    <button class="link" data-shopdelp="${it.id}">slett</button></div>`;
+
+  host.innerHTML = `
+    ${requested.length ? `<div class="sec">Forespørsler</div>${requested.map(reqCard).join('')}` : '<div class="muted" style="margin:10px 2px">Ingen forespørsler.</div>'}
+    ${wishes.length ? `<div class="sec">Sett pris (sønnens ønsker)</div>${wishes.map(wishCard).join('')}` : ''}
+    <div class="sec">Aktive varer</div>${active.length ? active.map(activeCard).join('') : '<div class="muted" style="margin-bottom:8px">Ingen aktive varer.</div>'}
+    <button class="shopadd" id="shopAddBtnP">＋ Legg til vare</button>
+    <div id="shopAddFormP"></div>`;
+
+  host.querySelectorAll('[data-shopcommit]').forEach((b) => (b.onclick = () => {
+    App.state = commitShopPurchase(App.state, { id: b.dataset.shopcommit, by: 'parent' }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  host.querySelectorAll('[data-shopreject]').forEach((b) => (b.onclick = () => {
+    App.state = cancelShopRequest(App.state, { id: b.dataset.shopreject, actor: 'parent' }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  host.querySelectorAll('[data-setprice]').forEach((b) => (b.onclick = () => {
+    const inp = host.querySelector(`[data-priceinput="${b.dataset.setprice}"]`);
+    const price = Number(inp && inp.value) || 0;
+    if (price <= 0) return;
+    App.state = setShopPrice(App.state, { id: b.dataset.setprice, price }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  host.querySelectorAll('[data-shopdelp]').forEach((b) => (b.onclick = () => {
+    App.state = deleteShopItem(App.state, { id: b.dataset.shopdelp, by: 'parent' }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  const addBtn = document.getElementById('shopAddBtnP');
+  if (addBtn) addBtn.onclick = () => renderShopAddForm(document.getElementById('shopAddFormP'), 'parent');
 }
 
 function renderPoengTab(host) {
