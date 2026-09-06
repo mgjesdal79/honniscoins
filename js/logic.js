@@ -33,6 +33,7 @@ export function defaultState() {
       bonus: JSON.parse(JSON.stringify(DEFAULT_BONUS)),
       homeworkPoints: 5,
       docendoIcalId: '519a0908-ed7d-47ed-8667-dea07343b693',
+      notifyEmail: null,
       routines: [],
       routinesSeeded: false,
       schemaVersion: 2,
@@ -43,6 +44,8 @@ export function defaultState() {
     payouts: [],
     quests: [],
     homework: [],
+    shopItems: [],
+    purchases: [],
     log: [],
   };
 }
@@ -570,6 +573,9 @@ export function migrate(state, todayIso) {
   }
   // «Vis fra dagen før» (leadDay) er nytt — default av på alle eksisterende maler.
   for (const r of s.settings.routines) { if (r && r.leadDay === undefined) r.leadDay = false; }
+  if (!Array.isArray(s.shopItems)) s.shopItems = [];
+  if (!Array.isArray(s.purchases)) s.purchases = [];
+  if (s.settings.notifyEmail === undefined) s.settings.notifyEmail = null;
   const stamp = (todayIso || '2000-01-01') + 'T00:00:00.000Z';
   for (const d of Object.keys(s.days || {})) {
     const day = s.days[d];

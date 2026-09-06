@@ -1190,6 +1190,17 @@ export function runTests() {
       eq('label', r[0].subjectLabel, 'Matte');
       eq('tom', L.statMedalDistribution([]), []);
     },
+    function shop_defaultState_shape() {
+      const s = L.defaultState();
+      eq('shopItems default []', s.shopItems, []);
+      eq('purchases default []', s.purchases, []);
+      eq('notifyEmail default null', s.settings.notifyEmail, null);
+    },
+    function shop_migrate_fills_defaults() {
+      const s = L.migrate({ settings: {}, days: {}, log: [] }, '2026-09-06');
+      eq('shopItems fylt', Array.isArray(s.shopItems), true);
+      eq('purchases fylt', Array.isArray(s.purchases), true);
+    },
   ];
 
   for (const t of tests) {
