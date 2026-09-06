@@ -15,6 +15,9 @@ import {
   commitHomework, uncommitHomework, approveHomework, rejectHomework,
   effortRecords, periodBounds, filterRecordsByPeriod,
   statBySubject, statByPosition, statHeatmap, statDailyTotal, statWeeklyTotal, statMedalDistribution,
+  addShopItem, updateShopItem, deleteShopItem, setShopPrice, requestShopItem, cancelShopRequest,
+  commitShopPurchase, hidePurchase, shopItemsByStatus, activeShopItems, activePurchases,
+  visiblePurchases, shopSpentTotal, reservedTotal, availableBalance,
 } from './logic.js';
 
 const el = document.getElementById('app');
@@ -683,14 +686,136 @@ function renderSidequestsPage(host) {
 
 function renderShopPage(host) {
   const bal = computeBalance(App.state);
+  const reserved = reservedTotal(App.state);
+  const forSale = shopItemsByStatus(App.state, 'available');
+  const requested = shopItemsByStatus(App.state, 'requested');
+  const wishes = shopItemsByStatus(App.state, 'wish');
+  const purchases = visiblePurchases(App.state);
+  const spent = shopSpentTotal(App.state);
+  const avail = availableBalance(App.state);
+
+  const cardHtml = (it) => {
+    const canBuy = avail >= (it.price || 0);
+    const imgInner = it.image ? `<img src="${it.image}" alt="">` : `<span class="ph">🎁</span>`;
+    const btn = canBuy
+      ? `<button class="shopbuy" data-buy="${it.id}">Kjøp</button>`
+      : `<button class="shopbuy lock" disabled>Mangler ${(it.price || 0) - avail} 🪙</button>`;
+    return `<div class="shopcard">
+      <div class="img" style="background:${shopGrad(it.color)}">${imgInner}</div>
+      <div class="body">
+        <div class="ttl">${escapeHtml(it.title)}</div>
+        <div class="price">🪙 ${it.price || 0}</div>
+        ${it.link ? `<a class="link" href="${it.link}" target="_blank" rel="noopener">Se produkt</a>` : ''}
+        ${btn}
+      </div></div>`;
+  };
+
+  const reqHtml = (it) => `<div class="shopreq">
+    <div class="th">${it.image ? `<img src="${it.image}" alt="">` : '🎁'}</div>
+    <div class="info"><b>${escapeHtml(it.title)}</b><div class="s res">${it.price || 0} 🪙 reservert</div></div>
+    <button class="undo" data-cancel="${it.id}">Angre</button></div>`;
+
+  const wishHtml = (it) => `<div class="shopreq">
+    <div class="th">${it.image ? `<img src="${it.image}" alt="">` : '🎁'}</div>
+    <div class="info"><b>${escapeHtml(it.title)}</b><div class="s">Venter på pris</div></div>
+    <button class="undo" data-shopdel="${it.id}">Fjern</button></div>`;
+
+  const histRows = purchases.map((p) =>
+    `<div class="hrow"><div><b>${escapeHtml(p.title)}</b><div class="d">${formatShopDate(p.at)}</div></div>
+     <div style="display:flex;align-items:center;gap:10px"><span class="amt">−${p.price || 0} 🪙</span>
+     <button class="link" data-phide="${p.id}">skjul</button></div></div>`
+  ).join('');
+
   host.innerHTML = `
-    <div class="empty">
-      <div style="font-size:2.4rem">🛒</div>
-      <b>Shop</b>
-      <div class="muted">Kommer snart! Her kan du bruke Honniscoinsene dine på premier.</div>
-      <div class="pill" style="margin-top:6px">Du har ${bal} 🪙</div>
-    </div>`;
+    <div class="shopbal"><div><div class="big">${bal} 🪙</div></div>
+      <div class="res">Tilgjengelig: <b>${avail}</b>${reserved ? `<br>${reserved} reservert` : ''}</div></div>
+
+    ${forSale.length ? `<div class="sec">Til salgs</div><div class="shopgrid">${forSale.map(cardHtml).join('')}</div>` : ''}
+    ${requested.length ? `<div class="sec">Venter på deg (reservert)</div>${requested.map(reqHtml).join('')}` : ''}
+    ${wishes.length ? `<div class="sec">Mine ønsker (uten pris)</div>${wishes.map(wishHtml).join('')}` : ''}
+
+    <div class="sec">Kjøpt · brukt totalt</div>
+    <div class="shophist">${histRows || '<div class="hrow"><span class="muted">Ingen kjøp ennå</span></div>'}
+      <div class="htot"><div>Brukt totalt</div><div class="amt">${spent} 🪙</div></div></div>
+
+    <button class="shopadd" id="shopAddBtn">＋ Legg til ønske</button>
+    <div id="shopAddForm"></div>`;
+
+  bindSonShop(host);
 }
+
+// Norsk kort dato for kjøpshistorikk.
+function formatShopDate(iso) {
+  const d = (iso || '').slice(0, 10);
+  return d || '';
+}
+
+function bindSonShop(host) {
+  host.querySelectorAll('[data-buy]').forEach((b) => (b.onclick = () => {
+    App.state = requestShopItem(App.state, { id: b.dataset.buy, actor: 'son' }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+    notifyPurchaseRequest(b.dataset.buy);
+  }));
+  host.querySelectorAll('[data-cancel]').forEach((b) => (b.onclick = () => {
+    App.state = cancelShopRequest(App.state, { id: b.dataset.cancel, actor: 'son' }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  host.querySelectorAll('[data-shopdel]').forEach((b) => (b.onclick = () => {
+    App.state = deleteShopItem(App.state, { id: b.dataset.shopdel, by: 'son' }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  host.querySelectorAll('[data-phide]').forEach((b) => (b.onclick = () => {
+    App.state = hidePurchase(App.state, { id: b.dataset.phide, hidden: true }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  const addBtn = document.getElementById('shopAddBtn');
+  if (addBtn) addBtn.onclick = () => renderShopAddForm(document.getElementById('shopAddForm'), 'son');
+}
+
+// Delt tilføy-skjema (sønn: ønske uten pris; forelder: med pris). role: 'son'|'parent'.
+function renderShopAddForm(box, role) {
+  if (!box) return;
+  let pickedColor = SHOP_COLORS[0].id;
+  let pickedImage = null;
+  const swatches = SHOP_COLORS.map((c) =>
+    `<span class="sw ${c.id === pickedColor ? 'sel' : ''}" data-col="${c.id}" style="background:${c.grad}"></span>`).join('');
+  box.innerHTML = `
+    <div class="card" style="margin-top:10px">
+      <input class="inp wide" id="shopTitle" placeholder="Tittel (f.eks. LEGO-sett)" style="width:100%;margin-bottom:8px">
+      <input class="inp wide" id="shopLink" placeholder="Lenke til produkt (valgfri)" style="width:100%;margin-bottom:8px">
+      ${role === 'parent' ? `<label>Pris <input class="inp" id="shopPrice" type="number" min="0" placeholder="coins"></label>` : ''}
+      <div class="colorpick">${swatches}</div>
+      <input type="file" id="shopImg" accept="image/*" style="margin-bottom:8px">
+      <div style="display:flex;gap:8px">
+        <button class="btn good" id="shopSave">Legg til</button>
+        <button class="btn ghost" id="shopCancelAdd">Avbryt</button>
+      </div>
+    </div>`;
+  box.querySelectorAll('.sw').forEach((sw) => (sw.onclick = () => {
+    pickedColor = sw.dataset.col;
+    box.querySelectorAll('.sw').forEach((x) => x.classList.toggle('sel', x === sw));
+  }));
+  const fileInput = document.getElementById('shopImg');
+  fileInput.onchange = async () => {
+    if (fileInput.files && fileInput.files[0]) {
+      try { pickedImage = await resizeImageToSquarePng(fileInput.files[0]); } catch { pickedImage = null; }
+    }
+  };
+  document.getElementById('shopCancelAdd').onclick = () => { box.innerHTML = ''; };
+  document.getElementById('shopSave').onclick = () => {
+    const title = document.getElementById('shopTitle').value.trim();
+    if (!title) return;
+    const link = document.getElementById('shopLink').value.trim();
+    const price = role === 'parent' ? Number(document.getElementById('shopPrice').value) || 0 : 0;
+    App.state = addShopItem(App.state, {
+      title, link, image: pickedImage, color: pickedColor,
+      price, priceSet: role === 'parent' && price > 0, by: role,
+    }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  };
+}
+
+function notifyPurchaseRequest(itemId) { /* fylles i Task 11 */ }
 
 // --- foreldre: kode-gate -------------------------------------------------
 
