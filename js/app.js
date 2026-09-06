@@ -8,6 +8,7 @@ import {
   weeklyMedalCounts, weeklyStreakBonus, silverStreakInfo, goldStreakInfo,
   activeQuests, isQuestOverdue, questPointsPending, questArchiveSplit, allSubtasksDone,
   addQuest, updateQuest, deleteQuest, commitQuest, uncommitQuest, approveQuest, rejectQuest, toggleQuestSubtask,
+  skipRoutineInstance, unskipRoutineInstance, overlappingRoutineIds,
   addRoutine, updateRoutine, deleteRoutine,
   homeworkForWeek, homeworkPointsPending, activeHomework, homeworkDays,
   addHomework, updateHomework, deleteHomework, deleteHomeworkGroup, hideHomework,
@@ -516,8 +517,10 @@ function renderSidequestsPage(host) {
   const s = App.state;
   const today = isoDate(new Date());
   const quests = activeQuests(s);
-  const open = quests.filter((q) => q.status === 'open');
+  const hidden = new Set(overlappingRoutineIds(s)); // skjul overlappende morgendags-instanser
+  const open = quests.filter((q) => q.status === 'open' && !hidden.has(q.id));
   const done = quests.filter((q) => q.status === 'done');
+  const skipped = quests.filter((q) => q.status === 'skipped' && q.source === 'routine' && (q.routineDate || '') >= today);
   const pending = questPointsPending(s);
 
   if (!quests.length) {
@@ -530,10 +533,12 @@ function renderSidequestsPage(host) {
     return;
   }
 
-  const routineBadge = (q) =>
-    q.source === 'routine'
-      ? `<span class="qrec">🔁 Rutine · ${routineDateLabel(q.routineDate)}</span>`
-      : '';
+  const routineBadge = (q) => {
+    if (q.source !== 'routine') return '';
+    if ((q.routineDate || '') > today)
+      return `<span class="qrec lead">🌙 for i morgen · ${routineDateLabel(q.routineDate)}</span>`;
+    return `<span class="qrec">🔁 Rutine · ${routineDateLabel(q.routineDate)}</span>`;
+  };
   const subtaskList = (q, interactive) => {
     const subs = q.subtasks || [];
     if (!subs.length) return q.desc ? `<div class="qdesc">${escapeHtml(q.desc)}</div>` : '';
@@ -550,12 +555,24 @@ function renderSidequestsPage(host) {
     const pts = `<span class="qpts">+${q.points} 🪙</span>`;
     if (kind === 'open') {
       const ready = allSubtasksDone(q);
+      const skipBtn = q.source === 'routine'
+        ? `<button class="btn ghost qbtn" data-skip="${q.id}">🚫 Ikke gjort</button>`
+        : '';
       return `<div class="qcard ${overdue ? 'over' : ''}">
         <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b>${pts}</div>
         ${routineBadge(q)}
         ${subtaskList(q, true)}
         <div class="qmeta">${questDueLabel(q.due, today)}</div>
         <button class="btn qbtn" data-commit="${q.id}" ${ready ? '' : 'disabled'}>${ready ? '🔒 Marker som ferdig' : 'Huk av alle først'}</button>
+        ${skipBtn}
+      </div>`;
+    }
+    if (kind === 'skipped') {
+      return `<div class="qcard skipped">
+        <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b>${pts}</div>
+        ${routineBadge(q)}
+        <div class="qmeta"><span class="qdue muted">🚫 Merket «ikke gjort»</span></div>
+        <button class="btn ghost qbtn" data-unskip="${q.id}">↩︎ Gjør likevel</button>
       </div>`;
     }
     if (kind === 'done') {
@@ -581,6 +598,7 @@ function renderSidequestsPage(host) {
     ${pending ? `<div class="qbanner">⏳ ${pending} 🪙 venter på godkjenning</div>` : ''}
     ${section(`Å gjøre (${open.length})`, open, 'open')}
     ${section('Venter på godkjenning', done, 'done')}
+    ${section('Ikke gjort', skipped, 'skipped')}
     ${approvedArchiveHtml(s, (q) => questCard(q, 'approved'))}`;
 
   const arkBtn = host.querySelector('[data-arktoggle]');
@@ -607,6 +625,22 @@ function renderSidequestsPage(host) {
       (b.onclick = () => {
         const [qid, subId] = b.dataset.sub.split('|');
         App.state = toggleQuestSubtask(App.state, { id: qid, subId, actor: 'son' }, { now: nowIso(), id: newId() });
+        save();
+        renderSon();
+      })
+  );
+  host.querySelectorAll('[data-skip]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        App.state = skipRoutineInstance(App.state, { id: b.dataset.skip, actor: 'son' }, { now: nowIso(), id: newId() });
+        save();
+        renderSon();
+      })
+  );
+  host.querySelectorAll('[data-unskip]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        App.state = unskipRoutineInstance(App.state, { id: b.dataset.unskip, actor: 'son' }, { now: nowIso(), id: newId() });
         save();
         renderSon();
       })
@@ -1107,8 +1141,10 @@ function renderQuestsTab(host) {
   const s = App.state;
   const today = isoDate(new Date());
   const quests = activeQuests(s);
+  const hidden = new Set(overlappingRoutineIds(s)); // skjul overlappende morgendags-instanser
   const done = quests.filter((q) => q.status === 'done');
-  const open = quests.filter((q) => q.status === 'open');
+  const open = quests.filter((q) => q.status === 'open' && !hidden.has(q.id));
+  const skipped = quests.filter((q) => q.status === 'skipped' && q.source === 'routine' && (q.routineDate || '') >= today);
   const editing = App.editQuestId ? quests.find((q) => q.id === App.editQuestId) : null;
 
   const dueTxt = (due) => {
@@ -1142,6 +1178,9 @@ function renderQuestsTab(host) {
         : overdue
         ? '<span class="qdue over">⏰ Forfalt</span>'
         : `<span class="muted" style="font-size:.74rem">Frist: ${dueTxt(q.due)}</span>`;
+    const skipBtn = q.source === 'routine' && q.status === 'open'
+      ? `<button class="btn ghost qbtn" data-skip="${q.id}">🚫 Ikke gjort</button>`
+      : '';
     return `<div class="qcard ${q.status === 'approved' ? 'approved' : ''}">
         <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b><span class="qpts">+${q.points} 🪙</span></div>
         ${q.desc ? `<div class="qdesc">${escapeHtml(q.desc)}</div>` : ''}
@@ -1149,10 +1188,17 @@ function renderQuestsTab(host) {
         <div class="qrow">
           <button class="btn ghost qbtn" data-edit="${q.id}">✏️ Rediger</button>
           <button class="btn ghost qbtn danger" data-del="${q.id}">🗑️ Slett</button>
+          ${skipBtn}
         </div>
       </div>`;
   };
+  const skippedCard = (q) => `<div class="qcard skipped">
+        <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b><span class="qpts">+${q.points} 🪙</span></div>
+        <div class="qmeta"><span class="qdue muted">🚫 Ikke gjort · ${routineDateLabel(q.routineDate)}</span></div>
+        <div class="qrow"><button class="btn ghost qbtn" data-unskip="${q.id}">↩︎ Angre</button></div>
+      </div>`;
   const activeRows = open.map(parentCard).join('');
+  const skippedRows = skipped.map(skippedCard).join('');
   const approvedHtml = approvedArchiveHtml(s, parentCard);
 
   host.innerHTML = `
@@ -1181,6 +1227,7 @@ function renderQuestsTab(host) {
     </div>
 
     ${open.length ? `<div class="sec">Aktive quests</div>${activeRows}` : ''}
+    ${skipped.length ? `<div class="sec">Ikke gjort (${skipped.length})</div>${skippedRows}` : ''}
     ${approvedHtml}`;
 
   const arkBtn = host.querySelector('[data-arktoggle]');
@@ -1198,6 +1245,22 @@ function renderQuestsTab(host) {
     (b) =>
       (b.onclick = () => {
         App.state = rejectQuest(App.state, { id: b.dataset.reject, actor: 'parent' }, { now: nowIso(), id: newId() });
+        save();
+        routeToView();
+      })
+  );
+  host.querySelectorAll('[data-skip]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        App.state = skipRoutineInstance(App.state, { id: b.dataset.skip, actor: 'parent' }, { now: nowIso(), id: newId() });
+        save();
+        routeToView();
+      })
+  );
+  host.querySelectorAll('[data-unskip]').forEach(
+    (b) =>
+      (b.onclick = () => {
+        App.state = unskipRoutineInstance(App.state, { id: b.dataset.unskip, actor: 'parent' }, { now: nowIso(), id: newId() });
         save();
         routeToView();
       })
@@ -1347,18 +1410,21 @@ function renderPoengTab(host) {
       const open = !!App.routineOpen[r.id];
       const wdSummary = WD.filter(([k]) => (r.weekdays || []).includes(k)).map(([, l]) => l).join(' ') || 'Ingen dager';
       const subCount = (r.subtasks || []).length;
+      const leadSummary = r.leadDay ? ' · fra dagen før' : '';
       return `
       <div class="card" data-rid="${r.id}" style="margin-bottom:10px">
         <div class="rhead" data-r-toggle role="button" tabindex="0">
           <div style="flex:1;min-width:0">
             <div class="rtitle">${escapeHtml(r.title || 'Uten navn')}${r.enabled ? '' : ' <span class="roff">(av)</span>'}</div>
-            <div class="rmeta">${wdSummary} · ${subCount} deloppg. · ${r.points} 🪙</div>
+            <div class="rmeta">${wdSummary} · ${subCount} deloppg. · ${r.points} 🪙${leadSummary}</div>
           </div>
           <span class="rchev">${open ? '▾' : '▸'}</span>
         </div>
         <div class="rbody"${open ? '' : ' hidden'}>
           <label class="row" style="border:none"><div class="lbl">På</div>
             <input type="checkbox" data-r-enabled ${r.enabled ? 'checked' : ''}></label>
+          <label class="row" style="border:none"><div class="lbl">Vis fra dagen før</div>
+            <input type="checkbox" data-r-lead ${r.leadDay ? 'checked' : ''}></label>
           <div class="row"><div class="lbl">Tittel</div>
             <input class="inp" data-r-title style="width:auto;flex:1;text-align:left" value="${escapeHtml(r.title)}"></div>
           <div class="row"><div class="lbl">Reward 🪙</div>
@@ -1379,6 +1445,7 @@ function renderPoengTab(host) {
       toggle.onclick = () => { if (App.routineOpen[id]) delete App.routineOpen[id]; else App.routineOpen[id] = true; renderRoutines(); };
       toggle.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle.onclick(); } };
       card.querySelector('[data-r-enabled]').onchange = (e) => upd({ enabled: e.target.checked });
+      card.querySelector('[data-r-lead]').onchange = (e) => { upd({ leadDay: e.target.checked }); renderRoutines(); };
       card.querySelector('[data-r-title]').onchange = (e) => upd({ title: e.target.value });
       card.querySelector('[data-r-points]').onchange = (e) => upd({ points: Number(e.target.value) });
       card.querySelectorAll('[data-wd]').forEach((b) => {

@@ -121,6 +121,107 @@ export function runTests() {
       const m = L.migrate(s, '2026-09-04'); // fredag → sekk+matbag+gymbag alle aktive
       eq('migrate genererer 3', m.quests.filter((q) => q.source === 'routine').length, 3);
     },
+    // --- rutiner: leadDay (vis fra dagen før) ---
+    function migrate_defaults_leadDay_false() {
+      const s = L.defaultState();
+      const m = L.migrate(s, '2026-09-05'); // lørdag → ingen generering
+      ok('alle seedede har leadDay=false', m.settings.routines.every((r) => r.leadDay === false));
+    },
+    function leadDay_generates_tomorrow_instance() {
+      const s = L.defaultState();
+      s.settings.routines = [{ id: 'routine-sekk', title: 'Sekk', points: 5, subtasks: [], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], enabled: true, leadDay: true, updatedAt: 't' }];
+      s.settings.routinesSeeded = true;
+      const m = L.generateDailyRoutines(s, '2026-09-07'); // mandag → i dag(man)+i morgen(tir)
+      const ids = m.quests.filter((q) => q.source === 'routine').map((q) => q.id).sort();
+      eq('mandag + tirsdag', ids, ['routine-sekk-2026-09-07', 'routine-sekk-2026-09-08']);
+    },
+    function leadDay_sunday_generates_monday() {
+      const s = L.defaultState();
+      s.settings.routines = [{ id: 'routine-sekk', title: 'Sekk', points: 5, subtasks: [], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], enabled: true, leadDay: true, updatedAt: 't' }];
+      s.settings.routinesSeeded = true;
+      const m = L.generateDailyRoutines(s, '2026-09-06'); // søndag → kun mandagens instans
+      const inst = m.quests.filter((q) => q.source === 'routine');
+      eq('kun mandagens instans', inst.map((q) => q.id), ['routine-sekk-2026-09-07']);
+      eq('routineDate = mandag', inst[0].routineDate, '2026-09-07');
+    },
+    function leadDay_false_no_tomorrow() {
+      const s = L.defaultState();
+      s.settings.routines = [{ id: 'routine-sekk', title: 'Sekk', points: 5, subtasks: [], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], enabled: true, leadDay: false, updatedAt: 't' }];
+      s.settings.routinesSeeded = true;
+      const m = L.generateDailyRoutines(s, '2026-09-07'); // mandag
+      eq('kun i dag', m.quests.filter((q) => q.source === 'routine').map((q) => q.id), ['routine-sekk-2026-09-07']);
+      const sun = L.generateDailyRoutines(s, '2026-09-06'); // søndag, leadDay av
+      eq('søndag uten lead → ingen', sun.quests.filter((q) => q.source === 'routine').length, 0);
+    },
+    function leadDay_generation_idempotent() {
+      const s = L.defaultState();
+      s.settings.routines = [{ id: 'routine-sekk', title: 'Sekk', points: 5, subtasks: [], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], enabled: true, leadDay: true, updatedAt: 't' }];
+      s.settings.routinesSeeded = true;
+      const m1 = L.generateDailyRoutines(s, '2026-09-07');
+      const m2 = L.generateDailyRoutines(m1, '2026-09-07');
+      eq('ingen duplikater', m2.quests.filter((q) => q.source === 'routine').length, 2);
+    },
+    // --- rutiner: overlapp-filter ---
+    function overlap_hides_later_open_instance() {
+      const s = L.defaultState();
+      s.quests = [
+        { id: 'routine-sekk-2026-09-07', source: 'routine', routineId: 'routine-sekk', routineDate: '2026-09-07', status: 'open', removed: false },
+        { id: 'routine-sekk-2026-09-08', source: 'routine', routineId: 'routine-sekk', routineDate: '2026-09-08', status: 'open', removed: false },
+      ];
+      eq('skjuler morgendagens', L.overlappingRoutineIds(s), ['routine-sekk-2026-09-08']);
+    },
+    function overlap_reveals_when_earlier_closed() {
+      const s = L.defaultState();
+      s.quests = [
+        { id: 'routine-sekk-2026-09-07', source: 'routine', routineId: 'routine-sekk', routineDate: '2026-09-07', status: 'skipped', removed: false },
+        { id: 'routine-sekk-2026-09-08', source: 'routine', routineId: 'routine-sekk', routineDate: '2026-09-08', status: 'open', removed: false },
+      ];
+      eq('tidligere lukket → ingen skjules', L.overlappingRoutineIds(s), []);
+    },
+    function overlap_ignores_manual_quests() {
+      const s = L.defaultState();
+      s.quests = [
+        { id: 'q1', routineDate: null, status: 'open', removed: false },
+        { id: 'q2', routineDate: null, status: 'open', removed: false },
+      ];
+      eq('manuelle upåvirket', L.overlappingRoutineIds(s), []);
+    },
+    // --- rutiner: skip / unskip ---
+    function skip_marks_instance_not_done() {
+      const s = L.defaultState();
+      s.quests = [{ id: 'r-1', source: 'routine', routineId: 'routine-sekk', routineDate: '2026-09-07', status: 'open', points: 5, removed: false, doneAt: null }];
+      const m = L.skipRoutineInstance(s, { id: 'r-1', actor: 'son' }, { now: '2026-09-07T10:00:00.000Z', id: 'log1' });
+      eq('status skipped', m.quests[0].status, 'skipped');
+      eq('skippedBy son', m.quests[0].skippedBy, 'son');
+      eq('skippedAt satt', m.quests[0].skippedAt, '2026-09-07T10:00:00.000Z');
+      ok('logg-skip', m.log.some((l) => l.action === 'skip' && l.quest === 'r-1'));
+    },
+    function skip_gives_no_points() {
+      const s = L.defaultState();
+      s.quests = [{ id: 'r-1', source: 'routine', routineId: 'x', routineDate: '2026-09-07', status: 'open', points: 5, removed: false }];
+      const m = L.skipRoutineInstance(s, { id: 'r-1', actor: 'parent' }, { now: '2026-09-07T10:00:00.000Z', id: 'l' });
+      eq('ingen approved-poeng', L.questPointsTotal(m), 0);
+      eq('ingen pending-poeng', L.questPointsPending(m), 0);
+    },
+    function skip_ignores_approved() {
+      const s = L.defaultState();
+      s.quests = [{ id: 'r-1', source: 'routine', routineId: 'x', routineDate: '2026-09-07', status: 'approved', points: 5, removed: false }];
+      const m = L.skipRoutineInstance(s, { id: 'r-1', actor: 'son' }, { now: '2026-09-07T10:00:00.000Z', id: 'l' });
+      eq('approved urørt', m.quests[0].status, 'approved');
+    },
+    function unskip_returns_to_open() {
+      const s = L.defaultState();
+      s.quests = [{ id: 'r-1', source: 'routine', routineId: 'x', routineDate: '2026-09-07', status: 'skipped', skippedAt: 't', skippedBy: 'son', removed: false }];
+      const m = L.unskipRoutineInstance(s, { id: 'r-1', actor: 'son' }, { now: '2026-09-07T12:00:00.000Z', id: 'l' });
+      eq('tilbake til open', m.quests[0].status, 'open');
+      eq('skippedAt nullstilt', m.quests[0].skippedAt, null);
+    },
+    function unskip_gated_after_day_passed() {
+      const s = L.defaultState();
+      s.quests = [{ id: 'r-1', source: 'routine', routineId: 'x', routineDate: '2026-09-07', status: 'skipped', skippedAt: 't', skippedBy: 'son', removed: false }];
+      const m = L.unskipRoutineInstance(s, { id: 'r-1', actor: 'son' }, { now: '2026-09-09T12:00:00.000Z', id: 'l' });
+      eq('dag passert → låst', m.quests[0].status, 'skipped');
+    },
     function addRoutine_appends_and_stamps() {
       const s0 = L.defaultState();
       s0.settings.routines = [];

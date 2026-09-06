@@ -89,6 +89,13 @@ function parseIso(s) {
   return new Date(y, m - 1, d);
 }
 
+// `iso` + n kalenderdager (kan krysse helg), som 'YYYY-MM-DD'.
+function addDaysIso(iso, n) {
+  const d = parseIso(iso);
+  d.setDate(d.getDate() + n);
+  return isoDate(d);
+}
+
 // 0=søn..6=lør -> nøkkel eller null i helg
 export function weekdayKey(iso) {
   const dow = parseIso(iso).getDay();
@@ -428,17 +435,18 @@ export function goldStreakInfo(state, monthPrefix, uptoIso) {
 export function generateDailyRoutines(state, todayIso) {
   const s = clone(state);
   if (!todayIso) return s;
-  const wk = weekdayKey(todayIso);
-  if (wk === null) return s; // kun hverdag
   const routines = (s.settings && s.settings.routines) || [];
   if (!Array.isArray(s.quests)) s.quests = [];
   if (!Array.isArray(s.log)) s.log = [];
-  const stamp = `${todayIso}T00:00:00.000Z`;
-  for (const r of routines) {
-    if (!r || r.enabled !== true) continue;
-    if (!Array.isArray(r.weekdays) || !r.weekdays.includes(wk)) continue;
-    const qid = `${r.id}-${todayIso}`;
-    if (s.quests.some((q) => q.id === qid)) continue; // idempotent
+  const tomorrowIso = addDaysIso(todayIso, 1);
+  // Lager én instans for gitt måldato hvis den er en aktiv ukedag for malen.
+  const makeInstance = (r, dateIso) => {
+    const wk = weekdayKey(dateIso);
+    if (wk === null) return; // kun hverdag
+    if (!Array.isArray(r.weekdays) || !r.weekdays.includes(wk)) return;
+    const qid = `${r.id}-${dateIso}`;
+    if (s.quests.some((q) => q.id === qid)) return; // idempotent
+    const stamp = `${dateIso}T00:00:00.000Z`;
     const subtasks = (r.subtasks || []).map((st, i) => ({ id: `${qid}-${i}`, text: st.text, done: false }));
     s.quests.push({
       id: qid,
@@ -455,10 +463,17 @@ export function generateDailyRoutines(state, todayIso) {
       removed: false,
       source: 'routine',
       routineId: r.id,
-      routineDate: todayIso,
+      routineDate: dateIso,
       subtasks,
+      skippedAt: null,
+      skippedBy: null,
     });
     s.log.push({ id: `log-${qid}`, at: stamp, actor: 'system', type: 'quest', action: 'create', quest: qid, title: r.title, source: 'routine' });
+  };
+  for (const r of routines) {
+    if (!r || r.enabled !== true) continue;
+    makeInstance(r, todayIso); // dagens instans (hvis i dag er aktiv ukedag)
+    if (r.leadDay) makeInstance(r, tomorrowIso); // «vis fra dagen før» → morgendagens instans
   }
   return s;
 }
@@ -471,10 +486,11 @@ export function generateDailyRoutines(state, todayIso) {
 export function syncOpenRoutineInstances(state, todayIso, stamp) {
   const s = clone(state);
   if (!todayIso || !Array.isArray(s.quests)) return s;
+  const tomorrowIso = addDaysIso(todayIso, 1);
   const routines = (s.settings && s.settings.routines) || [];
   for (const q of s.quests) {
     if (q.source !== 'routine' || q.removed || q.status !== 'open') continue;
-    if (q.routineDate !== todayIso) continue;
+    if (q.routineDate !== todayIso && q.routineDate !== tomorrowIso) continue;
     const r = routines.find((x) => x.id === q.routineId);
     if (!r) continue;
     const prev = q.subtasks || [];
@@ -552,6 +568,8 @@ export function migrate(state, todayIso) {
     seedRoutine('routine-gymbag', 'Pakk gymbagen', 5, ['mon', 'wed', 'thu', 'fri']);
     s.settings.routinesSeeded = true;
   }
+  // «Vis fra dagen før» (leadDay) er nytt — default av på alle eksisterende maler.
+  for (const r of s.settings.routines) { if (r && r.leadDay === undefined) r.leadDay = false; }
   const stamp = (todayIso || '2000-01-01') + 'T00:00:00.000Z';
   for (const d of Object.keys(s.days || {})) {
     const day = s.days[d];
@@ -707,6 +725,7 @@ export function addRoutine(state, { routine = {} }, ctx) {
     subtasks: (routine.subtasks || []).map((st) => ({ id: st.id, text: st.text })),
     weekdays: Array.isArray(routine.weekdays) ? routine.weekdays.slice() : ['mon', 'tue', 'wed', 'thu', 'fri'],
     enabled: routine.enabled !== false,
+    leadDay: routine.leadDay === true,
     updatedAt: ctx.now,
   });
   s.settings.updatedAt = ctx.now;
@@ -722,6 +741,7 @@ export function updateRoutine(state, { id, patch }, ctx) {
   if ('title' in patch) r.title = patch.title;
   if ('points' in patch) r.points = Number(patch.points) || 0;
   if ('enabled' in patch) r.enabled = !!patch.enabled;
+  if ('leadDay' in patch) r.leadDay = !!patch.leadDay;
   if ('weekdays' in patch) r.weekdays = (patch.weekdays || []).slice();
   if ('subtasks' in patch) r.subtasks = (patch.subtasks || []).map((st) => ({ id: st.id, text: st.text }));
   r.updatedAt = ctx.now;
@@ -799,6 +819,56 @@ export function rejectQuest(state, { id, note = '', actor = 'parent' }, ctx) {
   s.quests[i].updatedAt = ctx.now;
   s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: 'reject', quest: id, title: s.quests[i].title, note });
   return s;
+}
+
+// --- Rutine-instanser: «ikke gjort»-lukking + overlapp-filter ------------
+
+// Merk en rutine-instans som «ikke gjort» (lukker uten poeng). Sønn eller forelder.
+// Godkjente instanser (som alt har gitt poeng) røres ikke.
+export function skipRoutineInstance(state, { id, actor = 'son' }, ctx) {
+  const s = clone(state);
+  const i = findQuestIdx(s, id);
+  if (i < 0) return s;
+  const q = s.quests[i];
+  if (q.source !== 'routine' || q.status === 'approved') return s;
+  q.status = 'skipped';
+  q.doneAt = null;
+  q.skippedAt = ctx.now;
+  q.skippedBy = actor === 'parent' ? 'parent' : 'son';
+  q.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: 'skip', quest: id, title: q.title });
+  return s;
+}
+
+// Angre «ikke gjort»: skipped -> open. Gatet: kun så lenge dagen ikke er passert
+// (instansens routineDate >= i dag). Utleder «i dag» fra ctx.now.
+export function unskipRoutineInstance(state, { id, actor = 'son' }, ctx) {
+  const s = clone(state);
+  const i = findQuestIdx(s, id);
+  if (i < 0) return s;
+  const q = s.quests[i];
+  if (q.source !== 'routine' || q.status !== 'skipped') return s;
+  const todayIso = (ctx.now || '').slice(0, 10);
+  if (q.routineDate && todayIso && q.routineDate < todayIso) return s; // dagen passert → låst
+  q.status = 'open';
+  q.skippedAt = null;
+  q.skippedBy = null;
+  q.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: 'unskip', quest: id, title: q.title });
+  return s;
+}
+
+// Id-er til ÅPNE rutine-instanser som skal skjules pga. overlapp: for hver rutine
+// vises kun den tidligste åpne instansen; senere åpne instanser skjules til den
+// tidligere er lukket (done/approved/skipped). Ren fn. Returnerer array av id-er.
+export function overlappingRoutineIds(state) {
+  const open = activeQuests(state).filter((q) => q.source === 'routine' && q.status === 'open');
+  const earliest = {};
+  for (const q of open) {
+    const rd = q.routineDate || '';
+    if (!(q.routineId in earliest) || rd < earliest[q.routineId]) earliest[q.routineId] = rd;
+  }
+  return open.filter((q) => (q.routineDate || '') > earliest[q.routineId]).map((q) => q.id);
 }
 
 // Medaljepoeng for én enkelt dag.
