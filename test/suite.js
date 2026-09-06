@@ -1336,6 +1336,25 @@ export function runTests() {
       eq('hidden true', s.purchases[0].hidden, true);
       eq('teller fortsatt', L.shopSpentTotal(s), 3);
     },
+    function shop_derived_helpers() {
+      const s = L.defaultState();
+      s.shopItems = [
+        { id: 'a', status: 'available', removed: false },
+        { id: 'b', status: 'wish', removed: false },
+        { id: 'c', status: 'requested', removed: false },
+        { id: 'd', status: 'available', removed: true },
+      ];
+      s.purchases = [
+        { id: 'p1', at: '2026-01-01', hidden: false },
+        { id: 'p2', at: '2026-03-01', hidden: true },
+      ];
+      eq('activeShopItems', L.activeShopItems(s).map((x) => x.id), ['a', 'b', 'c']);
+      eq('available', L.shopItemsByStatus(s, 'available').map((x) => x.id), ['a']);
+      eq('wish', L.shopItemsByStatus(s, 'wish').map((x) => x.id), ['b']);
+      eq('requested', L.shopItemsByStatus(s, 'requested').map((x) => x.id), ['c']);
+      eq('activePurchases nyest først', L.activePurchases(s).map((x) => x.id), ['p2', 'p1']);
+      eq('visiblePurchases skjuler hidden', L.visiblePurchases(s).map((x) => x.id), ['p1']);
+    },
   ];
 
   for (const t of tests) {

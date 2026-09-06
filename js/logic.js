@@ -1410,6 +1410,22 @@ export function hidePurchase(state, { id, hidden = true }, ctx) {
   return s;
 }
 
+export function activeShopItems(state) {
+  return (state.shopItems || []).filter((x) => !x.removed);
+}
+
+export function shopItemsByStatus(state, status) {
+  return activeShopItems(state).filter((x) => x.status === status);
+}
+
+export function activePurchases(state) {
+  return (state.purchases || []).slice().sort((a, b) => (b.at || '').localeCompare(a.at || ''));
+}
+
+export function visiblePurchases(state) {
+  return activePurchases(state).filter((p) => !p.hidden);
+}
+
 // --- Fag-statistikk (forelder, kun visning) ------------------------------
 
 export const EFFORT_SCORE = { bronse: 1, solv: 2, gull: 3 };
