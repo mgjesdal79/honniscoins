@@ -604,7 +604,7 @@ export function migrate(state, todayIso) {
   }
   const out = syncOpenRoutineInstances(generateDailyRoutines(s, todayIso), todayIso);
   out.log = pruneLog(out.log);
-  return out;
+  return pruneShopImages(out);
 }
 
 // Loggen er ren visning (ingen beregning leser den) og lagres i sin helhet i
@@ -619,6 +619,8 @@ export function pruneLog(log, keep = LOG_KEEP) {
     .sort((a, b) => (b.at || '').localeCompare(a.at || ''))
     .slice(0, keep);
 }
+
+const SHOP_IMG_KEEP = 20; // behold bilde kun på de nyeste kjøpene; eldre faller tilbake til 🎁
 
 // Total streak-bonus over hele historikken (inngår i saldo).
 export function streakBonusTotal(state) {
@@ -1333,7 +1335,12 @@ export function updateShopItem(state, { id, patch, actor = 'parent' }, ctx) {
   if ('link' in patch) it.link = patch.link || '';
   if ('image' in patch) it.image = patch.image || null;
   if ('color' in patch) it.color = patch.color || null;
-  if ('price' in patch) { it.price = Number(patch.price) || 0; it.priceSet = it.price > 0; if (it.priceSet && it.status === 'wish') it.status = 'available'; }
+  if ('price' in patch) {
+    it.price = Number(patch.price) || 0;
+    it.priceSet = it.price > 0;
+    if (it.priceSet && it.status === 'wish') it.status = 'available';
+    else if (!it.priceSet && it.status === 'available') it.status = 'wish';
+  }
   it.updatedAt = ctx.now;
   s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'shop', action: 'edit', item: id, title: it.title });
   return s;
@@ -1424,6 +1431,19 @@ export function activePurchases(state) {
 
 export function visiblePurchases(state) {
   return activePurchases(state).filter((p) => !p.hidden);
+}
+
+// Bounder blob-vekst: behold base64-bilde kun på de nyeste kjøpene, null ut resten.
+// Historikk (tittel/pris/dato/hidden) beholdes; UI viser 🎁 når image mangler.
+export function pruneShopImages(state, keep = SHOP_IMG_KEEP) {
+  const s = clone(state);
+  if (!Array.isArray(s.purchases)) return s;
+  const order = s.purchases
+    .map((p, i) => ({ i, at: p.at || '' }))
+    .sort((a, b) => (b.at).localeCompare(a.at));
+  const keepIdx = new Set(order.slice(0, keep).map((x) => x.i));
+  s.purchases = s.purchases.map((p, i) => (keepIdx.has(i) ? p : { ...p, image: null }));
+  return s;
 }
 
 // --- Fag-statistikk (forelder, kun visning) ------------------------------

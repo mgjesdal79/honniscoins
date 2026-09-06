@@ -1355,6 +1355,38 @@ export function runTests() {
       eq('activePurchases nyest først', L.activePurchases(s).map((x) => x.id), ['p2', 'p1']);
       eq('visiblePurchases skjuler hidden', L.visiblePurchases(s).map((x) => x.id), ['p1']);
     },
+    function shop_pruneShopImages_keeps_newest() {
+      const s = L.defaultState();
+      s.purchases = [
+        { id: 'old', at: '2026-01-01', image: 'data:img-old', price: 1 },
+        { id: 'mid', at: '2026-02-01', image: 'data:img-mid', price: 1 },
+        { id: 'new', at: '2026-03-01', image: 'data:img-new', price: 1 },
+      ];
+      const out = L.pruneShopImages(s, 2);
+      const byId = (id) => out.purchases.find((p) => p.id === id);
+      eq('nyeste beholder bilde', byId('new').image, 'data:img-new');
+      eq('nest nyeste beholder bilde', byId('mid').image, 'data:img-mid');
+      eq('eldste mister bilde', byId('old').image, null);
+      eq('pris urørt', byId('old').price, 1);
+      eq('shopSpentTotal urørt', L.shopSpentTotal(out), 3);
+    },
+    function shop_migrate_prunes_shop_images() {
+      const s = L.defaultState();
+      const many = [];
+      for (let i = 0; i < 25; i++) many.push({ id: 'p' + i, at: '2026-01-' + String(i + 1).padStart(2, '0'), image: 'data:x', price: 1, hidden: false, updatedAt: 't' });
+      s.purchases = many;
+      const out = L.migrate(s, '2026-09-06');
+      const withImg = out.purchases.filter((p) => p.image).length;
+      eq('bilder kappet til grense', withImg <= 20, true);
+      eq('ingen kjøp mistet', out.purchases.length, 25);
+    },
+    function shop_updateShopItem_zero_price_reverts_to_wish() {
+      const c1 = { now: 't0', id: 'z1' };
+      let s = L.addShopItem(L.defaultState(), { title: 'P', price: 10, priceSet: true, by: 'parent' }, c1);
+      s = L.updateShopItem(s, { id: 'z1', patch: { price: 0 } }, { now: 't1', id: 'z2' });
+      eq('priceSet false', s.shopItems[0].priceSet, false);
+      eq('status tilbake til wish', s.shopItems[0].status, 'wish');
+    },
   ];
 
   for (const t of tests) {
