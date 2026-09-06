@@ -93,3 +93,18 @@ export function startPolling(room, getState, applyMerged, intervalMs = 5000) {
     }
   }, intervalMs);
 }
+
+// Stille varsling ved kjøpsforespørsel. Feiler lydløst (badge er primær kanal).
+export async function notifyRequest(room, payload) {
+  if (!EDGE()) return false;
+  try {
+    const r = await fetch(EDGE(), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ room, action: 'notify', ...payload }),
+    });
+    return (await r.json()).ok === true;
+  } catch {
+    return false;
+  }
+}

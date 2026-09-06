@@ -1,4 +1,4 @@
-import { getRoom, loadState, scheduleSave, startPolling } from './store.js';
+import { getRoom, loadState, scheduleSave, startPolling, notifyRequest } from './store.js';
 import {
   isoDate, nearestWeekday, stepWeekday, weekdayKey, subjectsForDate,
   setMark, setSick, addPayout, logSettingsChange, computeBalance, formatKr, WEEKDAY_KEYS,
@@ -823,7 +823,12 @@ function renderShopAddForm(box, role) {
   };
 }
 
-function notifyPurchaseRequest(itemId) { /* fylles i Task 11 */ }
+function notifyPurchaseRequest(itemId) {
+  const it = (App.state.shopItems || []).find((x) => x.id === itemId);
+  const email = App.state.settings && App.state.settings.notifyEmail;
+  if (!it || !email) return;
+  notifyRequest(App.room, { to: email, title: it.title, link: it.link || '', price: it.price || 0 });
+}
 
 // --- foreldre: kode-gate -------------------------------------------------
 
@@ -1594,6 +1599,10 @@ function renderPoengTab(host) {
       <div class="row" style="border:none"><div class="lbl">Kr per Honniscoin</div>
         <input class="inp" id="krRate" type="number" min="0" step="0.5" value="${s.settings.krPerCoin}"></div>
     </div>
+    <div class="sec">Varsling</div>
+    <label>Epost for shop-varsler
+      <input class="inp wide" id="notifyEmail" type="email" style="width:100%"
+        value="${escapeHtml(s.settings.notifyEmail || '')}" placeholder="din@epost.no"></label>
     <div class="sec">Daglige rutiner</div>
     <div id="routinesHost"></div>
     <button class="btn ghost" id="rtAddRoutine" style="margin-top:6px">＋ Ny rutine</button>
@@ -1624,6 +1633,12 @@ function renderPoengTab(host) {
       { actor: 'parent', field: 'krPerCoin', from, to },
       { now: nowIso(), id: newId() }
     );
+    save();
+  };
+  const emailInp = document.getElementById('notifyEmail');
+  if (emailInp) emailInp.onchange = () => {
+    s.settings.notifyEmail = emailInp.value.trim() || null;
+    s.settings.updatedAt = nowIso();
     save();
   };
   const WD = [['mon', 'Man'], ['tue', 'Tir'], ['wed', 'Ons'], ['thu', 'Tor'], ['fri', 'Fre']];
