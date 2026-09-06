@@ -66,7 +66,17 @@ export function computeSpent(state) {
   return (state.payouts || []).reduce((a, p) => a + (p.coins || 0), 0);
 }
 
-// Saldo = medaljepoeng + oppmøte-bonus + ukesbonus + godkjente quests − utbetalinger.
+export function shopSpentTotal(state) {
+  return (state.purchases || []).reduce((a, p) => a + (Number(p.price) || 0), 0);
+}
+
+export function reservedTotal(state) {
+  return (state.shopItems || [])
+    .filter((it) => !it.removed && it.status === 'requested')
+    .reduce((a, it) => a + (Number(it.price) || 0), 0);
+}
+
+// Saldo = medaljepoeng + oppmøte-bonus + ukesbonus + godkjente quests − utbetalinger − kjøp.
 export function computeBalance(state) {
   return (
     computeEarned(state) +
@@ -74,8 +84,13 @@ export function computeBalance(state) {
     weeklyStreakBonusTotal(state) +
     questPointsTotal(state) +
     homeworkPointsTotal(state) -
-    computeSpent(state)
+    computeSpent(state) -
+    shopSpentTotal(state)
   );
+}
+
+export function availableBalance(state) {
+  return computeBalance(state) - reservedTotal(state);
 }
 
 // --- Dato / ukedag -------------------------------------------------------

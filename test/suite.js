@@ -1221,6 +1221,34 @@ export function runTests() {
       const out = L.mergeState(local, remote);
       eq('hidden nyest vinner', out.purchases[0].hidden, true);
     },
+    function shop_spent_and_balance() {
+      const s = L.defaultState();
+      s.purchases = [{ id: 'p1', price: 30, hidden: false }, { id: 'p2', price: 20, hidden: true }];
+      eq('shopSpentTotal teller alle', L.shopSpentTotal(s), 50);
+    },
+    function shop_reserved_total() {
+      const s = L.defaultState();
+      s.shopItems = [
+        { id: 'a', price: 10, status: 'requested', removed: false },
+        { id: 'b', price: 5, status: 'available', removed: false },
+        { id: 'c', price: 7, status: 'requested', removed: true },
+      ];
+      eq('kun requested & !removed', L.reservedTotal(s), 10);
+    },
+    function shop_available_balance() {
+      const s = L.defaultState();
+      s.days = { '2026-09-01': { subjects: ['a'], marks: { 0: { medal: 'gull' } }, locked: true, lockedAt: 't' } };
+      s.shopItems = [{ id: 'a', price: 1, status: 'requested', removed: false }];
+      const bal = L.computeBalance(s);
+      eq('available = balance - reservert', L.availableBalance(s), bal - 1);
+    },
+    function shop_computeBalance_subtracts_purchases() {
+      const s = L.defaultState();
+      s.days = { '2026-09-01': { subjects: ['a'], marks: { 0: { medal: 'gull' } }, locked: true, lockedAt: 't' } };
+      const before = L.computeBalance(s);
+      s.purchases = [{ id: 'p1', price: 2, hidden: false }];
+      eq('kjøp trekkes fra saldo', L.computeBalance(s), before - 2);
+    },
   ];
 
   for (const t of tests) {
