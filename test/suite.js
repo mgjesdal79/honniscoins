@@ -14,6 +14,13 @@ export function runTests() {
     return { subjects, marks, locked: true, lockedAt: 't' };
   };
 
+  // Hjelper: state med nok saldo (én låst gull-dag = 6 coins).
+  function shopStateWithCoins() {
+    const s = L.defaultState();
+    s.days = { '2026-09-01': { subjects: ['a', 'b'], marks: { 0: { medal: 'gull' }, 1: { medal: 'gull' } }, locked: true, lockedAt: 't' } };
+    return s; // 6 coins
+  }
+
   const tests = [
     // --- poeng ---
     function medalPoints_basics() {
@@ -1189,6 +1196,196 @@ export function runTests() {
       eq('bronse andel', r[0].bronse, 0.25);
       eq('label', r[0].subjectLabel, 'Matte');
       eq('tom', L.statMedalDistribution([]), []);
+    },
+    function shop_defaultState_shape() {
+      const s = L.defaultState();
+      eq('shopItems default []', s.shopItems, []);
+      eq('purchases default []', s.purchases, []);
+      eq('notifyEmail default null', s.settings.notifyEmail, null);
+    },
+    function shop_migrate_fills_defaults() {
+      const s = L.migrate({ settings: {}, days: {}, log: [] }, '2026-09-06');
+      eq('shopItems fylt', s.shopItems, []);
+      eq('purchases fylt', s.purchases, []);
+      eq('notifyEmail fylt', s.settings.notifyEmail, null);
+    },
+    function shop_merge_lww_shopItems() {
+      const local = { settings: {}, shopItems: [{ id: 'a', title: 'Gammel', status: 'available', updatedAt: '2026-01-01' }] };
+      const remote = { settings: {}, shopItems: [{ id: 'a', title: 'Ny', status: 'requested', updatedAt: '2026-02-01' }] };
+      const out = L.mergeState(local, remote);
+      eq('nyeste vinner', out.shopItems[0].title, 'Ny');
+      eq('status nyeste', out.shopItems[0].status, 'requested');
+    },
+    function shop_merge_lww_delete_wins() {
+      const local = { settings: {}, shopItems: [{ id: 'a', title: 'X', updatedAt: '2026-02-01', removed: false }] };
+      const remote = { settings: {}, shopItems: [{ id: 'a', title: 'X', updatedAt: '2026-03-01', removed: true }] };
+      const out = L.mergeState(local, remote);
+      eq('sletting nyest vinner', out.shopItems[0].removed, true);
+    },
+    function shop_merge_lww_purchases_hidden() {
+      const local = { settings: {}, purchases: [{ id: 'p', price: 10, updatedAt: '2026-02-01', hidden: false }] };
+      const remote = { settings: {}, purchases: [{ id: 'p', price: 10, updatedAt: '2026-03-01', hidden: true }] };
+      const out = L.mergeState(local, remote);
+      eq('hidden nyest vinner', out.purchases[0].hidden, true);
+    },
+    function shop_spent_and_balance() {
+      const s = L.defaultState();
+      s.purchases = [{ id: 'p1', price: 30, hidden: false }, { id: 'p2', price: 20, hidden: true }];
+      eq('shopSpentTotal teller alle', L.shopSpentTotal(s), 50);
+    },
+    function shop_reserved_total() {
+      const s = L.defaultState();
+      s.shopItems = [
+        { id: 'a', price: 10, status: 'requested', removed: false },
+        { id: 'b', price: 5, status: 'available', removed: false },
+        { id: 'c', price: 7, status: 'requested', removed: true },
+      ];
+      eq('kun requested & !removed', L.reservedTotal(s), 10);
+    },
+    function shop_available_balance() {
+      const s = L.defaultState();
+      s.days = { '2026-09-01': { subjects: ['a'], marks: { 0: { medal: 'gull' } }, locked: true, lockedAt: 't' } };
+      s.shopItems = [{ id: 'a', price: 1, status: 'requested', removed: false }];
+      const bal = L.computeBalance(s);
+      eq('available = balance - reservert', L.availableBalance(s), bal - 1);
+    },
+    function shop_computeBalance_subtracts_purchases() {
+      const s = L.defaultState();
+      s.days = { '2026-09-01': { subjects: ['a'], marks: { 0: { medal: 'gull' } }, locked: true, lockedAt: 't' } };
+      const before = L.computeBalance(s);
+      s.purchases = [{ id: 'p1', price: 2, hidden: false }];
+      eq('kjøp trekkes fra saldo', L.computeBalance(s), before - 2);
+    },
+    function shop_addShopItem_son_wish() {
+      const ctx = { now: '2026-09-06T10:00:00.000Z', id: 'i1' };
+      const s = L.addShopItem(L.defaultState(), { title: 'Drone', link: 'http://x', color: 'blue', by: 'son' }, ctx);
+      const it = s.shopItems[0];
+      eq('status wish', it.status, 'wish');
+      eq('priceSet false', it.priceSet, false);
+      eq('createdBy son', it.createdBy, 'son');
+      eq('logget', s.log[s.log.length - 1].type, 'shop');
+    },
+    function shop_addShopItem_parent_available() {
+      const ctx = { now: '2026-09-06T10:00:00.000Z', id: 'i2' };
+      const s = L.addShopItem(L.defaultState(), { title: 'Spill', price: 60, priceSet: true, by: 'parent' }, ctx);
+      eq('status available', s.shopItems[0].status, 'available');
+      eq('pris satt', s.shopItems[0].price, 60);
+    },
+    function shop_setShopPrice_activates() {
+      const c1 = { now: '2026-09-06T10:00:00.000Z', id: 'i3' };
+      let s = L.addShopItem(L.defaultState(), { title: 'Bok', by: 'son' }, c1);
+      s = L.setShopPrice(s, { id: 'i3', price: 25 }, { now: '2026-09-06T11:00:00.000Z', id: 'l1' });
+      eq('pris satt', s.shopItems[0].price, 25);
+      eq('priceSet true', s.shopItems[0].priceSet, true);
+      eq('status available', s.shopItems[0].status, 'available');
+    },
+    function shop_updateShopItem_patch() {
+      const c1 = { now: '2026-09-06T10:00:00.000Z', id: 'i4' };
+      let s = L.addShopItem(L.defaultState(), { title: 'Gammel', price: 10, priceSet: true, by: 'parent' }, c1);
+      s = L.updateShopItem(s, { id: 'i4', patch: { title: 'Ny', color: 'orange' } }, { now: '2026-09-06T11:00:00.000Z', id: 'l2' });
+      eq('tittel oppdatert', s.shopItems[0].title, 'Ny');
+      eq('farge oppdatert', s.shopItems[0].color, 'orange');
+    },
+    function shop_deleteShopItem_tombstone() {
+      const c1 = { now: '2026-09-06T10:00:00.000Z', id: 'i5' };
+      let s = L.addShopItem(L.defaultState(), { title: 'X', by: 'son' }, c1);
+      s = L.deleteShopItem(s, { id: 'i5', by: 'son' }, { now: '2026-09-06T11:00:00.000Z', id: 'l3' });
+      eq('removed true', s.shopItems[0].removed, true);
+    },
+    function shop_requestShopItem_gated_by_affordability() {
+      const c = { now: '2026-09-06T10:00:00.000Z', id: 'i1' };
+      let s = L.addShopItem(shopStateWithCoins(), { title: 'Dyr', price: 999, priceSet: true, by: 'parent' }, c);
+      const s2 = L.requestShopItem(s, { id: 'i1' }, { now: '2026-09-06T11:00:00.000Z', id: 'r1' });
+      eq('ikke råd -> uendret status', s2.shopItems[0].status, 'available');
+    },
+    function shop_requestShopItem_ok() {
+      const c = { now: '2026-09-06T10:00:00.000Z', id: 'i2' };
+      let s = L.addShopItem(shopStateWithCoins(), { title: 'Billig', price: 5, priceSet: true, by: 'parent' }, c);
+      s = L.requestShopItem(s, { id: 'i2' }, { now: '2026-09-06T11:00:00.000Z', id: 'r2' });
+      eq('status requested', s.shopItems[0].status, 'requested');
+      eq('requestedAt satt', !!s.shopItems[0].requestedAt, true);
+      eq('reservert', L.reservedTotal(s), 5);
+    },
+    function shop_cancelShopRequest() {
+      const c = { now: '2026-09-06T10:00:00.000Z', id: 'i3' };
+      let s = L.addShopItem(shopStateWithCoins(), { title: 'B', price: 5, priceSet: true, by: 'parent' }, c);
+      s = L.requestShopItem(s, { id: 'i3' }, { now: 't2', id: 'r3' });
+      s = L.cancelShopRequest(s, { id: 'i3' }, { now: 't3', id: 'r4' });
+      eq('tilbake til available', s.shopItems[0].status, 'available');
+      eq('ingen reservasjon', L.reservedTotal(s), 0);
+    },
+    function shop_commitShopPurchase() {
+      const c = { now: '2026-09-06T10:00:00.000Z', id: 'i4' };
+      let s = L.addShopItem(shopStateWithCoins(), { title: 'Kjøp', price: 4, priceSet: true, color: 'green', by: 'parent' }, c);
+      s = L.requestShopItem(s, { id: 'i4' }, { now: 't2', id: 'r5' });
+      const balFør = L.computeBalance(s);
+      s = L.commitShopPurchase(s, { id: 'i4' }, { now: 't3', id: 'pu1' });
+      eq('item fjernet', s.shopItems[0].removed, true);
+      eq('purchase skrevet', s.purchases.length, 1);
+      eq('snapshot tittel', s.purchases[0].title, 'Kjøp');
+      eq('saldo trukket', L.computeBalance(s), balFør - 4);
+      eq('ingen reservasjon igjen', L.reservedTotal(s), 0);
+    },
+    function shop_hidePurchase_still_counts() {
+      const c = { now: '2026-09-06T10:00:00.000Z', id: 'i5' };
+      let s = L.addShopItem(shopStateWithCoins(), { title: 'K', price: 3, priceSet: true, by: 'parent' }, c);
+      s = L.requestShopItem(s, { id: 'i5' }, { now: 't2', id: 'r6' });
+      s = L.commitShopPurchase(s, { id: 'i5' }, { now: 't3', id: 'pu2' });
+      const pid = s.purchases[0].id;
+      s = L.hidePurchase(s, { id: pid, hidden: true }, { now: 't4', id: 'l9' });
+      eq('hidden true', s.purchases[0].hidden, true);
+      eq('teller fortsatt', L.shopSpentTotal(s), 3);
+    },
+    function shop_derived_helpers() {
+      const s = L.defaultState();
+      s.shopItems = [
+        { id: 'a', status: 'available', removed: false },
+        { id: 'b', status: 'wish', removed: false },
+        { id: 'c', status: 'requested', removed: false },
+        { id: 'd', status: 'available', removed: true },
+      ];
+      s.purchases = [
+        { id: 'p1', at: '2026-01-01', hidden: false },
+        { id: 'p2', at: '2026-03-01', hidden: true },
+      ];
+      eq('activeShopItems', L.activeShopItems(s).map((x) => x.id), ['a', 'b', 'c']);
+      eq('available', L.shopItemsByStatus(s, 'available').map((x) => x.id), ['a']);
+      eq('wish', L.shopItemsByStatus(s, 'wish').map((x) => x.id), ['b']);
+      eq('requested', L.shopItemsByStatus(s, 'requested').map((x) => x.id), ['c']);
+      eq('activePurchases nyest først', L.activePurchases(s).map((x) => x.id), ['p2', 'p1']);
+      eq('visiblePurchases skjuler hidden', L.visiblePurchases(s).map((x) => x.id), ['p1']);
+    },
+    function shop_pruneShopImages_keeps_newest() {
+      const s = L.defaultState();
+      s.purchases = [
+        { id: 'old', at: '2026-01-01', image: 'data:img-old', price: 1 },
+        { id: 'mid', at: '2026-02-01', image: 'data:img-mid', price: 1 },
+        { id: 'new', at: '2026-03-01', image: 'data:img-new', price: 1 },
+      ];
+      const out = L.pruneShopImages(s, 2);
+      const byId = (id) => out.purchases.find((p) => p.id === id);
+      eq('nyeste beholder bilde', byId('new').image, 'data:img-new');
+      eq('nest nyeste beholder bilde', byId('mid').image, 'data:img-mid');
+      eq('eldste mister bilde', byId('old').image, null);
+      eq('pris urørt', byId('old').price, 1);
+      eq('shopSpentTotal urørt', L.shopSpentTotal(out), 3);
+    },
+    function shop_migrate_prunes_shop_images() {
+      const s = L.defaultState();
+      const many = [];
+      for (let i = 0; i < 25; i++) many.push({ id: 'p' + i, at: '2026-01-' + String(i + 1).padStart(2, '0'), image: 'data:x', price: 1, hidden: false, updatedAt: 't' });
+      s.purchases = many;
+      const out = L.migrate(s, '2026-09-06');
+      const withImg = out.purchases.filter((p) => p.image).length;
+      eq('bilder kappet til grense', withImg <= 20, true);
+      eq('ingen kjøp mistet', out.purchases.length, 25);
+    },
+    function shop_updateShopItem_zero_price_reverts_to_wish() {
+      const c1 = { now: 't0', id: 'z1' };
+      let s = L.addShopItem(L.defaultState(), { title: 'P', price: 10, priceSet: true, by: 'parent' }, c1);
+      s = L.updateShopItem(s, { id: 'z1', patch: { price: 0 } }, { now: 't1', id: 'z2' });
+      eq('priceSet false', s.shopItems[0].priceSet, false);
+      eq('status tilbake til wish', s.shopItems[0].status, 'wish');
     },
   ];
 

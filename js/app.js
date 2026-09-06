@@ -1,4 +1,4 @@
-import { getRoom, loadState, scheduleSave, startPolling } from './store.js';
+import { getRoom, loadState, scheduleSave, startPolling, notifyRequest } from './store.js';
 import {
   isoDate, nearestWeekday, stepWeekday, weekdayKey, subjectsForDate,
   setMark, setSick, addPayout, logSettingsChange, computeBalance, formatKr, WEEKDAY_KEYS,
@@ -15,6 +15,9 @@ import {
   commitHomework, uncommitHomework, approveHomework, rejectHomework,
   effortRecords, periodBounds, filterRecordsByPeriod,
   statBySubject, statByPosition, statHeatmap, statDailyTotal, statWeeklyTotal, statMedalDistribution,
+  addShopItem, updateShopItem, deleteShopItem, setShopPrice, requestShopItem, cancelShopRequest,
+  commitShopPurchase, hidePurchase, shopItemsByStatus, activeShopItems, activePurchases,
+  visiblePurchases, shopSpentTotal, reservedTotal, availableBalance,
 } from './logic.js';
 
 const el = document.getElementById('app');
@@ -49,6 +52,31 @@ function nowIso() {
 }
 function newId() {
   return crypto.randomUUID();
+}
+// Leser en bildefil, tegner den kvadratisk (contain, transparent padding) på et
+// 400x400 canvas og returnerer en base64 PNG-dataURL (beholder transparens).
+function resizeImageToSquarePng(file, size = 400) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('lesefeil'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('bildefeil'));
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const scale = Math.min(size / img.width, size / img.height);
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        ctx.drawImage(img, Math.round((size - w) / 2), Math.round((size - h) / 2), w, h);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -169,6 +197,23 @@ const SON_PAGES = [
   { key: 'sidequests', icon: '⭐', label: 'Sidequests' },
   { key: 'shop', icon: '🛒', label: 'Shop' },
 ];
+
+// Forhåndsdefinerte kort-farger (id -> gradient bak produktbildet).
+const SHOP_COLORS = [
+  { id: 'green', grad: 'radial-gradient(120% 120% at 50% 0,#39d353,#0f8a2e)' },
+  { id: 'blue', grad: 'radial-gradient(120% 120% at 50% 0,#37a6ff,#1660c0)' },
+  { id: 'purple', grad: 'radial-gradient(120% 120% at 50% 0,#b06bff,#6a27b8)' },
+  { id: 'orange', grad: 'radial-gradient(120% 120% at 50% 0,#ff9f43,#e0621a)' },
+];
+const shopGrad = (id) => (SHOP_COLORS.find((c) => c.id === id) || SHOP_COLORS[0]).grad;
+// Trygg href for bruker-oppgitte produktlenker: kun http(s), ellers '#'
+// (blokkerer javascript:/data:-URL-er). Attributt-escaping via escapeHtml.
+function safeShopHref(url) {
+  const raw = (url || '').trim();
+  if (!raw) return '#';
+  const ok = /^https?:\/\//i.test(raw);
+  return escapeHtml(ok ? raw : '#');
+}
 
 function setSonPage(key) {
   App.sonPage = key;
@@ -649,13 +694,140 @@ function renderSidequestsPage(host) {
 
 function renderShopPage(host) {
   const bal = computeBalance(App.state);
+  const reserved = reservedTotal(App.state);
+  const forSale = shopItemsByStatus(App.state, 'available');
+  const requested = shopItemsByStatus(App.state, 'requested');
+  const wishes = shopItemsByStatus(App.state, 'wish');
+  const purchases = visiblePurchases(App.state);
+  const spent = shopSpentTotal(App.state);
+  const avail = availableBalance(App.state);
+
+  const cardHtml = (it) => {
+    const canBuy = avail >= (it.price || 0);
+    const imgInner = it.image ? `<img src="${it.image}" alt="">` : `<span class="ph">🎁</span>`;
+    const btn = canBuy
+      ? `<button class="shopbuy" data-buy="${it.id}">Kjøp</button>`
+      : `<button class="shopbuy lock" disabled>Mangler ${(it.price || 0) - avail} 🪙</button>`;
+    return `<div class="shopcard">
+      <div class="img" style="background:${shopGrad(it.color)}">${imgInner}</div>
+      <div class="body">
+        <div class="ttl">${escapeHtml(it.title)}</div>
+        <div class="price">🪙 ${it.price || 0}</div>
+        ${it.link ? `<a class="link" href="${safeShopHref(it.link)}" target="_blank" rel="noopener">Se produkt</a>` : ''}
+        ${btn}
+      </div></div>`;
+  };
+
+  const reqHtml = (it) => `<div class="shopreq">
+    <div class="th">${it.image ? `<img src="${it.image}" alt="">` : '🎁'}</div>
+    <div class="info"><b>${escapeHtml(it.title)}</b><div class="s res">${it.price || 0} 🪙 reservert</div></div>
+    <button class="undo" data-cancel="${it.id}">Angre</button></div>`;
+
+  const wishHtml = (it) => `<div class="shopreq">
+    <div class="th">${it.image ? `<img src="${it.image}" alt="">` : '🎁'}</div>
+    <div class="info"><b>${escapeHtml(it.title)}</b><div class="s">Venter på pris</div></div>
+    <button class="undo" data-shopdel="${it.id}">Fjern</button></div>`;
+
+  const histRows = purchases.map((p) =>
+    `<div class="hrow"><div><b>${escapeHtml(p.title)}</b><div class="d">${formatShopDate(p.at)}</div></div>
+     <div style="display:flex;align-items:center;gap:10px"><span class="amt">−${p.price || 0} 🪙</span>
+     <button class="link" data-phide="${p.id}">skjul</button></div></div>`
+  ).join('');
+
   host.innerHTML = `
-    <div class="empty">
-      <div style="font-size:2.4rem">🛒</div>
-      <b>Shop</b>
-      <div class="muted">Kommer snart! Her kan du bruke Honniscoinsene dine på premier.</div>
-      <div class="pill" style="margin-top:6px">Du har ${bal} 🪙</div>
+    <div class="shopbal"><div><div class="big">${bal} 🪙</div></div>
+      <div class="res">Tilgjengelig: <b>${avail}</b>${reserved ? `<br>${reserved} reservert` : ''}</div></div>
+
+    ${forSale.length ? `<div class="sec">Til salgs</div><div class="shopgrid">${forSale.map(cardHtml).join('')}</div>` : ''}
+    ${requested.length ? `<div class="sec">Venter på deg (reservert)</div>${requested.map(reqHtml).join('')}` : ''}
+    ${wishes.length ? `<div class="sec">Mine ønsker (uten pris)</div>${wishes.map(wishHtml).join('')}` : ''}
+
+    <div class="sec">Kjøpt · brukt totalt</div>
+    <div class="shophist">${histRows || '<div class="hrow"><span class="muted">Ingen kjøp ennå</span></div>'}
+      <div class="htot"><div>Brukt totalt</div><div class="amt">${spent} 🪙</div></div></div>
+
+    <button class="shopadd" id="shopAddBtn">＋ Legg til ønske</button>
+    <div id="shopAddForm"></div>`;
+
+  bindSonShop(host);
+}
+
+// Norsk kort dato for kjøpshistorikk.
+function formatShopDate(iso) {
+  const d = (iso || '').slice(0, 10);
+  return d || '';
+}
+
+function bindSonShop(host) {
+  host.querySelectorAll('[data-buy]').forEach((b) => (b.onclick = () => {
+    App.state = requestShopItem(App.state, { id: b.dataset.buy, actor: 'son' }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+    notifyPurchaseRequest(b.dataset.buy);
+  }));
+  host.querySelectorAll('[data-cancel]').forEach((b) => (b.onclick = () => {
+    App.state = cancelShopRequest(App.state, { id: b.dataset.cancel, actor: 'son' }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  host.querySelectorAll('[data-shopdel]').forEach((b) => (b.onclick = () => {
+    App.state = deleteShopItem(App.state, { id: b.dataset.shopdel, by: 'son' }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  host.querySelectorAll('[data-phide]').forEach((b) => (b.onclick = () => {
+    App.state = hidePurchase(App.state, { id: b.dataset.phide, hidden: true }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  const addBtn = document.getElementById('shopAddBtn');
+  if (addBtn) addBtn.onclick = () => renderShopAddForm(document.getElementById('shopAddForm'), 'son');
+}
+
+// Delt tilføy-skjema (sønn: ønske uten pris; forelder: med pris). role: 'son'|'parent'.
+function renderShopAddForm(box, role) {
+  if (!box) return;
+  let pickedColor = SHOP_COLORS[0].id;
+  let pickedImage = null;
+  const swatches = SHOP_COLORS.map((c) =>
+    `<span class="sw ${c.id === pickedColor ? 'sel' : ''}" data-col="${c.id}" style="background:${c.grad}"></span>`).join('');
+  box.innerHTML = `
+    <div class="card" style="margin-top:10px">
+      <input class="inp wide" id="shopTitle" placeholder="Tittel (f.eks. LEGO-sett)" style="width:100%;margin-bottom:8px">
+      <input class="inp wide" id="shopLink" placeholder="Lenke til produkt (valgfri)" style="width:100%;margin-bottom:8px">
+      ${role === 'parent' ? `<label>Pris <input class="inp" id="shopPrice" type="number" min="0" placeholder="coins"></label>` : ''}
+      <div class="colorpick">${swatches}</div>
+      <input type="file" id="shopImg" accept="image/*" style="margin-bottom:8px">
+      <div style="display:flex;gap:8px">
+        <button class="btn good" id="shopSave">Legg til</button>
+        <button class="btn ghost" id="shopCancelAdd">Avbryt</button>
+      </div>
     </div>`;
+  box.querySelectorAll('.sw').forEach((sw) => (sw.onclick = () => {
+    pickedColor = sw.dataset.col;
+    box.querySelectorAll('.sw').forEach((x) => x.classList.toggle('sel', x === sw));
+  }));
+  const fileInput = document.getElementById('shopImg');
+  fileInput.onchange = async () => {
+    if (fileInput.files && fileInput.files[0]) {
+      try { pickedImage = await resizeImageToSquarePng(fileInput.files[0]); } catch { pickedImage = null; }
+    }
+  };
+  document.getElementById('shopCancelAdd').onclick = () => { box.innerHTML = ''; };
+  document.getElementById('shopSave').onclick = () => {
+    const title = document.getElementById('shopTitle').value.trim();
+    if (!title) return;
+    const link = document.getElementById('shopLink').value.trim();
+    const price = role === 'parent' ? Number(document.getElementById('shopPrice').value) || 0 : 0;
+    App.state = addShopItem(App.state, {
+      title, link, image: pickedImage, color: pickedColor,
+      price, priceSet: role === 'parent' && price > 0, by: role,
+    }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  };
+}
+
+function notifyPurchaseRequest(itemId) {
+  const it = (App.state.shopItems || []).find((x) => x.id === itemId);
+  const email = App.state.settings && App.state.settings.notifyEmail;
+  if (!it || !email) return;
+  notifyRequest(App.room, { to: email, title: it.title, link: it.link || '', price: it.price || 0 });
 }
 
 // --- foreldre: kode-gate -------------------------------------------------
@@ -727,18 +899,21 @@ let editWeekday = 'mon';
 
 function renderParentHome() {
   const pendingQuests = activeQuests(App.state).filter((q) => q.status === 'done').length;
+  const pendingShop = shopItemsByStatus(App.state, 'requested').length;
   const tabs = [
     ['uke', '📅', 'Uke'],
     ['dag', '📝', 'Dag'],
     ['timeplan', '🗓', 'Plan'],
     ['quests', '⭐', 'Quests'],
+    ['shop', '🛒', 'Shop'],
     ['logg', '📋', 'Logg'],
     ['stat', '📊', 'Stat'],
     ['poeng', '⚙️', 'Settings'],
   ];
   const bar = tabs
     .map(([k, ic, l]) => {
-      const badge = k === 'quests' && pendingQuests ? `<span class="navbadge">${pendingQuests}</span>` : '';
+      const badge = (k === 'quests' && pendingQuests) ? `<span class="navbadge">${pendingQuests}</span>`
+        : (k === 'shop' && pendingShop) ? `<span class="navbadge">${pendingShop}</span>` : '';
       return `<button class="t ${App.parentTab === k ? 'on' : ''}" data-tab="${k}">
         <span class="ti">${ic}${badge}</span><span class="tl">${l}</span></button>`;
     })
@@ -762,6 +937,7 @@ function renderParentHome() {
   if (App.parentTab === 'dag') return renderDayBody(host);
   if (App.parentTab === 'timeplan') return renderTimeplanTab(host);
   if (App.parentTab === 'quests') return renderQuestsTab(host);
+  if (App.parentTab === 'shop') return renderShopTab(host);
   if (App.parentTab === 'poeng') return renderPoengTab(host);
   if (App.parentTab === 'logg') return renderLoggTab(host);
   if (App.parentTab === 'stat') return renderStatistikkTab(host);
@@ -1350,6 +1526,64 @@ function renderQuestsTab(host) {
     };
 }
 
+function renderShopTab(host) {
+  const requested = shopItemsByStatus(App.state, 'requested');
+  const wishes = shopItemsByStatus(App.state, 'wish');
+  const active = activeShopItems(App.state).filter((x) => x.status === 'available');
+
+  const reqCard = (it) => `<div class="card" style="margin-bottom:8px">
+    <div style="display:flex;gap:10px;align-items:center">
+      <div class="shopreq"><div class="th" style="background:${shopGrad(it.color)}">${it.image ? `<img src="${it.image}" alt="">` : '🎁'}</div></div>
+      <div style="flex:1;min-width:0"><b>${escapeHtml(it.title)}</b>
+        <div class="muted" style="font-size:.8rem">${it.price || 0} 🪙${it.link ? ` · <a class="link" href="${safeShopHref(it.link)}" target="_blank" rel="noopener">åpne lenke</a>` : ''}</div></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn good" data-shopcommit="${it.id}">Bestilt – trekk coins</button>
+      <button class="btn ghost" data-shopreject="${it.id}">Avvis</button>
+    </div></div>`;
+
+  const wishCard = (it) => `<div class="card" style="margin-bottom:8px">
+    <b>${escapeHtml(it.title)}</b>${it.link ? ` · <a class="link" href="${safeShopHref(it.link)}" target="_blank" rel="noopener">lenke</a>` : ''}
+    <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+      <input class="inp" type="number" min="0" placeholder="coins" data-priceinput="${it.id}">
+      <button class="btn good" data-setprice="${it.id}">Sett pris</button>
+      <button class="btn ghost" data-shopdelp="${it.id}">Slett</button>
+    </div></div>`;
+
+  const activeCard = (it) => `<div class="card" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+    <div><b>${escapeHtml(it.title)}</b> <span class="muted">· ${it.price || 0} 🪙</span></div>
+    <button class="link" data-shopdelp="${it.id}">slett</button></div>`;
+
+  host.innerHTML = `
+    ${requested.length ? `<div class="sec">Forespørsler</div>${requested.map(reqCard).join('')}` : '<div class="muted" style="margin:10px 2px">Ingen forespørsler.</div>'}
+    ${wishes.length ? `<div class="sec">Sett pris (sønnens ønsker)</div>${wishes.map(wishCard).join('')}` : ''}
+    <div class="sec">Aktive varer</div>${active.length ? active.map(activeCard).join('') : '<div class="muted" style="margin-bottom:8px">Ingen aktive varer.</div>'}
+    <button class="shopadd" id="shopAddBtnP">＋ Legg til vare</button>
+    <div id="shopAddFormP"></div>`;
+
+  host.querySelectorAll('[data-shopcommit]').forEach((b) => (b.onclick = () => {
+    App.state = commitShopPurchase(App.state, { id: b.dataset.shopcommit, by: 'parent' }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  host.querySelectorAll('[data-shopreject]').forEach((b) => (b.onclick = () => {
+    App.state = cancelShopRequest(App.state, { id: b.dataset.shopreject, actor: 'parent' }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  host.querySelectorAll('[data-setprice]').forEach((b) => (b.onclick = () => {
+    const inp = host.querySelector(`[data-priceinput="${b.dataset.setprice}"]`);
+    const price = Number(inp && inp.value) || 0;
+    if (price <= 0) return;
+    App.state = setShopPrice(App.state, { id: b.dataset.setprice, price }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  host.querySelectorAll('[data-shopdelp]').forEach((b) => (b.onclick = () => {
+    App.state = deleteShopItem(App.state, { id: b.dataset.shopdelp, by: 'parent' }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  const addBtn = document.getElementById('shopAddBtnP');
+  if (addBtn) addBtn.onclick = () => renderShopAddForm(document.getElementById('shopAddFormP'), 'parent');
+}
+
 function renderPoengTab(host) {
   const s = App.state,
     v = s.settings.medalValues;
@@ -1365,6 +1599,10 @@ function renderPoengTab(host) {
       <div class="row" style="border:none"><div class="lbl">Kr per Honniscoin</div>
         <input class="inp" id="krRate" type="number" min="0" step="0.5" value="${s.settings.krPerCoin}"></div>
     </div>
+    <div class="sec">Varsling</div>
+    <label>Epost for shop-varsler
+      <input class="inp wide" id="notifyEmail" type="email" style="width:100%"
+        value="${escapeHtml(s.settings.notifyEmail || '')}" placeholder="din@epost.no"></label>
     <div class="sec">Daglige rutiner</div>
     <div id="routinesHost"></div>
     <button class="btn ghost" id="rtAddRoutine" style="margin-top:6px">＋ Ny rutine</button>
@@ -1395,6 +1633,12 @@ function renderPoengTab(host) {
       { actor: 'parent', field: 'krPerCoin', from, to },
       { now: nowIso(), id: newId() }
     );
+    save();
+  };
+  const emailInp = document.getElementById('notifyEmail');
+  if (emailInp) emailInp.onchange = () => {
+    s.settings.notifyEmail = emailInp.value.trim() || null;
+    s.settings.updatedAt = nowIso();
     save();
   };
   const WD = [['mon', 'Man'], ['tue', 'Tir'], ['wed', 'Ons'], ['thu', 'Tor'], ['fri', 'Fre']];

@@ -33,6 +33,7 @@ export function defaultState() {
       bonus: JSON.parse(JSON.stringify(DEFAULT_BONUS)),
       homeworkPoints: 5,
       docendoIcalId: '519a0908-ed7d-47ed-8667-dea07343b693',
+      notifyEmail: null,
       routines: [],
       routinesSeeded: false,
       schemaVersion: 2,
@@ -43,6 +44,8 @@ export function defaultState() {
     payouts: [],
     quests: [],
     homework: [],
+    shopItems: [],
+    purchases: [],
     log: [],
   };
 }
@@ -63,7 +66,17 @@ export function computeSpent(state) {
   return (state.payouts || []).reduce((a, p) => a + (p.coins || 0), 0);
 }
 
-// Saldo = medaljepoeng + oppmøte-bonus + ukesbonus + godkjente quests − utbetalinger.
+export function shopSpentTotal(state) {
+  return (state.purchases || []).reduce((a, p) => a + (Number(p.price) || 0), 0);
+}
+
+export function reservedTotal(state) {
+  return (state.shopItems || [])
+    .filter((it) => !it.removed && it.status === 'requested')
+    .reduce((a, it) => a + (Number(it.price) || 0), 0);
+}
+
+// Saldo = medaljepoeng + oppmøte-bonus + ukesbonus + godkjente quests − utbetalinger − kjøp.
 export function computeBalance(state) {
   return (
     computeEarned(state) +
@@ -71,8 +84,13 @@ export function computeBalance(state) {
     weeklyStreakBonusTotal(state) +
     questPointsTotal(state) +
     homeworkPointsTotal(state) -
-    computeSpent(state)
+    computeSpent(state) -
+    shopSpentTotal(state)
   );
+}
+
+export function availableBalance(state) {
+  return computeBalance(state) - reservedTotal(state);
 }
 
 // --- Dato / ukedag -------------------------------------------------------
@@ -570,6 +588,9 @@ export function migrate(state, todayIso) {
   }
   // «Vis fra dagen før» (leadDay) er nytt — default av på alle eksisterende maler.
   for (const r of s.settings.routines) { if (r && r.leadDay === undefined) r.leadDay = false; }
+  if (!Array.isArray(s.shopItems)) s.shopItems = [];
+  if (!Array.isArray(s.purchases)) s.purchases = [];
+  if (s.settings.notifyEmail === undefined) s.settings.notifyEmail = null;
   const stamp = (todayIso || '2000-01-01') + 'T00:00:00.000Z';
   for (const d of Object.keys(s.days || {})) {
     const day = s.days[d];
@@ -583,7 +604,7 @@ export function migrate(state, todayIso) {
   }
   const out = syncOpenRoutineInstances(generateDailyRoutines(s, todayIso), todayIso);
   out.log = pruneLog(out.log);
-  return out;
+  return pruneShopImages(out);
 }
 
 // Loggen er ren visning (ingen beregning leser den) og lagres i sin helhet i
@@ -598,6 +619,8 @@ export function pruneLog(log, keep = LOG_KEEP) {
     .sort((a, b) => (b.at || '').localeCompare(a.at || ''))
     .slice(0, keep);
 }
+
+const SHOP_IMG_KEEP = 20; // behold bilde kun på de nyeste kjøpene; eldre faller tilbake til 🎁
 
 // Total streak-bonus over hele historikken (inngår i saldo).
 export function streakBonusTotal(state) {
@@ -1026,9 +1049,9 @@ export function mergeState(local, remote) {
   if (local.quests || remote.quests) out.quests = mergeQuestList(local.quests, remote.quests);
   // homework: LWW per id på updatedAt (som quests)
   if (local.homework || remote.homework) out.homework = mergeHomeworkList(local.homework, remote.homework);
-  // fremtidige felt flettes allerede (bygges ikke nå):
+  // shop: LWW per id på updatedAt (statusendringer/sletting/hidden vinner nyest)
   for (const key of ['shopItems', 'purchases']) {
-    if (local[key] || remote[key]) out[key] = unionById(local[key], remote[key]);
+    if (local[key] || remote[key]) out[key] = mergeById(local[key], remote[key]);
   }
   return out;
 }
@@ -1040,6 +1063,17 @@ function mergeQuestList(a = [], b = []) {
   for (const q of b || []) {
     const cur = map.get(q.id);
     if (!cur || (q.updatedAt || '') > (cur.updatedAt || '')) map.set(q.id, clone(q));
+  }
+  return [...map.values()];
+}
+
+// LWW per id på updatedAt. Poster som kun finnes én side tas med.
+function mergeById(a = [], b = []) {
+  const map = new Map();
+  for (const x of a || []) map.set(x.id, clone(x));
+  for (const x of b || []) {
+    const cur = map.get(x.id);
+    if (!cur || (x.updatedAt || '') > (cur.updatedAt || '')) map.set(x.id, clone(x));
   }
   return [...map.values()];
 }
@@ -1247,6 +1281,169 @@ function mergeHomeworkList(a = [], b = []) {
     if (!cur || (h.updatedAt || '') > (cur.updatedAt || '')) map.set(h.id, clone(h));
   }
   return [...map.values()];
+}
+
+// --- Shop -----------------------------------------------------------------
+// shopItems: 'wish' (sønn, uten pris) -> 'available' (pris satt) -> 'requested'.
+// purchases: uforanderlig kvitteringsbok (driver shopSpentTotal). Sletting = removed-tombstone.
+
+function findShopIdx(s, id) {
+  return (s.shopItems || []).findIndex((x) => x.id === id);
+}
+
+export function addShopItem(state, { title, link = '', image = null, color = null, price = 0, priceSet = false, by = 'parent' }, ctx) {
+  const s = clone(state);
+  if (!Array.isArray(s.shopItems)) s.shopItems = [];
+  const priced = !!priceSet && Number(price) > 0;
+  s.shopItems.push({
+    id: ctx.id,
+    title,
+    link: link || '',
+    image: image || null,
+    color: color || null,
+    price: Number(price) || 0,
+    priceSet: priced,
+    status: priced ? 'available' : 'wish',
+    createdBy: by,
+    createdAt: ctx.now,
+    requestedAt: null,
+    updatedAt: ctx.now,
+    removed: false,
+  });
+  s.log.push({ id: ctx.id, at: ctx.now, actor: by, type: 'shop', action: 'add', item: ctx.id, title });
+  return s;
+}
+
+export function setShopPrice(state, { id, price }, ctx) {
+  const s = clone(state);
+  const i = findShopIdx(s, id);
+  if (i < 0) return s;
+  s.shopItems[i].price = Number(price) || 0;
+  s.shopItems[i].priceSet = true;
+  if (s.shopItems[i].status === 'wish') s.shopItems[i].status = 'available';
+  s.shopItems[i].updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor: 'parent', type: 'shop', action: 'price', item: id, title: s.shopItems[i].title });
+  return s;
+}
+
+export function updateShopItem(state, { id, patch, actor = 'parent' }, ctx) {
+  const s = clone(state);
+  const i = findShopIdx(s, id);
+  if (i < 0) return s;
+  const it = s.shopItems[i];
+  if ('title' in patch) it.title = patch.title;
+  if ('link' in patch) it.link = patch.link || '';
+  if ('image' in patch) it.image = patch.image || null;
+  if ('color' in patch) it.color = patch.color || null;
+  if ('price' in patch) {
+    it.price = Number(patch.price) || 0;
+    it.priceSet = it.price > 0;
+    if (it.priceSet && it.status === 'wish') it.status = 'available';
+    else if (!it.priceSet && it.status === 'available') it.status = 'wish';
+  }
+  it.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'shop', action: 'edit', item: id, title: it.title });
+  return s;
+}
+
+export function deleteShopItem(state, { id, by = 'parent' }, ctx) {
+  const s = clone(state);
+  const i = findShopIdx(s, id);
+  if (i < 0) return s;
+  s.shopItems[i].removed = true;
+  s.shopItems[i].updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor: by, type: 'shop', action: 'delete', item: id, title: s.shopItems[i].title });
+  return s;
+}
+
+export function requestShopItem(state, { id, actor = 'son' }, ctx) {
+  const s = clone(state);
+  const i = findShopIdx(s, id);
+  if (i < 0) return s;
+  const it = s.shopItems[i];
+  if (it.status !== 'available' || !it.priceSet) return s;
+  if (availableBalance(s) < (Number(it.price) || 0)) return s; // råd-sperre
+  it.status = 'requested';
+  it.requestedAt = ctx.now;
+  it.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'shop', action: 'request', item: id, title: it.title });
+  return s;
+}
+
+export function cancelShopRequest(state, { id, actor = 'son' }, ctx) {
+  const s = clone(state);
+  const i = findShopIdx(s, id);
+  if (i < 0) return s;
+  if (s.shopItems[i].status !== 'requested') return s;
+  s.shopItems[i].status = 'available';
+  s.shopItems[i].requestedAt = null;
+  s.shopItems[i].updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'shop', action: 'cancel', item: id, title: s.shopItems[i].title });
+  return s;
+}
+
+export function commitShopPurchase(state, { id, by = 'parent' }, ctx) {
+  const s = clone(state);
+  const i = findShopIdx(s, id);
+  if (i < 0) return s;
+  const it = s.shopItems[i];
+  if (it.status !== 'requested') return s;
+  if (!Array.isArray(s.purchases)) s.purchases = [];
+  s.purchases.push({
+    id: ctx.id,
+    itemId: it.id,
+    title: it.title,
+    image: it.image || null,
+    color: it.color || null,
+    price: Number(it.price) || 0,
+    at: ctx.now,
+    by,
+    hidden: false,
+    updatedAt: ctx.now,
+  });
+  it.removed = true;
+  it.status = 'committed';
+  it.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor: by, type: 'shop', action: 'commit', item: id, title: it.title, price: it.price });
+  return s;
+}
+
+export function hidePurchase(state, { id, hidden = true }, ctx) {
+  const s = clone(state);
+  const p = (s.purchases || []).find((x) => x.id === id);
+  if (!p) return s;
+  p.hidden = !!hidden;
+  p.updatedAt = ctx.now;
+  return s;
+}
+
+export function activeShopItems(state) {
+  return (state.shopItems || []).filter((x) => !x.removed);
+}
+
+export function shopItemsByStatus(state, status) {
+  return activeShopItems(state).filter((x) => x.status === status);
+}
+
+export function activePurchases(state) {
+  return (state.purchases || []).slice().sort((a, b) => (b.at || '').localeCompare(a.at || ''));
+}
+
+export function visiblePurchases(state) {
+  return activePurchases(state).filter((p) => !p.hidden);
+}
+
+// Bounder blob-vekst: behold base64-bilde kun på de nyeste kjøpene, null ut resten.
+// Historikk (tittel/pris/dato/hidden) beholdes; UI viser 🎁 når image mangler.
+export function pruneShopImages(state, keep = SHOP_IMG_KEEP) {
+  const s = clone(state);
+  if (!Array.isArray(s.purchases)) return s;
+  const order = s.purchases
+    .map((p, i) => ({ i, at: p.at || '' }))
+    .sort((a, b) => (b.at).localeCompare(a.at));
+  const keepIdx = new Set(order.slice(0, keep).map((x) => x.i));
+  s.purchases = s.purchases.map((p, i) => (keepIdx.has(i) ? p : { ...p, image: null }));
+  return s;
 }
 
 // --- Fag-statistikk (forelder, kun visning) ------------------------------
