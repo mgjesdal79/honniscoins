@@ -1249,6 +1249,42 @@ export function runTests() {
       s.purchases = [{ id: 'p1', price: 2, hidden: false }];
       eq('kjøp trekkes fra saldo', L.computeBalance(s), before - 2);
     },
+    function shop_addShopItem_son_wish() {
+      const ctx = { now: '2026-09-06T10:00:00.000Z', id: 'i1' };
+      const s = L.addShopItem(L.defaultState(), { title: 'Drone', link: 'http://x', color: 'blue', by: 'son' }, ctx);
+      const it = s.shopItems[0];
+      eq('status wish', it.status, 'wish');
+      eq('priceSet false', it.priceSet, false);
+      eq('createdBy son', it.createdBy, 'son');
+      eq('logget', s.log[s.log.length - 1].type, 'shop');
+    },
+    function shop_addShopItem_parent_available() {
+      const ctx = { now: '2026-09-06T10:00:00.000Z', id: 'i2' };
+      const s = L.addShopItem(L.defaultState(), { title: 'Spill', price: 60, priceSet: true, by: 'parent' }, ctx);
+      eq('status available', s.shopItems[0].status, 'available');
+      eq('pris satt', s.shopItems[0].price, 60);
+    },
+    function shop_setShopPrice_activates() {
+      const c1 = { now: '2026-09-06T10:00:00.000Z', id: 'i3' };
+      let s = L.addShopItem(L.defaultState(), { title: 'Bok', by: 'son' }, c1);
+      s = L.setShopPrice(s, { id: 'i3', price: 25 }, { now: '2026-09-06T11:00:00.000Z', id: 'l1' });
+      eq('pris satt', s.shopItems[0].price, 25);
+      eq('priceSet true', s.shopItems[0].priceSet, true);
+      eq('status available', s.shopItems[0].status, 'available');
+    },
+    function shop_updateShopItem_patch() {
+      const c1 = { now: '2026-09-06T10:00:00.000Z', id: 'i4' };
+      let s = L.addShopItem(L.defaultState(), { title: 'Gammel', price: 10, priceSet: true, by: 'parent' }, c1);
+      s = L.updateShopItem(s, { id: 'i4', patch: { title: 'Ny', color: 'orange' } }, { now: '2026-09-06T11:00:00.000Z', id: 'l2' });
+      eq('tittel oppdatert', s.shopItems[0].title, 'Ny');
+      eq('farge oppdatert', s.shopItems[0].color, 'orange');
+    },
+    function shop_deleteShopItem_tombstone() {
+      const c1 = { now: '2026-09-06T10:00:00.000Z', id: 'i5' };
+      let s = L.addShopItem(L.defaultState(), { title: 'X', by: 'son' }, c1);
+      s = L.deleteShopItem(s, { id: 'i5', by: 'son' }, { now: '2026-09-06T11:00:00.000Z', id: 'l3' });
+      eq('removed true', s.shopItems[0].removed, true);
+    },
   ];
 
   for (const t of tests) {

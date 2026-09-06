@@ -1281,6 +1281,74 @@ function mergeHomeworkList(a = [], b = []) {
   return [...map.values()];
 }
 
+// --- Shop -----------------------------------------------------------------
+// shopItems: 'wish' (sønn, uten pris) -> 'available' (pris satt) -> 'requested'.
+// purchases: uforanderlig kvitteringsbok (driver shopSpentTotal). Sletting = removed-tombstone.
+
+function findShopIdx(s, id) {
+  return (s.shopItems || []).findIndex((x) => x.id === id);
+}
+
+export function addShopItem(state, { title, link = '', image = null, color = null, price = 0, priceSet = false, by = 'parent' }, ctx) {
+  const s = clone(state);
+  if (!Array.isArray(s.shopItems)) s.shopItems = [];
+  const priced = !!priceSet && Number(price) > 0;
+  s.shopItems.push({
+    id: ctx.id,
+    title,
+    link: link || '',
+    image: image || null,
+    color: color || null,
+    price: Number(price) || 0,
+    priceSet: priced,
+    status: priced ? 'available' : 'wish',
+    createdBy: by,
+    createdAt: ctx.now,
+    requestedAt: null,
+    updatedAt: ctx.now,
+    removed: false,
+  });
+  s.log.push({ id: ctx.id, at: ctx.now, actor: by, type: 'shop', action: 'add', item: ctx.id, title });
+  return s;
+}
+
+export function setShopPrice(state, { id, price }, ctx) {
+  const s = clone(state);
+  const i = findShopIdx(s, id);
+  if (i < 0) return s;
+  s.shopItems[i].price = Number(price) || 0;
+  s.shopItems[i].priceSet = true;
+  if (s.shopItems[i].status === 'wish') s.shopItems[i].status = 'available';
+  s.shopItems[i].updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor: 'parent', type: 'shop', action: 'price', item: id, title: s.shopItems[i].title });
+  return s;
+}
+
+export function updateShopItem(state, { id, patch, actor = 'parent' }, ctx) {
+  const s = clone(state);
+  const i = findShopIdx(s, id);
+  if (i < 0) return s;
+  const it = s.shopItems[i];
+  if ('title' in patch) it.title = patch.title;
+  if ('link' in patch) it.link = patch.link || '';
+  if ('image' in patch) it.image = patch.image || null;
+  if ('color' in patch) it.color = patch.color || null;
+  if ('price' in patch) { it.price = Number(patch.price) || 0; it.priceSet = it.price > 0; if (it.priceSet && it.status === 'wish') it.status = 'available'; }
+  it.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'shop', action: 'edit', item: id, title: it.title });
+  return s;
+}
+
+export function deleteShopItem(state, { id, by = 'parent' }, ctx) {
+  const s = clone(state);
+  const i = findShopIdx(s, id);
+  if (i < 0) return s;
+  s.shopItems[i].removed = true;
+  s.shopItems[i].updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor: by, type: 'shop', action: 'delete', item: id, title: s.shopItems[i].title });
+  return s;
+}
+
 // --- Fag-statistikk (forelder, kun visning) ------------------------------
 
 export const EFFORT_SCORE = { bronse: 1, solv: 2, gull: 3 };
