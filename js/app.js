@@ -181,7 +181,7 @@ function setRole(role) {
 function renderWho() {
   el.innerHTML = `
     <div class="who">
-      <div><div class="logo">🪙</div><h1>Honniscoins</h1><div class="muted">Velg hvem du er</div></div>
+      <div><div class="logo">💰</div><h1>Honniscoins</h1><div class="muted">Velg hvem du er</div></div>
       <div class="role" id="roleSon"><span class="em">🧒</span><div><b>Sønn</b><span>Timeplan og medaljer</span></div></div>
       <div class="role" id="roleParent"><span class="em">👨‍👩‍👦</span><div><b>Forelder</b><span>Innstillinger og logg · kode</span></div></div>
     </div>`;
@@ -238,7 +238,7 @@ function brandHtml() {
   const bal = computeBalance(App.state);
   return `<div class="brand">
       <img src="icon-192.png" alt="" width="34" height="34" style="border-radius:9px">
-      <b>Honniscoins:</b><span class="brandbal">${bal} 🪙</span>
+      <b>Honniscoins:</b><span class="brandbal">${bal} 💰</span>
     </div>`;
 }
 
@@ -316,7 +316,7 @@ function homeworkSectionHtml(s, date) {
     else action = `<div class="muted">✅ Godkjent · lagt i potten</div>`;
     const cls = h.status === 'done' ? ' done' : h.status === 'approved' ? ' approved' : '';
     return `<div class="hwcard${cls}">
-        <div class="hwtop"><span class="hwsubj">${escapeHtml(h.subject)}${tag}</span><span class="hwpts">+${h.points} 🪙</span></div>
+        <div class="hwtop"><span class="hwsubj">${escapeHtml(h.subject)}${tag}</span><span class="hwpts">+${h.points} 💰</span></div>
         ${h.text ? `<div class="hwtext">${escapeHtml(h.text)}</div>` : ''}
         ${action}
       </div>`;
@@ -500,8 +500,8 @@ function renderPoengPage(host) {
     <div class="balance">
       <div class="coins">${bal} <small>Honniscoins</small></div>
       <div class="kr">≈ ${formatKr(bal, s.settings.krPerCoin)} · denne uka +${wTot}</div>
-      ${qPending ? `<div class="kr">⭐ ${qPending} 🪙 fra sidequests venter på godkjenning</div>` : ''}
-      ${hwPending ? `<div class="kr">📚 ${hwPending} 🪙 fra lekser venter på godkjenning</div>` : ''}
+      ${qPending ? `<div class="kr">⭐ ${qPending} 💰 fra sidequests venter på godkjenning</div>` : ''}
+      ${hwPending ? `<div class="kr">📚 ${hwPending} 💰 fra lekser venter på godkjenning</div>` : ''}
     </div>
 
     <div class="sec">Ukesbonus (denne uka)</div>
@@ -609,7 +609,7 @@ function renderSidequestsPage(host) {
   };
   const questCard = (q, kind) => {
     const overdue = isQuestOverdue(q, today);
-    const pts = `<span class="qpts">+${q.points} 🪙</span>`;
+    const pts = `<span class="qpts">+${q.points} 💰</span>`;
     if (kind === 'open') {
       const ready = allSubtasksDone(q);
       const skipBtn = q.source === 'routine'
@@ -652,7 +652,7 @@ function renderSidequestsPage(host) {
     list.length ? `<div class="sec">${title}</div>${list.map((q) => questCard(q, kind)).join('')}` : '';
 
   host.innerHTML = `
-    ${pending ? `<div class="qbanner">⏳ ${pending} 🪙 venter på godkjenning</div>` : ''}
+    ${pending ? `<div class="qbanner">⏳ ${pending} 💰 venter på godkjenning</div>` : ''}
     ${section(`Å gjøre (${open.length})`, open, 'open')}
     ${section('Venter på godkjenning', done, 'done')}
     ${section('Ikke gjort', skipped, 'skipped')}
@@ -719,12 +719,12 @@ function renderShopPage(host) {
     const imgInner = it.image ? `<img src="${it.image}" alt="">` : `<span class="ph">🎁</span>`;
     const btn = canBuy
       ? `<button class="shopbuy" data-buy="${it.id}">Kjøp</button>`
-      : `<button class="shopbuy lock" disabled>Mangler ${(it.price || 0) - avail} 🪙</button>`;
+      : `<button class="shopbuy lock" disabled>Mangler ${(it.price || 0) - avail} 💰</button>`;
     return `<div class="shopcard">
       <div class="img" style="background:${shopGrad(it.color)}">${imgInner}</div>
       <div class="body">
         <div class="ttl">${escapeHtml(it.title)}</div>
-        <div class="price">🪙 ${it.price || 0}</div>
+        <div class="price">💰 ${it.price || 0}</div>
         ${it.link ? `<a class="link" href="${safeShopHref(it.link)}" target="_blank" rel="noopener">Se produkt</a>` : ''}
         ${btn}
         <button class="btn good shopedit" data-shopedit="${it.id}">✏️ Rediger</button>
@@ -733,7 +733,7 @@ function renderShopPage(host) {
 
   const reqHtml = (it) => `<div class="shopreq">
     <div class="th">${it.image ? `<img src="${it.image}" alt="">` : '🎁'}</div>
-    <div class="info"><b>${escapeHtml(it.title)}</b><div class="s res">${it.price || 0} 🪙 reservert</div></div>
+    <div class="info"><b>${escapeHtml(it.title)}</b><div class="s res">${it.price || 0} 💰 reservert</div></div>
     <button class="undo" data-cancel="${it.id}">Angre</button></div>`;
 
   const wishHtml = (it) => `<div class="shopreq">
@@ -744,12 +744,12 @@ function renderShopPage(host) {
 
   const histRows = purchases.map((p) =>
     `<div class="hrow"><div><b>${escapeHtml(p.title)}</b><div class="d">${formatShopDate(p.at)}</div></div>
-     <div style="display:flex;align-items:center;gap:10px"><span class="amt">−${p.price || 0} 🪙</span>
+     <div style="display:flex;align-items:center;gap:10px"><span class="amt">−${p.price || 0} 💰</span>
      <button class="link" data-phide="${p.id}">skjul</button></div></div>`
   ).join('');
 
   host.innerHTML = `
-    <div class="shopbal"><div><div class="big">${bal} 🪙</div></div>
+    <div class="shopbal"><div><div class="big">${bal} 💰</div></div>
       <div class="res">Tilgjengelig: <b>${avail}</b>${reserved ? `<br>${reserved} reservert` : ''}</div></div>
 
     ${forSale.length ? `<div class="sec">Til salgs</div><div class="shopgrid">${forSale.map(cardHtml).join('')}</div>` : ''}
@@ -758,7 +758,7 @@ function renderShopPage(host) {
 
     <div class="sec">Kjøpt · brukt totalt</div>
     <div class="shophist">${histRows || '<div class="hrow"><span class="muted">Ingen kjøp ennå</span></div>'}
-      <div class="htot"><div>Brukt totalt</div><div class="amt">${spent} 🪙</div></div></div>
+      <div class="htot"><div>Brukt totalt</div><div class="amt">${spent} 💰</div></div></div>
 
     <button class="shopadd" id="shopAddBtn">＋ Legg til ønske</button>
     <div id="shopAddForm"></div>`;
@@ -1066,7 +1066,7 @@ function parentHomeworkHtml(s, date) {
   const pendingHtml = pending.length
     ? `<div class="hwsec">⏳ Lekser til godkjenning <span class="badge">${pending.length}</span></div>` +
       pending.map((h) => `<div class="hwcard done">
-        <div class="hwtop"><span class="hwsubj">${escapeHtml(h.subject)}</span><span class="hwpts">+${h.points} 🪙</span></div>
+        <div class="hwtop"><span class="hwsubj">${escapeHtml(h.subject)}</span><span class="hwpts">+${h.points} 💰</span></div>
         ${h.text ? `<div class="hwtext">${escapeHtml(h.text)}</div>` : ''}
         <div style="display:flex;gap:8px">
           <button class="btn good" data-hwapprove="${h.id}" style="flex:1">✓ Godkjenn</button>
@@ -1125,7 +1125,7 @@ function parentHomeworkHtml(s, date) {
         <div class="rhead" data-hw-toggle role="button" tabindex="0">
           <div style="flex:1;min-width:0">
             <div class="rtitle">${escapeHtml(h.subject) || '—'}${badge(h)}${h.hidden ? '<span class="hwdaytag">skjult</span>' : ''}</div>
-            <div class="rmeta">${statusMeta(h)} · +${h.points} 🪙</div>
+            <div class="rmeta">${statusMeta(h)} · +${h.points} 💰</div>
           </div>
           <span class="rchev">${open ? '▾' : '▸'}</span>
         </div>
@@ -1393,7 +1393,7 @@ function renderQuestsTab(host) {
   const queueRows = done
     .map(
       (q) => `<div class="qcard done">
-        <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b><span class="qpts">+${q.points} 🪙</span></div>
+        <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b><span class="qpts">+${q.points} 💰</span></div>
         ${q.desc ? `<div class="qdesc">${escapeHtml(q.desc)}</div>` : ''}
         <div class="qmeta muted" style="font-size:.74rem">Frist: ${dueTxt(q.due)}</div>
         <div class="qrow">
@@ -1416,7 +1416,7 @@ function renderQuestsTab(host) {
       ? `<button class="btn ghost qbtn" data-skip="${q.id}">🚫 Ikke gjort</button>`
       : '';
     return `<div class="qcard ${q.status === 'approved' ? 'approved' : ''}">
-        <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b><span class="qpts">+${q.points} 🪙</span></div>
+        <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b><span class="qpts">+${q.points} 💰</span></div>
         ${q.desc ? `<div class="qdesc">${escapeHtml(q.desc)}</div>` : ''}
         <div class="qmeta">${status}</div>
         <div class="qrow">
@@ -1427,7 +1427,7 @@ function renderQuestsTab(host) {
       </div>`;
   };
   const skippedCard = (q) => `<div class="qcard skipped">
-        <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b><span class="qpts">+${q.points} 🪙</span></div>
+        <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b><span class="qpts">+${q.points} 💰</span></div>
         <div class="qmeta"><span class="qdue muted">🚫 Ikke gjort · ${routineDateLabel(q.routineDate)}</span></div>
         <div class="qrow"><button class="btn ghost qbtn" data-unskip="${q.id}">↩︎ Angre</button></div>
       </div>`;
@@ -1593,7 +1593,7 @@ function renderShopTab(host) {
     <div style="display:flex;gap:10px;align-items:center">
       <div class="shopreq"><div class="th" style="background:${shopGrad(it.color)}">${it.image ? `<img src="${it.image}" alt="">` : '🎁'}</div></div>
       <div style="flex:1;min-width:0"><b>${escapeHtml(it.title)}</b>
-        <div class="muted" style="font-size:.8rem">${it.price || 0} 🪙${it.link ? ` · <a class="link" href="${safeShopHref(it.link)}" target="_blank" rel="noopener">åpne lenke</a>` : ''}</div></div>
+        <div class="muted" style="font-size:.8rem">${it.price || 0} 💰${it.link ? ` · <a class="link" href="${safeShopHref(it.link)}" target="_blank" rel="noopener">åpne lenke</a>` : ''}</div></div>
     </div>
     <div style="display:flex;gap:8px;margin-top:10px">
       <button class="btn good" data-shopcommit="${it.id}">Bestilt – trekk coins</button>
@@ -1610,7 +1610,7 @@ function renderShopTab(host) {
     </div></div>`;
 
   const activeCard = (it) => `<div class="card" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
-    <div><b>${escapeHtml(it.title)}</b> <span class="muted">· ${it.price || 0} 🪙</span></div>
+    <div><b>${escapeHtml(it.title)}</b> <span class="muted">· ${it.price || 0} 💰</span></div>
     <div style="display:flex;gap:8px"><button class="btn good shopedit" data-shopeditp="${it.id}">✏️ Rediger</button>
       <button class="link" data-shopdelp="${it.id}">slett</button></div></div>`;
 
@@ -1722,7 +1722,7 @@ function renderPoengTab(host) {
         <div class="rhead" data-r-toggle role="button" tabindex="0">
           <div style="flex:1;min-width:0">
             <div class="rtitle">${escapeHtml(r.title || 'Uten navn')}${r.enabled ? '' : ' <span class="roff">(av)</span>'}</div>
-            <div class="rmeta">${wdSummary} · ${subCount} deloppg. · ${r.points} 🪙${leadSummary}</div>
+            <div class="rmeta">${wdSummary} · ${subCount} deloppg. · ${r.points} 💰${leadSummary}</div>
           </div>
           <span class="rchev">${open ? '▾' : '▸'}</span>
         </div>
@@ -1733,7 +1733,7 @@ function renderPoengTab(host) {
             <input type="checkbox" data-r-lead ${r.leadDay ? 'checked' : ''}></label>
           <div class="row"><div class="lbl">Tittel</div>
             <input class="inp" data-r-title style="width:auto;flex:1;text-align:left" value="${escapeHtml(r.title)}"></div>
-          <div class="row"><div class="lbl">Reward 🪙</div>
+          <div class="row"><div class="lbl">Reward 💰</div>
             <input class="inp" data-r-points type="number" min="0" value="${r.points}"></div>
           <div class="lbl" style="margin:8px 2px 4px">Ukedager</div>
           <div class="wdrow">${WD.map(([k, lbl]) => `<button class="wdpill ${(r.weekdays || []).includes(k) ? 'on' : ''}" data-wd="${k}">${lbl}</button>`).join('')}</div>

@@ -27,7 +27,7 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   remote-lagring; matcher visningens tak. NB: `renderLoggTab` har ingen gren for `type:'routine'`
   (rutine-mal-endringer blir usynlige rader), og rutine-instansens auto-`quest create` bruker
   `actor:'system'` som tag-koden viser som «Sønn» — kjent støy, men ruller ut av 200-vinduet.
-- Topp-logo (`brandHtml()` i app.js) viser **alltid saldo**: «Honniscoins: X 🪙», både for sønn
+- Topp-logo (`brandHtml()` i app.js) viser **alltid saldo**: «Honniscoins: X 💰», både for sønn
   (over bunn-nav) og forelder (over faner). Regnes via `computeBalance` ved hver render.
 
 ## Domenemodell (viktig)
@@ -176,7 +176,7 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   **sammenleggbare kort** (`.rhead`/`.rbody`/`.rchev`, samme mønster som rutiner; header = fag +
   merke + status·poeng, kropp = tekst + knapper; ekspander-tilstand i `App.homeworkOpen`, ren
   visning, ikke persistert), rediger/skjul/slett, «🗑 Slett serie» på daglig-poster, flytt-piler
-  skjult for multi-dag. Poeng-siden viser `homeworkPointsPending` («📚 X 🪙 fra lekser venter på
+  skjult for multi-dag. Poeng-siden viser `homeworkPointsPending` («📚 X 💰 fra lekser venter på
   godkjenning»).
 - **Sønnens «gjør ferdig»-knapp:** tekst «Marker som gjort» (imperativ, ikke «✓ Gjort» som
   leste som status) + grønn `.btn.good` (klassen manglet før → falt tilbake til blå nav-stil).
