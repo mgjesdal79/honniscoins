@@ -277,15 +277,19 @@
   .shophist .htot .amt{color:var(--gold)}
   .shopadd{width:100%;background:transparent;border:1px dashed var(--line);color:var(--muted);border-radius:14px;padding:13px;font-weight:700;margin-top:10px}
   .colorpick{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
-  .colorpick .sw{width:30px;height:30px;border-radius:9px;border:2px solid transparent;cursor:pointer}
-  .colorpick .sw.sel{border-color:#fff}
+  .colorpick .sw{width:30px;height:30px;border-radius:9px;border:2px solid rgba(255,255,255,.18);cursor:pointer}
+  .colorpick .sw.sel{border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
+  .sfld{font-size:.8rem;font-weight:700;color:var(--muted);margin:12px 0 2px}
+  .filebtn{width:auto;display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+  .filebtn input[type=file]{display:none}
+  .btn.good.shopedit{width:auto;padding:9px 14px;font-size:.9rem;border-radius:10px}
 </style>
 </head>
 <body>
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.09.08 (b43 · shop: rediger vare + bytt bilde)';
+    window.APP_VERSION = '2026.09.08 (b44 · shop: rediger-knapp, tydelig bildeopplasting, 16 farger)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>

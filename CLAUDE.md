@@ -286,9 +286,10 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   PNG (contain/sentrert), lagres base64 i `shopItems[].image`. **Blob-vekst boundet:**
   `pruneShopImages(state, keep=SHOP_IMG_KEEP=20)` beholder base64 kun på de 20 nyeste kjøpene,
   nuller eldre; kalt SIST i `migrate` (`return pruneShopImages(out);` etter `pruneLog`).
-- **Farger:** `SHOP_COLORS` i app.js = **12 gradienter** (green/blue/purple/orange +
-  red/pink/rose/yellow/lime/teal/cyan/indigo), `color` lagrer id-en, `shopGrad(id)` slår opp.
-  Delt fargevelger (`.colorpick` m/ `flex-wrap`) i `renderShopAddForm` (sønn + forelder).
+- **Farger:** `SHOP_COLORS` i app.js = **16 gradienter** (green/blue/purple/orange +
+  red/pink/rose/yellow/lime/teal/cyan/indigo + nøytrale black/graydark/graylight/white),
+  `color` lagrer id-en, `shopGrad(id)` slår opp. Delt fargevelger (`.colorpick` m/ `flex-wrap`)
+  i `renderShopAddForm` (sønn + forelder).
 - **Lenker saniteres:** `safeShopHref(url)` — kun `http(s)://`, ellers `#` (blokkerer
   `javascript:`/`data:`); escapes via `escapeHtml`.
 - **UI:** sønn `renderShopPage`/`bindSonShop` (seksjoner Til salgs / reservert / ønsker / Kjøpt +
