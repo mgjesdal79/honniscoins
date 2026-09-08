@@ -1286,6 +1286,15 @@ export function runTests() {
       eq('tittel oppdatert', s.shopItems[0].title, 'Ny');
       eq('farge oppdatert', s.shopItems[0].color, 'orange');
     },
+    function shop_updateShopItem_image_patch() {
+      const c1 = { now: '2026-09-06T10:00:00.000Z', id: 'img1' };
+      let s = L.addShopItem(L.defaultState(), { title: 'Med bilde', image: 'data:image/png;base64,AAA', by: 'son' }, c1);
+      eq('bilde satt ved add', s.shopItems[0].image, 'data:image/png;base64,AAA');
+      s = L.updateShopItem(s, { id: 'img1', patch: { image: 'data:image/png;base64,BBB' } }, { now: 't1', id: 'img2' });
+      eq('bilde byttet', s.shopItems[0].image, 'data:image/png;base64,BBB');
+      s = L.updateShopItem(s, { id: 'img1', patch: { image: null } }, { now: 't2', id: 'img3' });
+      eq('bilde fjernet', s.shopItems[0].image, null);
+    },
     function shop_deleteShopItem_tombstone() {
       const c1 = { now: '2026-09-06T10:00:00.000Z', id: 'i5' };
       let s = L.addShopItem(L.defaultState(), { title: 'X', by: 'son' }, c1);

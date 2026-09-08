@@ -723,6 +723,7 @@ function renderShopPage(host) {
         <div class="price">🪙 ${it.price || 0}</div>
         ${it.link ? `<a class="link" href="${safeShopHref(it.link)}" target="_blank" rel="noopener">Se produkt</a>` : ''}
         ${btn}
+        <button class="link" data-shopedit="${it.id}">✏️ Rediger</button>
       </div></div>`;
   };
 
@@ -734,6 +735,7 @@ function renderShopPage(host) {
   const wishHtml = (it) => `<div class="shopreq">
     <div class="th">${it.image ? `<img src="${it.image}" alt="">` : '🎁'}</div>
     <div class="info"><b>${escapeHtml(it.title)}</b><div class="s">Venter på pris</div></div>
+    <button class="undo" data-shopedit="${it.id}">Rediger</button>
     <button class="undo" data-shopdel="${it.id}">Fjern</button></div>`;
 
   const histRows = purchases.map((p) =>
@@ -780,6 +782,8 @@ function bindSonShop(host) {
     App.state = deleteShopItem(App.state, { id: b.dataset.shopdel, by: 'son' }, { now: nowIso(), id: newId() });
     save(); routeToView();
   }));
+  host.querySelectorAll('[data-shopedit]').forEach((b) => (b.onclick = () =>
+    openShopEdit('shopAddForm', b.dataset.shopedit, 'son')));
   host.querySelectorAll('[data-phide]').forEach((b) => (b.onclick = () => {
     App.state = hidePurchase(App.state, { id: b.dataset.phide, hidden: true }, { now: nowIso(), id: newId() });
     save(); routeToView();
@@ -788,25 +792,40 @@ function bindSonShop(host) {
   if (addBtn) addBtn.onclick = () => renderShopAddForm(document.getElementById('shopAddForm'), 'son');
 }
 
-// Delt tilføy-skjema (sønn: ønske uten pris; forelder: med pris). role: 'son'|'parent'.
-function renderShopAddForm(box, role) {
+// Delt tilføy-/rediger-skjema. role: 'son'|'parent'. item satt = rediger-modus
+// (tittel/lenke/farge/bilde; pris røres ikke – egen «Sett pris»-flyt for forelder).
+function renderShopAddForm(box, role, item = null) {
   if (!box) return;
-  let pickedColor = SHOP_COLORS[0].id;
-  let pickedImage = null;
+  const editing = !!item;
+  let pickedColor = (editing && item.color) || SHOP_COLORS[0].id;
+  let pickedImage = editing ? (item.image || null) : null;
   const swatches = SHOP_COLORS.map((c) =>
     `<span class="sw ${c.id === pickedColor ? 'sel' : ''}" data-col="${c.id}" style="background:${c.grad}"></span>`).join('');
+  const imgPreview = () => pickedImage
+    ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+         <img src="${pickedImage}" alt="" style="width:44px;height:44px;border-radius:8px;object-fit:cover">
+         <button class="link" id="shopImgClear" type="button">Fjern bilde</button></div>`
+    : '';
   box.innerHTML = `
-    <div class="card" style="margin-top:10px">
-      <input class="inp wide" id="shopTitle" placeholder="Tittel (f.eks. LEGO-sett)" style="width:100%;margin-bottom:8px">
-      <input class="inp wide" id="shopLink" placeholder="Lenke til produkt (valgfri)" style="width:100%;margin-bottom:8px">
-      ${role === 'parent' ? `<label>Pris <input class="inp" id="shopPrice" type="number" min="0" placeholder="coins"></label>` : ''}
+    <div class="card${editing ? ' editing' : ''}" style="margin-top:10px">
+      ${editing ? '<div class="sec" style="margin-top:0">Rediger vare</div>' : ''}
+      <input class="inp wide" id="shopTitle" placeholder="Tittel (f.eks. LEGO-sett)" style="width:100%;margin-bottom:8px" value="${editing ? escapeHtml(item.title || '') : ''}">
+      <input class="inp wide" id="shopLink" placeholder="Lenke til produkt (valgfri)" style="width:100%;margin-bottom:8px" value="${editing ? escapeHtml(item.link || '') : ''}">
+      ${role === 'parent' && !editing ? `<label>Pris <input class="inp" id="shopPrice" type="number" min="0" placeholder="coins"></label>` : ''}
       <div class="colorpick">${swatches}</div>
+      <div id="shopImgPrev">${imgPreview()}</div>
       <input type="file" id="shopImg" accept="image/*" style="margin-bottom:8px">
       <div style="display:flex;gap:8px">
-        <button class="btn good" id="shopSave">Legg til</button>
+        <button class="btn good" id="shopSave">${editing ? 'Lagre endringer' : 'Legg til'}</button>
         <button class="btn ghost" id="shopCancelAdd">Avbryt</button>
       </div>
     </div>`;
+  const prev = document.getElementById('shopImgPrev');
+  const bindClear = () => {
+    const c = document.getElementById('shopImgClear');
+    if (c) c.onclick = () => { pickedImage = null; prev.innerHTML = imgPreview(); bindClear(); };
+  };
+  bindClear();
   box.querySelectorAll('.sw').forEach((sw) => (sw.onclick = () => {
     pickedColor = sw.dataset.col;
     box.querySelectorAll('.sw').forEach((x) => x.classList.toggle('sel', x === sw));
@@ -815,6 +834,7 @@ function renderShopAddForm(box, role) {
   fileInput.onchange = async () => {
     if (fileInput.files && fileInput.files[0]) {
       try { pickedImage = await resizeImageToSquarePng(fileInput.files[0]); } catch { pickedImage = null; }
+      prev.innerHTML = imgPreview(); bindClear();
     }
   };
   document.getElementById('shopCancelAdd').onclick = () => { box.innerHTML = ''; };
@@ -822,6 +842,13 @@ function renderShopAddForm(box, role) {
     const title = document.getElementById('shopTitle').value.trim();
     if (!title) return;
     const link = document.getElementById('shopLink').value.trim();
+    if (editing) {
+      App.state = updateShopItem(App.state, {
+        id: item.id, patch: { title, link, image: pickedImage, color: pickedColor }, actor: role,
+      }, { now: nowIso(), id: newId() });
+      save(); routeToView();
+      return;
+    }
     const price = role === 'parent' ? Number(document.getElementById('shopPrice').value) || 0 : 0;
     App.state = addShopItem(App.state, {
       title, link, image: pickedImage, color: pickedColor,
@@ -829,6 +856,14 @@ function renderShopAddForm(box, role) {
     }, { now: nowIso(), id: newId() });
     save(); routeToView();
   };
+  if (editing) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// Åpner rediger-skjemaet for en vare i angitt container.
+function openShopEdit(containerId, itemId, role) {
+  const it = (App.state.shopItems || []).find((x) => x.id === itemId);
+  const box = document.getElementById(containerId);
+  if (it && box) renderShopAddForm(box, role, it);
 }
 
 function notifyPurchaseRequest(itemId) {
@@ -1555,12 +1590,14 @@ function renderShopTab(host) {
     <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
       <input class="inp" type="number" min="0" placeholder="coins" data-priceinput="${it.id}">
       <button class="btn good" data-setprice="${it.id}">Sett pris</button>
+      <button class="btn ghost" data-shopeditp="${it.id}">Rediger</button>
       <button class="btn ghost" data-shopdelp="${it.id}">Slett</button>
     </div></div>`;
 
   const activeCard = (it) => `<div class="card" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
     <div><b>${escapeHtml(it.title)}</b> <span class="muted">· ${it.price || 0} 🪙</span></div>
-    <button class="link" data-shopdelp="${it.id}">slett</button></div>`;
+    <div style="display:flex;gap:12px"><button class="link" data-shopeditp="${it.id}">rediger</button>
+      <button class="link" data-shopdelp="${it.id}">slett</button></div></div>`;
 
   host.innerHTML = `
     ${requested.length ? `<div class="sec">Forespørsler</div>${requested.map(reqCard).join('')}` : '<div class="muted" style="margin:10px 2px">Ingen forespørsler.</div>'}
@@ -1588,6 +1625,8 @@ function renderShopTab(host) {
     App.state = deleteShopItem(App.state, { id: b.dataset.shopdelp, by: 'parent' }, { now: nowIso(), id: newId() });
     save(); routeToView();
   }));
+  host.querySelectorAll('[data-shopeditp]').forEach((b) => (b.onclick = () =>
+    openShopEdit('shopAddFormP', b.dataset.shopeditp, 'parent')));
   const addBtn = document.getElementById('shopAddBtnP');
   if (addBtn) addBtn.onclick = () => renderShopAddForm(document.getElementById('shopAddFormP'), 'parent');
 }
