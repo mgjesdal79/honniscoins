@@ -212,6 +212,10 @@ const SHOP_COLORS = [
   { id: 'teal', grad: 'radial-gradient(120% 120% at 50% 0,#2fd6c3,#0f8a7e)' },
   { id: 'cyan', grad: 'radial-gradient(120% 120% at 50% 0,#37d6ff,#1690c0)' },
   { id: 'indigo', grad: 'radial-gradient(120% 120% at 50% 0,#7b6bff,#3a27b8)' },
+  { id: 'black', grad: 'radial-gradient(120% 120% at 50% 0,#4a4a4a,#101010)' },
+  { id: 'graydark', grad: 'radial-gradient(120% 120% at 50% 0,#8a8f96,#4b5058)' },
+  { id: 'graylight', grad: 'radial-gradient(120% 120% at 50% 0,#d4d8dd,#9aa0a8)' },
+  { id: 'white', grad: 'radial-gradient(120% 120% at 50% 0,#ffffff,#d6dade)' },
 ];
 const shopGrad = (id) => (SHOP_COLORS.find((c) => c.id === id) || SHOP_COLORS[0]).grad;
 // Trygg href for bruker-oppgitte produktlenker: kun http(s), ellers '#'
@@ -723,7 +727,7 @@ function renderShopPage(host) {
         <div class="price">🪙 ${it.price || 0}</div>
         ${it.link ? `<a class="link" href="${safeShopHref(it.link)}" target="_blank" rel="noopener">Se produkt</a>` : ''}
         ${btn}
-        <button class="link" data-shopedit="${it.id}">✏️ Rediger</button>
+        <button class="btn good shopedit" data-shopedit="${it.id}">✏️ Rediger</button>
       </div></div>`;
   };
 
@@ -812,18 +816,29 @@ function renderShopAddForm(box, role, item = null) {
       <input class="inp wide" id="shopTitle" placeholder="Tittel (f.eks. LEGO-sett)" style="width:100%;margin-bottom:8px" value="${editing ? escapeHtml(item.title || '') : ''}">
       <input class="inp wide" id="shopLink" placeholder="Lenke til produkt (valgfri)" style="width:100%;margin-bottom:8px" value="${editing ? escapeHtml(item.link || '') : ''}">
       ${role === 'parent' && !editing ? `<label>Pris <input class="inp" id="shopPrice" type="number" min="0" placeholder="coins"></label>` : ''}
+      <div class="sfld">Farge på kortet</div>
       <div class="colorpick">${swatches}</div>
+      <div class="sfld">Bilde av premien</div>
       <div id="shopImgPrev">${imgPreview()}</div>
-      <input type="file" id="shopImg" accept="image/*" style="margin-bottom:8px">
-      <div style="display:flex;gap:8px">
+      <label class="btn ghost filebtn">
+        <span aria-hidden="true">📷</span> <span id="shopImgBtnTxt">${pickedImage ? 'Bytt bilde' : 'Last opp bilde'}</span>
+        <input type="file" id="shopImg" accept="image/*">
+      </label>
+      <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn good" id="shopSave">${editing ? 'Lagre endringer' : 'Legg til'}</button>
         <button class="btn ghost" id="shopCancelAdd">Avbryt</button>
       </div>
     </div>`;
   const prev = document.getElementById('shopImgPrev');
+  const btnTxt = document.getElementById('shopImgBtnTxt');
+  const syncImgUi = () => {
+    prev.innerHTML = imgPreview();
+    if (btnTxt) btnTxt.textContent = pickedImage ? 'Bytt bilde' : 'Last opp bilde';
+    bindClear();
+  };
   const bindClear = () => {
     const c = document.getElementById('shopImgClear');
-    if (c) c.onclick = () => { pickedImage = null; prev.innerHTML = imgPreview(); bindClear(); };
+    if (c) c.onclick = () => { pickedImage = null; syncImgUi(); };
   };
   bindClear();
   box.querySelectorAll('.sw').forEach((sw) => (sw.onclick = () => {
@@ -834,7 +849,7 @@ function renderShopAddForm(box, role, item = null) {
   fileInput.onchange = async () => {
     if (fileInput.files && fileInput.files[0]) {
       try { pickedImage = await resizeImageToSquarePng(fileInput.files[0]); } catch { pickedImage = null; }
-      prev.innerHTML = imgPreview(); bindClear();
+      syncImgUi();
     }
   };
   document.getElementById('shopCancelAdd').onclick = () => { box.innerHTML = ''; };
@@ -1596,7 +1611,7 @@ function renderShopTab(host) {
 
   const activeCard = (it) => `<div class="card" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
     <div><b>${escapeHtml(it.title)}</b> <span class="muted">· ${it.price || 0} 🪙</span></div>
-    <div style="display:flex;gap:12px"><button class="link" data-shopeditp="${it.id}">rediger</button>
+    <div style="display:flex;gap:8px"><button class="btn good shopedit" data-shopeditp="${it.id}">✏️ Rediger</button>
       <button class="link" data-shopdelp="${it.id}">slett</button></div></div>`;
 
   host.innerHTML = `
