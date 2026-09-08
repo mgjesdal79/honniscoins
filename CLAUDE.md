@@ -295,6 +295,15 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
 - **UI:** sønn `renderShopPage`/`bindSonShop` (seksjoner Til salgs / reservert / ønsker / Kjøpt +
   `renderShopAddForm`). Forelder ny **Shop-fane** 🛒 (`renderShopTab`, `App.parentTab='shop'`,
   badge = antall `requested`): forespørsler-kø (commit/avvis), sett pris på `wish`, aktive varer.
+- **Rediger vare (tittel/lenke/farge/bilde):** `renderShopAddForm(box, role, item)` er delt av
+  tilføy OG rediger — `item` satt = rediger-modus (forhåndsutfylt, bildeforhåndsvisning +
+  «Fjern bilde», INGEN prisfelt; pris beholdes som egen «Sett pris»-flyt for forelder). Kaller
+  `updateShopItem` (ellers `addShopItem`). Helper `openShopEdit(containerId, itemId, role)` åpner
+  skjemaet i tilføy-containeren (`shopAddForm`/`shopAddFormP`) + `scrollIntoView`. Rediger-knapp
+  (`.btn good .shopedit`) på sønnens til-salgs-kort (`data-shopedit`) og forelderens ønske-/aktive-
+  kort (`data-shopeditp`); IKKE på `requested` (i flukt/reservert). Bildeopplasting = tydelig
+  `.filebtn`-knapp («📷 Last opp/Bytt bilde») under `.sfld`-etikett, ikke rå file-input.
+- **Coins vises som 💰** (pengesekk) i hele UI-et — IKKE 🪙 sølvmynt (byttet b46).
 - **Varsling:** `settings.notifyEmail` (tom = kun badge). `requestShopItem` → `notifyRequest(room,
   {to,title,link,price})` i store.js → POST `action:'notify'` til edge-funksjonen; feiler stille.
   **Edge-funksjonen (`notify`+Resend) må deployes SEPARAT** — dokumentert i
@@ -304,9 +313,9 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   `docs/superpowers/plans/2026-09-06-honniscoins-shop.md`.
 
 ## Testing
-- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 428 assertions per nå (inkl. sidequests
-  m/arkiv, lekser, rutiner inkl. rekkefølge/tekst-synk, shop m/saldo·reservasjon·commit·fletting,
-  logg-beskjæring og statistikk/streak).
+- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 431 assertions per nå (inkl. sidequests
+  m/arkiv, lekser, rutiner inkl. rekkefølge/tekst-synk, shop m/saldo·reservasjon·commit·fletting·
+  bilde-patch, logg-beskjæring og statistikk/streak).
 - **Kjør:** `/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc -m test/run-jsc.js`
   (jsc støtter ES-moduler; ingen node/deno/bun i miljøet).
 - Nettleser: `test/tests.html` (tynn renderer av samme suite).
