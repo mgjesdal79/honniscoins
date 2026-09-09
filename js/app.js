@@ -625,17 +625,27 @@ function sonRoutineCard(q, today, open) {
   const done = subs.filter((st) => st.done).length, tot = subs.length;
   const ready = allSubtasksDone(q);
   const tomorrow = (q.routineDate || '') > today;
-  const pill = ready
-    ? `<span class="rtpill ok">✓ ferdig</span>`
-    : `<span class="rtpill ${done > 0 ? 'part' : ''}">${tot ? `${done}/${tot}` : 'å gjøre'}</span>`;
+  const waiting = q.status === 'done';
+  const pill = waiting
+    ? `<span class="rtpill wait">⏳ til godkjenning</span>`
+    : ready
+      ? `<span class="rtpill ok">✓ ferdig</span>`
+      : `<span class="rtpill ${done > 0 ? 'part' : ''}">${tot ? `${done}/${tot}` : 'å gjøre'}</span>`;
   const badge = tomorrow ? `<span class="qrec lead" style="margin:0">🌙 i morgen</span>` : '';
-  const body = `
+  const body = waiting
+    ? `
+    ${sonSubtaskList(q, false)}
+    <div class="qmeta"><span class="qdue wait">⏳ Sendt til godkjenning</span></div>
+    <div class="btnrow">
+      <button class="btn ghost qbtn" data-uncommit="${q.id}">Angre</button>
+    </div>`
+    : `
     ${sonSubtaskList(q, true)}
     <div class="btnrow">
       <button class="btn good qbtn" data-commit="${q.id}" ${ready ? '' : 'disabled'}>${ready ? '🔒 Marker som ferdig' : 'Huk av alle først'}</button>
       <button class="btn ghost qbtn" data-skip="${q.id}">🚫 Ikke gjort</button>
     </div>`;
-  return `<div class="rtcard ${open ? 'open' : ''} ${ready ? 'done' : ''}">
+  return `<div class="rtcard ${open ? 'open' : ''} ${waiting ? 'wait' : ready ? 'done' : ''}">
     <button class="rthead" data-rtoggle="${q.id}">
       <span class="rtic">🔁</span>
       <span class="rtttl">${escapeHtml(q.title)}</span>
@@ -753,7 +763,7 @@ function renderRutinerPage(host) {
     ${summary}
     ${rtSection('I dag', openToday)}
     ${rtSection('For i morgen', tomorrow)}
-    ${done.length ? `<div class="sec">Venter på godkjenning</div>${done.map((q) => sonQuestCard(q, 'done', today)).join('')}` : ''}
+    ${rtSection('Venter på godkjenning', done)}
     ${skipped.length ? `<div class="sec">Ikke gjort</div>${skipped.map((q) =>
       `<div class="qcard skipped">
         <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b><span class="qpts">+${q.points} 💰</span></div>

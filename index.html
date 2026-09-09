@@ -209,6 +209,7 @@
   .progbar i{display:block;height:100%;background:linear-gradient(90deg,var(--good),#7ef0c2);border-radius:6px;transition:width .3s ease}
   .rtcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:10px;overflow:hidden}
   .rtcard.done{border-color:var(--gold)}
+  .rtcard.wait{border-color:var(--gold);background:linear-gradient(160deg,#241f0e,var(--surface))}
   .rthead{display:flex;align-items:center;gap:10px;width:100%;padding:14px;background:none;border:none;color:#fff;font-family:var(--font);text-align:left;cursor:pointer}
   .rtic{font-size:1.2rem;flex:none}
   .rtttl{font-weight:800;font-size:1rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -216,6 +217,7 @@
   .rtpill{font-size:.74rem;font-weight:800;color:var(--muted);background:var(--surface-2);border-radius:999px;padding:3px 9px}
   .rtpill.part{color:var(--gold)}
   .rtpill.ok{color:var(--good)}
+  .rtpill.wait{color:var(--gold)}
   .rtchev{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:var(--surface-2);font-size:1.25rem;line-height:1;transition:transform .2s ease;flex:none}
   .rtcard.open .rtchev{transform:rotate(180deg)}
   .rtbody{padding:0 14px 14px}
@@ -309,7 +311,7 @@
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.09.09 (b47 · rutiner egen fane, sammenleggbar)';
+    window.APP_VERSION = '2026.09.09 (b48 · rutiner: «venter på godkjenning» sammenleggbar)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>
