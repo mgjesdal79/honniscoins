@@ -9,6 +9,7 @@ import {
   activeQuests, isQuestOverdue, questPointsPending, questArchiveSplit, allSubtasksDone,
   addQuest, updateQuest, deleteQuest, commitQuest, uncommitQuest, approveQuest, rejectQuest, toggleQuestSubtask,
   skipRoutineInstance, unskipRoutineInstance, overlappingRoutineIds,
+  isRoutineQuest, routineInstancesForDate, routinesRemaining,
   addRoutine, updateRoutine, deleteRoutine,
   homeworkForWeek, homeworkPointsPending, activeHomework, homeworkDays,
   addHomework, updateHomework, deleteHomework, deleteHomeworkGroup, hideHomework,
@@ -194,7 +195,8 @@ function renderWho() {
 const SON_PAGES = [
   { key: 'uken', icon: '📅', label: 'Uken' },
   { key: 'poeng', icon: '💵', label: 'Poeng' },
-  { key: 'sidequests', icon: '⭐', label: 'Sidequests' },
+  { key: 'sidequests', icon: '⭐', label: 'Oppdrag' },
+  { key: 'rutiner', icon: '🔁', label: 'Rutiner' },
   { key: 'shop', icon: '🛒', label: 'Shop' },
 ];
 
@@ -244,8 +246,13 @@ function brandHtml() {
 
 function renderSon() {
   const brand = brandHtml();
-  const openQuests = activeQuests(App.state).filter((q) => q.status === 'open').length;
-  const badgeFor = (key) => (key === 'sidequests' && openQuests ? `<span class="navbadge">${openQuests}</span>` : '');
+  const today = isoDate(new Date());
+  const openManual = activeQuests(App.state).filter((q) => q.status === 'open' && !isRoutineQuest(q)).length;
+  const openRoutines = routinesRemaining(App.state, today);
+  const badgeFor = (key) => {
+    const n = key === 'sidequests' ? openManual : key === 'rutiner' ? openRoutines : 0;
+    return n ? `<span class="navbadge">${n}</span>` : '';
+  };
   const dots = SON_PAGES.map((p) => `<span class="dot ${p.key === App.sonPage ? 'on' : ''}"></span>`).join('');
   const nav = SON_PAGES.map(
     (p) =>
@@ -266,6 +273,7 @@ function renderSon() {
   if (App.sonPage === 'uken') renderUkenPage(host);
   else if (App.sonPage === 'poeng') renderPoengPage(host);
   else if (App.sonPage === 'shop') renderShopPage(host);
+  else if (App.sonPage === 'rutiner') renderRutinerPage(host);
   else renderSidequestsPage(host);
 
   bindSwipe(host);
@@ -553,8 +561,8 @@ function monthLabel(ym) {
 }
 
 // «Godkjent»: 5 nyeste + «Vis arkiv»-knapp med månedsbolker. cardFn(q) -> kort-HTML.
-function approvedArchiveHtml(state, cardFn) {
-  const { recent, months, archiveCount } = questArchiveSplit(state);
+function approvedArchiveHtml(state, cardFn, filter = null) {
+  const { recent, months, archiveCount } = questArchiveSplit(state, 5, filter);
   if (!recent.length && !archiveCount) return '';
   let html = `<div class="sec">Godkjent</div>${recent.map(cardFn).join('')}`;
   if (archiveCount > 0) {
@@ -570,138 +578,191 @@ function approvedArchiveHtml(state, cardFn) {
   return html;
 }
 
+// --- delte byggeklosser for sønnens quest-/rutine-kort --------------------
+
+function sonSubtaskList(q, interactive) {
+  const subs = q.subtasks || [];
+  if (!subs.length) return q.desc ? `<div class="qdesc">${escapeHtml(q.desc)}</div>` : '';
+  const done = subs.filter((st) => st.done).length;
+  const items = subs.map((st) =>
+    `<li class="${st.done ? 'done' : ''}">
+       <button class="subchk ${st.done ? 'on' : ''}" ${interactive ? `data-sub="${q.id}|${st.id}"` : 'disabled'}>${st.done ? '✓' : ''}</button>
+       <span>${escapeHtml(st.text)}</span>
+     </li>`).join('');
+  return `<ul class="subs">${items}</ul><div class="subprog">${done} av ${subs.length} gjort</div>`;
+}
+
+// Enkelt (ikke-kollapsbart) quest-kort for manuelle oppdrag.
+function sonQuestCard(q, kind, today) {
+  const overdue = isQuestOverdue(q, today);
+  const pts = `<span class="qpts">+${q.points} 💰</span>`;
+  if (kind === 'open') {
+    const ready = allSubtasksDone(q);
+    return `<div class="qcard ${overdue ? 'over' : ''}">
+      <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b>${pts}</div>
+      ${sonSubtaskList(q, true)}
+      <div class="qmeta">${questDueLabel(q.due, today)}</div>
+      <button class="btn qbtn" data-commit="${q.id}" ${ready ? '' : 'disabled'}>${ready ? '🔒 Marker som ferdig' : 'Huk av alle først'}</button>
+    </div>`;
+  }
+  if (kind === 'done') {
+    return `<div class="qcard done">
+      <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b>${pts}</div>
+      ${sonSubtaskList(q, false)}
+      <div class="qmeta"><span class="qdue wait">⏳ Sendt til godkjenning</span></div>
+      <button class="btn ghost qbtn" data-uncommit="${q.id}">Angre</button>
+    </div>`;
+  }
+  return `<div class="qcard approved">
+    <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b>${pts}</div>
+    <div class="qmeta"><span class="qdue ok">✅ Godkjent · lagt i potten</span></div>
+  </div>`;
+}
+
+// Sammenleggbart rutine-kort. open = utvidet (default kollapset).
+function sonRoutineCard(q, today, open) {
+  const subs = q.subtasks || [];
+  const done = subs.filter((st) => st.done).length, tot = subs.length;
+  const ready = allSubtasksDone(q);
+  const tomorrow = (q.routineDate || '') > today;
+  const pill = ready
+    ? `<span class="rtpill ok">✓ ferdig</span>`
+    : `<span class="rtpill ${done > 0 ? 'part' : ''}">${tot ? `${done}/${tot}` : 'å gjøre'}</span>`;
+  const badge = tomorrow ? `<span class="qrec lead" style="margin:0">🌙 i morgen</span>` : '';
+  const body = `
+    ${sonSubtaskList(q, true)}
+    <div class="btnrow">
+      <button class="btn good qbtn" data-commit="${q.id}" ${ready ? '' : 'disabled'}>${ready ? '🔒 Marker som ferdig' : 'Huk av alle først'}</button>
+      <button class="btn ghost qbtn" data-skip="${q.id}">🚫 Ikke gjort</button>
+    </div>`;
+  return `<div class="rtcard ${open ? 'open' : ''} ${ready ? 'done' : ''}">
+    <button class="rthead" data-rtoggle="${q.id}">
+      <span class="rtic">🔁</span>
+      <span class="rtttl">${escapeHtml(q.title)}</span>
+      <span class="rtsum">${badge}${pill}<span class="rtchev">▾</span></span>
+    </button>
+    <div class="rtbody" ${open ? '' : 'hidden'}>${body}</div>
+  </div>`;
+}
+
+// Felles binding av sønnens quest-/rutine-handlere (begge sider bruker samme).
+function bindSonQuestHandlers(host) {
+  const arkBtn = host.querySelector('[data-arktoggle]');
+  if (arkBtn) arkBtn.onclick = () => { App.questArchiveOpen = !App.questArchiveOpen; renderSon(); };
+  host.querySelectorAll('[data-rtoggle]').forEach((b) => (b.onclick = () => {
+    if (!App.routineSonOpen) App.routineSonOpen = {};
+    const id = b.dataset.rtoggle;
+    if (App.routineSonOpen[id]) delete App.routineSonOpen[id]; else App.routineSonOpen[id] = true;
+    renderSon();
+  }));
+  host.querySelectorAll('[data-commit]').forEach((b) => (b.onclick = () => {
+    App.state = commitQuest(App.state, { id: b.dataset.commit, actor: 'son' }, { now: nowIso(), id: newId() });
+    save(); renderSon();
+  }));
+  host.querySelectorAll('[data-uncommit]').forEach((b) => (b.onclick = () => {
+    App.state = uncommitQuest(App.state, { id: b.dataset.uncommit, actor: 'son' }, { now: nowIso(), id: newId() });
+    save(); renderSon();
+  }));
+  host.querySelectorAll('[data-sub]').forEach((b) => (b.onclick = () => {
+    const [qid, subId] = b.dataset.sub.split('|');
+    App.state = toggleQuestSubtask(App.state, { id: qid, subId, actor: 'son' }, { now: nowIso(), id: newId() });
+    save(); renderSon();
+  }));
+  host.querySelectorAll('[data-skip]').forEach((b) => (b.onclick = () => {
+    App.state = skipRoutineInstance(App.state, { id: b.dataset.skip, actor: 'son' }, { now: nowIso(), id: newId() });
+    save(); renderSon();
+  }));
+  host.querySelectorAll('[data-unskip]').forEach((b) => (b.onclick = () => {
+    App.state = unskipRoutineInstance(App.state, { id: b.dataset.unskip, actor: 'son' }, { now: nowIso(), id: newId() });
+    save(); renderSon();
+  }));
+}
+
+// Sidequests-siden: KUN manuelle oppdrag (rutiner har egen fane).
 function renderSidequestsPage(host) {
   const s = App.state;
   const today = isoDate(new Date());
-  const quests = activeQuests(s);
-  const hidden = new Set(overlappingRoutineIds(s)); // skjul overlappende morgendags-instanser
-  const open = quests.filter((q) => q.status === 'open' && !hidden.has(q.id));
-  const done = quests.filter((q) => q.status === 'done');
-  const skipped = quests.filter((q) => q.status === 'skipped' && q.source === 'routine' && (q.routineDate || '') >= today);
-  const pending = questPointsPending(s);
+  const manual = activeQuests(s).filter((q) => !isRoutineQuest(q));
+  const open = manual.filter((q) => q.status === 'open');
+  const done = manual.filter((q) => q.status === 'done');
+  const pending = done.reduce((a, q) => a + (Number(q.points) || 0), 0);
+  const hasArchive = manual.some((q) => q.status === 'approved');
 
-  if (!quests.length) {
+  if (!open.length && !done.length && !hasArchive) {
     host.innerHTML = `
       <div class="empty">
         <div style="font-size:2.4rem">⭐</div>
-        <b>Ingen sidequests ennå</b>
+        <b>Ingen oppdrag ennå</b>
         <div class="muted">Her dukker ekstraoppdrag opp. Fullfør dem for bonus-coins!</div>
       </div>`;
     return;
   }
 
-  const routineBadge = (q) => {
-    if (q.source !== 'routine') return '';
-    if ((q.routineDate || '') > today)
-      return `<span class="qrec lead">🌙 for i morgen · ${routineDateLabel(q.routineDate)}</span>`;
-    return `<span class="qrec">🔁 Rutine · ${routineDateLabel(q.routineDate)}</span>`;
-  };
-  const subtaskList = (q, interactive) => {
-    const subs = q.subtasks || [];
-    if (!subs.length) return q.desc ? `<div class="qdesc">${escapeHtml(q.desc)}</div>` : '';
-    const done = subs.filter((st) => st.done).length;
-    const items = subs.map((st) =>
-      `<li class="${st.done ? 'done' : ''}">
-         <button class="subchk ${st.done ? 'on' : ''}" ${interactive ? `data-sub="${q.id}|${st.id}"` : 'disabled'}>${st.done ? '✓' : ''}</button>
-         <span>${escapeHtml(st.text)}</span>
-       </li>`).join('');
-    return `<ul class="subs">${items}</ul><div class="subprog">${done} av ${subs.length} gjort</div>`;
-  };
-  const questCard = (q, kind) => {
-    const overdue = isQuestOverdue(q, today);
-    const pts = `<span class="qpts">+${q.points} 💰</span>`;
-    if (kind === 'open') {
-      const ready = allSubtasksDone(q);
-      const skipBtn = q.source === 'routine'
-        ? `<button class="btn ghost qbtn" data-skip="${q.id}">🚫 Ikke gjort</button>`
-        : '';
-      return `<div class="qcard ${overdue ? 'over' : ''}">
-        <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b>${pts}</div>
-        ${routineBadge(q)}
-        ${subtaskList(q, true)}
-        <div class="qmeta">${questDueLabel(q.due, today)}</div>
-        <button class="btn qbtn" data-commit="${q.id}" ${ready ? '' : 'disabled'}>${ready ? '🔒 Marker som ferdig' : 'Huk av alle først'}</button>
-        ${skipBtn}
-      </div>`;
-    }
-    if (kind === 'skipped') {
-      return `<div class="qcard skipped">
-        <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b>${pts}</div>
-        ${routineBadge(q)}
-        <div class="qmeta"><span class="qdue muted">🚫 Merket «ikke gjort»</span></div>
-        <button class="btn ghost qbtn" data-unskip="${q.id}">↩︎ Gjør likevel</button>
-      </div>`;
-    }
-    if (kind === 'done') {
-      return `<div class="qcard done">
-        <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b>${pts}</div>
-        ${routineBadge(q)}
-        ${subtaskList(q, false)}
-        <div class="qmeta"><span class="qdue wait">⏳ Sendt til godkjenning</span></div>
-        <button class="btn ghost qbtn" data-uncommit="${q.id}">Angre</button>
-      </div>`;
-    }
-    return `<div class="qcard approved">
-      <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b>${pts}</div>
-      ${routineBadge(q)}
-      <div class="qmeta"><span class="qdue ok">✅ Godkjent · lagt i potten</span></div>
-    </div>`;
-  };
-
   const section = (title, list, kind) =>
-    list.length ? `<div class="sec">${title}</div>${list.map((q) => questCard(q, kind)).join('')}` : '';
+    list.length ? `<div class="sec">${title}</div>${list.map((q) => sonQuestCard(q, kind, today)).join('')}` : '';
 
   host.innerHTML = `
     ${pending ? `<div class="qbanner">⏳ ${pending} 💰 venter på godkjenning</div>` : ''}
     ${section(`Å gjøre (${open.length})`, open, 'open')}
     ${section('Venter på godkjenning', done, 'done')}
-    ${section('Ikke gjort', skipped, 'skipped')}
-    ${approvedArchiveHtml(s, (q) => questCard(q, 'approved'))}`;
+    ${approvedArchiveHtml(s, (q) => sonQuestCard(q, 'approved', today), (q) => !isRoutineQuest(q))}`;
 
-  const arkBtn = host.querySelector('[data-arktoggle]');
-  if (arkBtn) arkBtn.onclick = () => { App.questArchiveOpen = !App.questArchiveOpen; renderSon(); };
+  bindSonQuestHandlers(host);
+}
 
-  host.querySelectorAll('[data-commit]').forEach(
-    (b) =>
-      (b.onclick = () => {
-        App.state = commitQuest(App.state, { id: b.dataset.commit, actor: 'son' }, { now: nowIso(), id: newId() });
-        save();
-        renderSon();
-      })
-  );
-  host.querySelectorAll('[data-uncommit]').forEach(
-    (b) =>
-      (b.onclick = () => {
-        App.state = uncommitQuest(App.state, { id: b.dataset.uncommit, actor: 'son' }, { now: nowIso(), id: newId() });
-        save();
-        renderSon();
-      })
-  );
-  host.querySelectorAll('[data-sub]').forEach(
-    (b) =>
-      (b.onclick = () => {
-        const [qid, subId] = b.dataset.sub.split('|');
-        App.state = toggleQuestSubtask(App.state, { id: qid, subId, actor: 'son' }, { now: nowIso(), id: newId() });
-        save();
-        renderSon();
-      })
-  );
-  host.querySelectorAll('[data-skip]').forEach(
-    (b) =>
-      (b.onclick = () => {
-        App.state = skipRoutineInstance(App.state, { id: b.dataset.skip, actor: 'son' }, { now: nowIso(), id: newId() });
-        save();
-        renderSon();
-      })
-  );
-  host.querySelectorAll('[data-unskip]').forEach(
-    (b) =>
-      (b.onclick = () => {
-        App.state = unskipRoutineInstance(App.state, { id: b.dataset.unskip, actor: 'son' }, { now: nowIso(), id: newId() });
-        save();
-        renderSon();
-      })
-  );
+// Rutiner-siden: sammenleggbare rutine-kort, default kollapset.
+function renderRutinerPage(host) {
+  const s = App.state;
+  const today = isoDate(new Date());
+  if (!App.routineSonOpen) App.routineSonOpen = {};
+  const openState = App.routineSonOpen;
+  const hidden = new Set(overlappingRoutineIds(s)); // skjul overlappende morgendags-instanser
+  const routines = activeQuests(s).filter(isRoutineQuest);
+
+  const todays = routineInstancesForDate(s, today);
+  const openToday = todays.filter((q) => q.status === 'open');
+  const tomorrow = routines.filter((q) => q.status === 'open' && (q.routineDate || '') > today && !hidden.has(q.id));
+  const done = routines.filter((q) => q.status === 'done');
+  const skipped = routines.filter((q) => q.status === 'skipped' && (q.routineDate || '') >= today);
+
+  const hasArchive = routines.some((q) => q.status === 'approved');
+  if (!routines.length) {
+    host.innerHTML = `
+      <div class="empty">
+        <div style="font-size:2.4rem">🔁</div>
+        <b>Ingen rutiner i dag</b>
+        <div class="muted">Faste hverdagsting dukker opp her på skoledager.</div>
+      </div>`;
+    return;
+  }
+
+  const total = todays.length;
+  const ferdig = total - openToday.length;
+  const pct = total ? Math.round((ferdig / total) * 100) : 0;
+  const summary = total
+    ? `<div class="rtsummary">
+         <div class="rtsumline"><b>Dagens rutiner</b><span class="muted">${openToday.length ? `${openToday.length} av ${total} igjen` : 'Alt ferdig i dag! 🎉'}</span></div>
+         <div class="progbar"><i style="width:${pct}%"></i></div>
+       </div>`
+    : '';
+
+  const rtSection = (title, list) =>
+    list.length ? `<div class="sec">${title}</div>${list.map((q) => sonRoutineCard(q, today, !!openState[q.id])).join('')}` : '';
+
+  host.innerHTML = `
+    ${summary}
+    ${rtSection('I dag', openToday)}
+    ${rtSection('For i morgen', tomorrow)}
+    ${done.length ? `<div class="sec">Venter på godkjenning</div>${done.map((q) => sonQuestCard(q, 'done', today)).join('')}` : ''}
+    ${skipped.length ? `<div class="sec">Ikke gjort</div>${skipped.map((q) =>
+      `<div class="qcard skipped">
+        <div class="qtop"><b class="qtitle">${escapeHtml(q.title)}</b><span class="qpts">+${q.points} 💰</span></div>
+        <div class="qmeta"><span class="qdue muted">🚫 Merket «ikke gjort»</span></div>
+        <button class="btn ghost qbtn" data-unskip="${q.id}">↩︎ Gjør likevel</button>
+      </div>`).join('')}` : ''}
+    ${hasArchive ? approvedArchiveHtml(s, (q) => sonQuestCard(q, 'approved', today), (q) => isRoutineQuest(q)) : ''}`;
+
+  bindSonQuestHandlers(host);
 }
 
 function renderShopPage(host) {

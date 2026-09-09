@@ -343,6 +343,41 @@ export function runTests() {
       eq('fjernet', s.settings.routines.length, 0);
       eq('settings bumpet', s.settings.updatedAt, 't3');
     },
+    function routineInstancesForDate_filters_by_source_and_date() {
+      const s = L.defaultState();
+      s.quests = [
+        { id: 'a', source: 'routine', routineDate: '2026-09-09', status: 'open' },
+        { id: 'b', source: 'routine', routineDate: '2026-09-10', status: 'open' },
+        { id: 'c', status: 'open' }, // manuell
+      ];
+      const insts = L.routineInstancesForDate(s, '2026-09-09');
+      eq('kun i dag + routine', insts.map((q) => q.id), ['a']);
+      eq('isRoutineQuest', L.isRoutineQuest({ source: 'routine' }), true);
+      eq('manuell er ikke rutine', L.isRoutineQuest({ id: 'x' }), false);
+    },
+    function routinesRemaining_counts_open_today() {
+      const s = L.defaultState();
+      s.quests = [
+        { id: 'a', source: 'routine', routineDate: '2026-09-09', status: 'open' },
+        { id: 'b', source: 'routine', routineDate: '2026-09-09', status: 'done' },
+        { id: 'c', source: 'routine', routineDate: '2026-09-09', status: 'approved' },
+        { id: 'd', source: 'routine', routineDate: '2026-09-10', status: 'open' }, // i morgen
+        { id: 'e', status: 'open' }, // manuell
+      ];
+      eq('kun åpne rutiner i dag', L.routinesRemaining(s, '2026-09-09'), 1);
+    },
+    function questArchiveSplit_filter_splits_routine_vs_manual() {
+      const s = L.defaultState();
+      s.quests = [
+        { id: 'r1', source: 'routine', status: 'approved', approvedAt: '2026-09-09T10:00:00Z', title: 'Sekk' },
+        { id: 'm1', status: 'approved', approvedAt: '2026-09-09T11:00:00Z', title: 'Rydde' },
+      ];
+      const routineOnly = L.questArchiveSplit(s, 5, (q) => L.isRoutineQuest(q));
+      eq('arkiv rutine', routineOnly.recent.map((q) => q.id), ['r1']);
+      const manualOnly = L.questArchiveSplit(s, 5, (q) => !L.isRoutineQuest(q));
+      eq('arkiv manuell', manualOnly.recent.map((q) => q.id), ['m1']);
+      eq('uten filter = begge', L.questArchiveSplit(s).recent.length, 2);
+    },
     function pruneLog_keeps_newest_and_drops_rest() {
       const log = [];
       for (let i = 0; i < 250; i++) log.push({ id: 'e' + i, at: '2026-01-01T' + String(i % 24).padStart(2, '0') + ':' + String(i % 60).padStart(2, '0') + ':00.000Z' });

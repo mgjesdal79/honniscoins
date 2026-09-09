@@ -199,6 +199,26 @@
   .arkmonth{font-size:.74rem;font-weight:700;color:var(--muted);margin:10px 2px 6px}
   .qrow{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
   .qrow .qbtn{flex:1}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap}
+  /* Rutiner (sønn) – sammenleggbare kort */
+  .rtsummary{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px}
+  .rtsumline{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}
+  .rtsumline b{font-size:1.02rem}
+  .rtsumline .muted{font-size:.82rem}
+  .progbar{height:10px;border-radius:6px;background:var(--surface-2);overflow:hidden}
+  .progbar i{display:block;height:100%;background:linear-gradient(90deg,var(--good),#7ef0c2);border-radius:6px;transition:width .3s ease}
+  .rtcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:10px;overflow:hidden}
+  .rtcard.done{border-color:var(--gold)}
+  .rthead{display:flex;align-items:center;gap:10px;width:100%;padding:14px;background:none;border:none;color:#fff;font-family:var(--font);text-align:left;cursor:pointer}
+  .rtic{font-size:1.2rem;flex:none}
+  .rtttl{font-weight:800;font-size:1rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rtsum{display:flex;align-items:center;gap:8px;flex:none}
+  .rtpill{font-size:.74rem;font-weight:800;color:var(--muted);background:var(--surface-2);border-radius:999px;padding:3px 9px}
+  .rtpill.part{color:var(--gold)}
+  .rtpill.ok{color:var(--good)}
+  .rtchev{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:var(--surface-2);font-size:1.25rem;line-height:1;transition:transform .2s ease;flex:none}
+  .rtcard.open .rtchev{transform:rotate(180deg)}
+  .rtbody{padding:0 14px 14px}
   .btn.danger{color:var(--bad);border-color:#5a2020}
   textarea.inp{display:block;width:100%;box-sizing:border-box;min-height:88px;resize:vertical;margin:0 0 8px;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:8px 10px;color:#fff;font-family:var(--font);font-size:1rem}
   label.lbl{display:flex;flex-direction:column;gap:4px;font-size:.74rem;color:var(--muted);font-weight:700}
@@ -289,7 +309,7 @@
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.09.08 (b46 · coins vises som 💰 pengesekk)';
+    window.APP_VERSION = '2026.09.09 (b47 · rutiner egen fane, sammenleggbar)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>
