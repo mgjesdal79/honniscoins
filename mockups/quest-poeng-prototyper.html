@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Honniscoins · Poeng-felt · prototyper</title>
+<style>
+  :root{
+    --bg:#000;--surface:#0b1a33;--surface-2:#0f2547;--line:#1c3a63;
+    --text:#fff;--muted:#9fb3cf;--accent:#3b6fe0;
+    --gold:#ffce3a;--good:#3ddc97;--bad:#ff8080;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#05060a;color:var(--text);font-family:var(--font);padding:22px;line-height:1.45}
+  h1{font-size:1.25rem;margin:0 0 4px}
+  .lead{color:var(--muted);margin:0 0 22px;font-size:.9rem;max-width:560px}
+  .wrap{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+  .demo{width:360px;max-width:100%}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px}
+  .tag{display:inline-block;font-size:.72rem;font-weight:800;letter-spacing:.04em;color:#04120b;
+       background:var(--good);border-radius:999px;padding:3px 10px;margin-bottom:8px}
+  .altdesc{color:var(--muted);font-size:.82rem;margin:0 0 10px}
+  .lbl{display:block;font-size:.74rem;color:var(--muted);font-weight:700;margin:0 0 6px}
+  .inp{background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:8px 10px;color:#fff;
+       font-family:var(--font);font-size:1rem}
+
+  /* ---- A: stor stepper ---- */
+  .stepper{display:flex;align-items:center;gap:10px}
+  .stepper .sbtn{width:52px;height:52px;border-radius:13px;background:var(--surface-2);border:1px solid var(--line);
+       color:#fff;font-size:1.7rem;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;
+       cursor:pointer;flex:none;user-select:none}
+  .stepper .sbtn:active{background:var(--accent);border-color:var(--accent)}
+  .stepper .sval{flex:none;width:84px;text-align:center;font-size:1.35rem;font-weight:800;padding:10px 4px;
+       background:var(--surface-2);border:1px solid var(--line);border-radius:11px;color:#fff}
+  .stepper .sval .u{font-size:.8rem;font-weight:700;color:var(--muted);margin-left:3px}
+
+  /* ---- B: hurtigvalg-pills + eget felt ---- */
+  .pills{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .pill{border:1px solid var(--line);background:var(--surface-2);color:var(--muted);border-radius:999px;
+       padding:9px 16px;font-size:1rem;font-weight:800;cursor:pointer;min-width:52px;text-align:center}
+  .pill.on{color:#04120b;background:var(--good);border-color:var(--good)}
+  .pills .custom{width:96px}
+  .pills .custom input{width:96px;text-align:center;font-weight:800}
+  .pillnote{color:var(--muted);font-size:.74rem;margin-top:8px}
+
+  /* ---- C: kompakt stepper med snarveier ---- */
+  .cstep{display:flex;align-items:center;gap:8px}
+  .cstep .cbtn{width:44px;height:44px;border-radius:11px;background:var(--surface-2);border:1px solid var(--line);
+       color:#fff;font-size:1.5rem;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none}
+  .cstep .cbtn:active{background:var(--accent);border-color:var(--accent)}
+  .cstep .cval{width:70px;text-align:center;font-size:1.2rem;font-weight:800;padding:9px 4px;
+       background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:#fff}
+  .quick{display:flex;gap:6px;margin-top:8px}
+  .quick button{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;
+       padding:6px 12px;font-size:.82rem;font-weight:700;cursor:pointer}
+  .quick button:active{color:#fff;border-color:var(--accent)}
+
+  .out{margin-top:10px;font-size:.82rem;color:var(--good);font-weight:700}
+  .old{opacity:.9}
+  .oldinput{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:8px 10px;color:#fff;font-size:1rem}
+</style>
+</head>
+<body>
+<h1>Poeng-felt · tre alternativer</h1>
+<p class="lead">Dagens felt er et fullbredt <code>type=number</code> med bittesmå native piler. Under: tre alternativer med større +/− og smalere felt. Alle er klikkbare.</p>
+
+<div class="wrap">
+
+  <!-- Dagens -->
+  <div class="demo">
+    <div class="tag" style="background:#3a4a63;color:#cfe">NÅ</div>
+    <div class="altdesc">Slik det er i dag – for bredt, for små piler.</div>
+    <div class="card old">
+      <label class="lbl">Poeng</label>
+      <input class="oldinput" type="number" min="0" value="5">
+    </div>
+  </div>
+
+  <!-- A -->
+  <div class="demo">
+    <div class="tag">ALT A · Stor stepper</div>
+    <div class="altdesc">Store − / + knapper (52px), smalt tall-felt i midten. Samme mønster som frist-velgeren. Trykk-og-hold gir raskere telling.</div>
+    <div class="card">
+      <label class="lbl">Poeng</label>
+      <div class="stepper" data-step="1" data-val="5">
+        <button class="sbtn" data-d="-1" type="button">−</button>
+        <div class="sval"><span class="n">5</span><span class="u">💰</span></div>
+        <button class="sbtn" data-d="1" type="button">+</button>
+      </div>
+      <div class="out">Valgt: <span class="v">5</span> poeng</div>
+    </div>
+  </div>
+
+  <!-- B -->
+  <div class="demo">
+    <div class="tag">ALT B · Hurtigvalg</div>
+    <div class="altdesc">Forhåndsvalg som pills (mest brukte verdier) + lite «Annet»-felt for skreddersøm. Raskest for vanlige beløp.</div>
+    <div class="card">
+      <label class="lbl">Poeng</label>
+      <div class="pills" data-val="5">
+        <button class="pill" data-p="5" type="button">5</button>
+        <button class="pill" data-p="10" type="button">10</button>
+        <button class="pill" data-p="15" type="button">15</button>
+        <button class="pill" data-p="20" type="button">20</button>
+        <span class="custom"><input class="inp" type="number" min="0" placeholder="Annet"></span>
+      </div>
+      <div class="pillnote">Trykk et forhåndsvalg, eller skriv eget tall.</div>
+      <div class="out">Valgt: <span class="v">5</span> poeng</div>
+    </div>
+  </div>
+
+  <!-- C -->
+  <div class="demo">
+    <div class="tag">ALT C · Stepper + snarveier</div>
+    <div class="altdesc">Kompakt stepper (steg 1) med smalt felt, pluss «+5 / +10»-snarveier under for å hoppe raskt. Tallet kan også skrives direkte.</div>
+    <div class="card">
+      <label class="lbl">Poeng</label>
+      <div class="cstep" data-val="5">
+        <button class="cbtn" data-d="-1" type="button">−</button>
+        <input class="cval" type="number" min="0" value="5">
+        <button class="cbtn" data-d="1" type="button">+</button>
+      </div>
+      <div class="quick">
+        <button data-q="5" type="button">+5</button>
+        <button data-q="10" type="button">+10</button>
+        <button data-q="reset" type="button">Nullstill</button>
+      </div>
+      <div class="out">Valgt: <span class="v">5</span> poeng</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const clamp = (n) => Math.max(0, n || 0);
+
+  // A – stor stepper
+  document.querySelectorAll('.stepper').forEach(st => {
+    const nEl = st.querySelector('.n'), out = st.parentElement.querySelector('.v');
+    let val = +st.dataset.val;
+    const set = v => { val = clamp(v); nEl.textContent = val; out.textContent = val; };
+    st.querySelectorAll('.sbtn').forEach(b => b.onclick = () => set(val + (+b.dataset.d)));
+  });
+
+  // B – pills + custom
+  document.querySelectorAll('.pills').forEach(pg => {
+    const out = pg.parentElement.querySelector('.v');
+    const custom = pg.querySelector('.custom input');
+    const pills = [...pg.querySelectorAll('.pill')];
+    const selectPill = p => {
+      pills.forEach(x => x.classList.toggle('on', x === p));
+      custom.value = '';
+      out.textContent = p.dataset.p;
+    };
+    pills.forEach(p => p.onclick = () => selectPill(p));
+    custom.oninput = () => {
+      pills.forEach(x => x.classList.remove('on'));
+      out.textContent = clamp(+custom.value);
+    };
+    pills[0].classList.add('on');
+  });
+
+  // C – stepper + snarveier
+  document.querySelectorAll('.cstep').forEach(cs => {
+    const inp = cs.querySelector('.cval'), out = cs.parentElement.querySelector('.v');
+    const quick = cs.parentElement.querySelector('.quick');
+    const set = v => { v = clamp(v); inp.value = v; out.textContent = v; };
+    cs.querySelectorAll('.cbtn').forEach(b => b.onclick = () => set(+inp.value + (+b.dataset.d)));
+    inp.oninput = () => out.textContent = clamp(+inp.value);
+    quick.querySelectorAll('button').forEach(b => b.onclick = () => {
+      if (b.dataset.q === 'reset') set(0);
+      else set(+inp.value + (+b.dataset.q));
+    });
+  });
+</script>
+</body>
+</html>

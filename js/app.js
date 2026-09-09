@@ -1144,7 +1144,8 @@ function parentHomeworkHtml(s, date) {
          <div class="hwsubjhead" style="margin:0 0 8px">✏️ Rediger lekse ${editing.edited ? '<span class="hwedited">endret – beskyttet</span>' : ''}</div>
          <input class="inp" id="hwSubject" value="${escapeHtml(editing.subject)}" placeholder="Fag">
          <textarea class="inp" id="hwText" placeholder="Beskrivelse">${escapeHtml(editing.text)}</textarea>
-         <label class="muted" style="display:block;margin:2px 0 8px">Poeng <input class="inp" id="hwPoints" type="number" value="${editing.points}" style="width:80px;display:inline-block"></label>
+         <div class="muted" style="margin:2px 0 6px">Poeng</div>
+         <div style="margin:0 0 8px">${stepperHtml('id="hwPoints"', editing.points, { min: 0 })}</div>
          ${editing.groupId ? '' : `<div class="muted" style="font-size:.8rem;margin:2px 0 2px">Vis på dager:</div>
          <div style="margin:0 0 10px">${dayCheckboxes('hwEditDay', homeworkDays(editing))}</div>`}
          <div style="display:flex;gap:8px">
@@ -1164,7 +1165,8 @@ function parentHomeworkHtml(s, date) {
          <div class="muted" style="font-size:.78rem;margin:0 0 8px" id="hwTypeHint">Gjort én dag = ferdig alle dager. Poeng gis én gang.</div>
          <div class="muted" style="font-size:.8rem;margin:2px 0 2px">Vis på dager:</div>
          <div style="margin:0 0 8px">${dayCheckboxes('hwNewDay', [date])}</div>
-         <label class="muted" style="display:block;margin:2px 0 10px"><span id="hwPtsLabel">Poeng</span> <input class="inp" id="hwNewPoints" type="number" value="${s.settings.homeworkPoints ?? 5}" style="width:80px;display:inline-block"></label>
+         <div class="muted" style="margin:2px 0 6px"><span id="hwPtsLabel">Poeng</span></div>
+         <div style="margin:0 0 10px">${stepperHtml('id="hwNewPoints"', s.settings.homeworkPoints ?? 5, { min: 0 })}</div>
          <button class="btn" id="hwAdd">➕ Legg til</button>
        </div>`;
 
@@ -1290,6 +1292,7 @@ function bindParentHomework(host, date) {
     App.state = rejectHomework(App.state, { id: b.dataset.hwreject }, { now: nowIso(), id: newId() });
     save(); routeToView();
   }));
+  bindSteppers(host);
 }
 
 // Foreldrenes «Dag»-fane: samme fag-liste, men med lås/åpne + åpne-uke-kontroll.
@@ -1435,6 +1438,41 @@ function renderTimeplanTab(host) {
 }
 
 // Forelder: godkjenningskø + opprett/rediger + aktive quests.
+// Gjenbrukbar tall-stepper: − [felt] + med store knapper og smalt felt.
+// `attrs` = rå attributter på input-en (f.eks. `id="qPoints"` eller `data-r-points`).
+function stepperHtml(attrs, value, opts = {}) {
+  const { min = 0, step = 1 } = opts;
+  const v = value === '' || value == null ? '' : value;
+  return `<div class="stepper" data-step="${step}" data-min="${min}">
+    <button class="sbtn" type="button" data-sd="-1" aria-label="Mindre">−</button>
+    <input class="inp sval" type="number" inputmode="numeric" min="${min}" step="${step}" ${attrs} value="${v}" placeholder="0">
+    <button class="sbtn" type="button" data-sd="1" aria-label="Mer">+</button>
+  </div>`;
+}
+
+// Binder − / + i alle .stepper under root (idempotent). Sender input+change slik at
+// eksisterende onchange-handlere (rutine/poengverdier) også fyres av knappene.
+function bindSteppers(root) {
+  (root || document).querySelectorAll('.stepper').forEach((st) => {
+    if (st.dataset.bound) return;
+    st.dataset.bound = '1';
+    const inp = st.querySelector('input');
+    const step = Number(st.dataset.step) || 1;
+    const hasMin = st.dataset.min !== '' && st.dataset.min != null;
+    const min = hasMin ? Number(st.dataset.min) : -Infinity;
+    st.querySelectorAll('.sbtn').forEach((b) => {
+      b.onclick = () => {
+        let next = (Number(inp.value) || 0) + Number(b.dataset.sd) * step;
+        if (next < min) next = min;
+        next = Math.round(next * 100) / 100;
+        inp.value = String(next);
+        inp.dispatchEvent(new Event('input', { bubbles: true }));
+        inp.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+    });
+  });
+}
+
 function renderQuestsTab(host) {
   const s = App.state;
   const today = isoDate(new Date());
@@ -1506,8 +1544,8 @@ function renderQuestsTab(host) {
     <div class="card" style="padding:12px">
       <input class="inp wide" id="qTitle" placeholder="Tittel (f.eks. Rydde garasjen)" style="width:100%;margin-bottom:8px" value="${editing ? escapeHtml(editing.title) : ''}">
       <textarea class="inp wide" id="qDesc" placeholder="Beskrivelse (valgfri)" rows="2" style="width:100%;margin-bottom:8px;resize:vertical">${editing ? escapeHtml(editing.desc || '') : ''}</textarea>
-      <label class="lbl" style="margin-bottom:8px;display:block">Poeng
-        <input class="inp" id="qPoints" type="number" min="0" value="${editing ? editing.points : ''}" placeholder="0" style="width:100%"></label>
+      <div class="lbl" style="margin-bottom:6px">Poeng</div>
+      <div style="margin-bottom:8px">${stepperHtml('id="qPoints"', editing ? editing.points : '', { min: 0 })}</div>
       <div class="lbl" style="margin-bottom:6px">Frist</div>
       <div class="datestep" style="margin-bottom:6px">
         <button class="arrow" type="button" id="qDuePrev">‹</button>
@@ -1646,6 +1684,7 @@ function renderQuestsTab(host) {
       App.editQuestId = null;
       routeToView();
     };
+  bindSteppers(host);
 }
 
 function renderShopTab(host) {
@@ -1716,9 +1755,9 @@ function renderPoengTab(host) {
   host.innerHTML = `
     <div class="sec">Poengverdier</div>
     <div class="card" style="padding:2px 12px">
-      <div class="row"><div class="lbl">🥉 Bronse</div><input class="inp" id="vBronse" type="number" min="0" value="${v.bronse}"></div>
-      <div class="row"><div class="lbl">🥈 Sølv</div><input class="inp" id="vSolv" type="number" min="0" value="${v.solv}"></div>
-      <div class="row" style="border:none"><div class="lbl">🥇 Gull</div><input class="inp" id="vGull" type="number" min="0" value="${v.gull}"></div>
+      <div class="row"><div class="lbl">🥉 Bronse</div>${stepperHtml('id="vBronse"', v.bronse, { min: 0 })}</div>
+      <div class="row"><div class="lbl">🥈 Sølv</div>${stepperHtml('id="vSolv"', v.solv, { min: 0 })}</div>
+      <div class="row" style="border:none"><div class="lbl">🥇 Gull</div>${stepperHtml('id="vGull"', v.gull, { min: 0 })}</div>
     </div>
     <div class="sec">Kroneverdi (frakoblet poeng)</div>
     <div class="card" style="padding:2px 12px">
@@ -1764,6 +1803,7 @@ function renderPoengTab(host) {
     save();
   };
   renderPayoutSection(document.getElementById('payoutHost'));
+  bindSteppers(host);
 }
 
 // Egen forelder-fane: styring av daglige rutine-maler (flyttet ut av Settings).
@@ -1805,7 +1845,7 @@ function renderRutinerTab(host) {
           <div class="row"><div class="lbl">Tittel</div>
             <input class="inp" data-r-title style="width:auto;flex:1;text-align:left" value="${escapeHtml(r.title)}"></div>
           <div class="row"><div class="lbl">Reward 💰</div>
-            <input class="inp" data-r-points type="number" min="0" value="${r.points}"></div>
+            ${stepperHtml('data-r-points', r.points, { min: 0 })}</div>
           <div class="lbl" style="margin:8px 2px 4px">Ukedager</div>
           <div class="wdrow">${WD.map(([k, lbl]) => `<button class="wdpill ${(r.weekdays || []).includes(k) ? 'on' : ''}" data-wd="${k}">${lbl}</button>`).join('')}</div>
           <div class="lbl" style="margin:10px 2px 4px">Deloppgaver</div>
@@ -1825,6 +1865,7 @@ function renderRutinerTab(host) {
       card.querySelector('[data-r-lead]').onchange = (e) => { upd({ leadDay: e.target.checked }); renderRoutines(); };
       card.querySelector('[data-r-title]').onchange = (e) => upd({ title: e.target.value });
       card.querySelector('[data-r-points]').onchange = (e) => upd({ points: Number(e.target.value) });
+      bindSteppers(card);
       card.querySelectorAll('[data-wd]').forEach((b) => {
         b.onclick = () => {
           const r = (App.state.settings.routines || []).find((x) => x.id === id);
