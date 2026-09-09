@@ -258,7 +258,7 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   5. `statMedalDistribution` — andel gull/sølv/bronse per fag (`svgDistribution`).
 - **Dagsfordeling-kort (`svgDayComposition`, ligger RETT UNDER «Utvikling over tid»):** én
   **like høy** stolpe per låst dag (100 %-stablet) — fargene viser *andelen* av dagens timer,
-  ikke volum. Segmenter nedenfra→opp: gull → sølv → bronse → **gyldig fravær** (`--valid`, grønn)
+  ikke volum. Segmenter nedenfra→opp: gull → sølv → bronse → **gyldig fravær** (`--valid`, turkis)
   → **ugyldig fravær «0»** (`--invalid`, rød) → **tom/ikke fylt** (`--tom`, grå rest). Ny ren fn
   `dayComposition(state, subjectKey)` i logic.js teller per låst dag `{date,weekday,gull,solv,
   bronse,valid,invalid,tom,total}` — til forskjell fra `effortRecords` tar den med fravær OG tomme
