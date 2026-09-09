@@ -65,18 +65,25 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   status-pille + stor rund ▾-chevron) + kropp med avkryssbar subtask-liste og «Marker som
   ferdig»/«🚫 Ikke gjort». **Default kollapset**; manuell toggle per kort, flere kan være åpne
   samtidig (ingen accordion). Åpen-tilstand i `App.routineSonOpen` (ren visning, ikke persistert,
-  keyet på instans-id via `data-rtoggle`). Rutiner-siden har sammendrag øverst («Dagens rutiner ·
-  X av Y igjen» + `.progbar` framdriftsstripe) og seksjoner: I dag / For i morgen 🌙 / Venter på
-  godkjenning / Ikke gjort / Godkjent-arkiv. CSS: `.rtcard`/`.rthead`/`.rtic`/`.rtttl`/`.rtsum`/
-  `.rtpill`/`.rtchev`/`.rtbody`/`.rtsummary`/`.progbar`/`.btnrow`.
+  keyet på instans-id via `data-rtoggle`). Rutiner-siden har seksjoner: I dag / For i morgen 🌙 /
+  **Venter på godkjenning** (også sammenleggbare rutine-kort, `sonRoutineCard` med `status:'done'`
+  → ⏳-pille + «Angre») / Ikke gjort / Godkjent-arkiv. **Ingen «X av Y»-ratio/framdriftsstripe**
+  (fjernet b49 – ble opplevd som støy). CSS: `.rtcard`/`.rthead`/`.rtic`/`.rtttl`/`.rtsum`/
+  `.rtpill`(+`.wait`)/`.rtchev`/`.rtbody`/`.btnrow`.
 - **Uke-stripe-badge (`renderUkenPage`):** låst dag = «🔒 +X» (grønn), ulåst dag med opptjente
   poeng = «~X» (dempet, klasse `.b.prev`), tom/ingen poeng = «·». Ikke bare «·» overalt.
-- **Forelder-faner (ikon + kort tekst, `renderParentHome`):** Uke 📅 / Dag 📝 / Plan 🗓 /
-  **Quests** ⭐ / Logg 📋 / **Stat** 📊 / **Settings** ⚙️ (`App.parentTab ∈ {uke,dag,timeplan,
-  quests,poeng,logg,stat}`). Settings-fanen ligger **sist/høyre**; intern nøkkel er fortsatt
-  `'poeng'` (`renderPoengTab`: kr/coin, daglige rutiner, utbetalinger) — kun etikett/ikon/plass
-  er endret. Dag-fanen har lås/åpne-dag og lås/åpne-uke. Quests-fanen har badge = antall quests
-  til godkjenning. (Sønnens egen «Poeng»-side 💵 er urørt.)
+- **Forelder-meny (`renderParentHome`):** **permanent 3-kolonners rutenett** (`.pgrid`, sticky
+  øverst, klasse `.gt`/`.gti`/`.gtl`) med 9 seksjoner — IKKE lenger én bred fane-rad (byttet b49
+  fordi 9 punkter ble for bredt): Uke 📅 / Dag 📝 / Plan 🗓 / **Quests** ⭐ / **Rutiner** 🔁 /
+  Shop 🛒 / Logg 📋 / Stat 📊 / **Settings** ⚙️ (`App.parentTab ∈ {uke,dag,timeplan,quests,
+  rutiner,shop,poeng,logg,stat}`). Settings intern nøkkel er fortsatt `'poeng'`.
+- **Rutiner-fane (forelder, `renderRutinerTab`):** rutine-mal-styringen (Daglige rutiner: på/av,
+  tittel, poeng, ukedag-piller, deloppgave-editor m/ dra-og-slipp, «vis fra dagen før», slett,
+  «＋ Ny rutine») er **flyttet ut av Settings** til egen 🔁 Rutiner-fane. Badge = antall rutine-
+  instanser til godkjenning. `renderPoengTab` (Settings) har nå kun: poengverdier, kr/coin,
+  varslings-epost, utbetalinger.
+- Dag-fanen har lås/åpne-dag og lås/åpne-uke. Quests-fanen har badge = antall quests til
+  godkjenning. (Sønnens egen «Poeng»-side 💵 er urørt.)
 
 ## Sidequests (enkeltoppgaver hjemme)
 - **Konsept:** forelder oppretter oppgave (tittel, beskrivelse, poeng, frist). Sønn «committer»
