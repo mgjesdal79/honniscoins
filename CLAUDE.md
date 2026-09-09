@@ -48,9 +48,27 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   relevant streak (styres av lås som alt annet).
 - **Migrering** (`migrate`, kjøres i `loadState`): fyller `settings.bonus`/`weekLocks` og låser
   eksisterende dager med innhold, så gamle opptjente poeng ikke forsvinner.
-- **Sønn-sider (pager):** Uken / Poeng (💵) / Sidequests (⭐) / Shop (🛒) — bunn-nav + sveip +
-  prikker (`SON_PAGES` i app.js). Sidequests-ikonet har badge = antall åpne quests. Shop lar
-  sønn bruke opptjente coins på ekte premier (se «## Shop»).
+- **Sønn-sider (pager):** Uken 📅 / Poeng 💵 / **Oppdrag** ⭐ / **Rutiner** 🔁 / Shop 🛒 —
+  bunn-nav + sveip + prikker (`SON_PAGES` i app.js). **Rutiner har egen fane** (skilt ut fra
+  Oppdrag fordi rutine-instansene druknet blant manuelle quests). Oppdrag-badge = antall åpne
+  **manuelle** quests; Rutiner-badge = `routinesRemaining(state,today)` (åpne rutine-instanser i
+  dag). Shop lar sønn bruke opptjente coins på ekte premier (se «## Shop»).
+- **Oppdrag vs Rutiner (sønn):** `renderSidequestsPage` viser KUN manuelle quests
+  (`!isRoutineQuest(q)`), `renderRutinerPage` KUN rutine-instanser (`isRoutineQuest(q)` =
+  `q.source==='routine'`). Godkjent-arkivet er delt likt: manuelle godkjente havner i Oppdrag,
+  rutine-godkjente i Rutiner (`approvedArchiveHtml(state, cardFn, filter)` +
+  `questArchiveSplit(state, n, filter)` tar nå et valgfritt `filter`-predikat). Delte
+  byggeklosser: `sonSubtaskList`, `sonQuestCard` (enkelt manuelt kort), `sonRoutineCard`
+  (sammenleggbart), `bindSonQuestHandlers` (felles handler-binding for begge sider). Nye rene fn
+  i logic.js: `isRoutineQuest`, `routineInstancesForDate`, `routinesRemaining`.
+- **Rutine-kort (sammenleggbart):** `sonRoutineCard` — klikkbar header (🔁 + tittel +
+  status-pille + stor rund ▾-chevron) + kropp med avkryssbar subtask-liste og «Marker som
+  ferdig»/«🚫 Ikke gjort». **Default kollapset**; manuell toggle per kort, flere kan være åpne
+  samtidig (ingen accordion). Åpen-tilstand i `App.routineSonOpen` (ren visning, ikke persistert,
+  keyet på instans-id via `data-rtoggle`). Rutiner-siden har sammendrag øverst («Dagens rutiner ·
+  X av Y igjen» + `.progbar` framdriftsstripe) og seksjoner: I dag / For i morgen 🌙 / Venter på
+  godkjenning / Ikke gjort / Godkjent-arkiv. CSS: `.rtcard`/`.rthead`/`.rtic`/`.rtttl`/`.rtsum`/
+  `.rtpill`/`.rtchev`/`.rtbody`/`.rtsummary`/`.progbar`/`.btnrow`.
 - **Uke-stripe-badge (`renderUkenPage`):** låst dag = «🔒 +X» (grønn), ulåst dag med opptjente
   poeng = «~X» (dempet, klasse `.b.prev`), tom/ingen poeng = «·». Ikke bare «·» overalt.
 - **Forelder-faner (ikon + kort tekst, `renderParentHome`):** Uke 📅 / Dag 📝 / Plan 🗓 /
@@ -313,9 +331,10 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   `docs/superpowers/plans/2026-09-06-honniscoins-shop.md`.
 
 ## Testing
-- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 431 assertions per nå (inkl. sidequests
-  m/arkiv, lekser, rutiner inkl. rekkefølge/tekst-synk, shop m/saldo·reservasjon·commit·fletting·
-  bilde-patch, logg-beskjæring og statistikk/streak).
+- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 438 assertions per nå (inkl. sidequests
+  m/arkiv, lekser, rutiner inkl. rekkefølge/tekst-synk + egen-fane-helpere
+  (`routineInstancesForDate`/`routinesRemaining`/arkiv-filter), shop m/saldo·reservasjon·commit·
+  fletting·bilde-patch, logg-beskjæring og statistikk/streak).
 - **Kjør:** `/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc -m test/run-jsc.js`
   (jsc støtter ES-moduler; ingen node/deno/bun i miljøet).
 - Nettleser: `test/tests.html` (tynn renderer av samme suite).

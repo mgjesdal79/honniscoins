@@ -664,9 +664,10 @@ export function questPointsPending(state) {
 
 // Deler godkjente quests i «siste n» + månedsgruppert arkiv (nyeste først).
 // Ingen migrering: bruker approvedAt (fallback createdAt) som allerede finnes.
-export function questArchiveSplit(state, n = 5) {
+export function questArchiveSplit(state, n = 5, filter = null) {
   const approved = activeQuests(state)
     .filter((q) => q.status === 'approved')
+    .filter((q) => (filter ? filter(q) : true))
     .sort((a, b) =>
       (b.approvedAt || b.createdAt || '').localeCompare(a.approvedAt || a.createdAt || ''));
   const recent = approved.slice(0, n);
@@ -892,6 +893,21 @@ export function overlappingRoutineIds(state) {
     if (!(q.routineId in earliest) || rd < earliest[q.routineId]) earliest[q.routineId] = rd;
   }
   return open.filter((q) => (q.routineDate || '') > earliest[q.routineId]).map((q) => q.id);
+}
+
+// Er quest en rutine-instans? (source satt av generateDailyRoutines.)
+export function isRoutineQuest(q) {
+  return !!(q && q.source === 'routine');
+}
+
+// Rutine-instanser for en gitt dato (aktive, source=routine, routineDate===dato).
+export function routineInstancesForDate(state, dateIso) {
+  return activeQuests(state).filter((q) => isRoutineQuest(q) && (q.routineDate || '') === dateIso);
+}
+
+// Antall rutiner som gjenstår i dag (status open) — brukes til nav-badge/progress.
+export function routinesRemaining(state, dateIso) {
+  return routineInstancesForDate(state, dateIso).filter((q) => q.status === 'open').length;
 }
 
 // Medaljepoeng for én enkelt dag.
