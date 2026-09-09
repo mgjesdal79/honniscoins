@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Honniscoins · Forelder-meny · prototyper</title>
+<style>
+  :root{
+    --bg:#000;--surface:#0b1a33;--surface-2:#0f2547;--line:#1c3a63;--text:#fff;
+    --muted:#9fb3cf;--accent:#3b6fe0;--gold:#ffce3a;--good:#3ddc97;--bad:#ff8080;
+    --radius:14px;--font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#05060a;color:var(--text);font-family:var(--font);padding:24px;line-height:1.4}
+  h1{font-size:1.4rem;margin:0 0 4px}
+  .lead{color:var(--muted);margin:0 0 20px;font-size:.9rem;max-width:640px}
+  .wrap{display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start}
+  /* Kontrollpanel */
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;min-width:260px}
+  .panel h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 10px}
+  .opt{display:block;width:100%;text-align:left;background:var(--surface-2);border:1px solid var(--line);
+       border-radius:12px;padding:12px 14px;margin-bottom:10px;color:var(--text);cursor:pointer;font-family:var(--font)}
+  .opt.on{border-color:var(--accent);background:linear-gradient(160deg,#12294e,var(--surface-2))}
+  .opt b{display:block;font-size:.95rem}
+  .opt small{color:var(--muted);font-size:.76rem}
+  .plusminus{margin-top:6px;font-size:.72rem;color:var(--muted);white-space:pre-line}
+
+  /* Telefon-ramme */
+  .phone{width:340px;background:#000;border:10px solid #14161c;border-radius:38px;overflow:hidden;
+         box-shadow:0 20px 60px rgba(0,0,0,.6);flex:none}
+  .screen{height:640px;display:flex;flex-direction:column;background:var(--bg);position:relative;overflow:hidden}
+  .brand{display:flex;align-items:center;gap:8px;padding:14px 16px 8px}
+  .brand .logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#6a27b8);
+               display:flex;align-items:center;justify-content:center;font-size:1rem}
+  .brand b{font-size:1rem}.brand .bal{color:var(--gold);font-weight:800;margin-left:auto}
+  .topbar{display:flex;justify-content:space-between;align-items:center;padding:0 16px 8px;color:var(--muted);font-size:.82rem}
+  .content{flex:1;overflow:auto;padding:14px 16px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:10px}
+  .card b{font-size:1.05rem}.card p{color:var(--muted);font-size:.85rem;margin:6px 0 0}
+  .sectitle{font-size:1.15rem;font-weight:800;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+
+  /* Faner (delt) */
+  .navbadge{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;
+            border-radius:9px;background:var(--accent);color:#fff;font-size:.6rem;font-weight:800;margin-left:2px;vertical-align:top}
+  .tabbar{display:flex;border-top:1px solid var(--line);background:#04101f}
+  .t{flex:1;background:none;border:none;color:var(--muted);font-family:var(--font);padding:8px 2px 10px;cursor:pointer;
+     display:flex;flex-direction:column;align-items:center;gap:3px;position:relative}
+  .t .ti{font-size:1.25rem;position:relative}
+  .t .tl{font-size:.62rem;font-weight:700}
+  .t.on{color:var(--text)}
+  .t.on .tl{color:var(--accent)}
+
+  /* A: scroll */
+  .tabbar.scroll{overflow-x:auto;flex-wrap:nowrap}
+  .tabbar.scroll .t{flex:0 0 62px}
+
+  /* Mer-dropdown / gruppe-popover / drawer felles ark */
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);
+         border-radius:18px 18px 0 0;padding:8px 8px 14px;transform:translateY(110%);transition:transform .22s ease;z-index:5}
+  .sheet.show{transform:translateY(0)}
+  .sheet .grip{width:40px;height:4px;border-radius:3px;background:var(--line);margin:6px auto 10px}
+  .mitem{display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;color:var(--text);
+         font-family:var(--font);font-size:1rem;padding:13px 14px;border-radius:12px;cursor:pointer;text-align:left}
+  .mitem:hover{background:var(--surface-2)}
+  .mitem .mi{font-size:1.25rem;width:26px;text-align:center}
+  .mitem.on{background:var(--surface-2);color:var(--accent);font-weight:800}
+  .backdrop{position:absolute;inset:0;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .2s;z-index:4}
+  .backdrop.show{opacity:1;pointer-events:auto}
+
+  /* Drawer (venstre) */
+  .drawer{position:absolute;top:0;bottom:0;left:0;width:74%;max-width:250px;background:var(--surface);
+          border-right:1px solid var(--line);transform:translateX(-105%);transition:transform .22s ease;z-index:6;padding:14px 8px;overflow:auto}
+  .drawer.show{transform:translateX(0)}
+  .drawer .dh{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:6px 14px 10px;font-weight:800}
+  .apptop{display:flex;align-items:center;gap:12px;padding:14px 16px 8px}
+  .burger{width:40px;height:40px;border-radius:11px;background:var(--surface);border:1px solid var(--line);
+          color:#fff;font-size:1.2rem;cursor:pointer;flex:none}
+  .apptop .now{margin-left:auto;font-weight:800;color:var(--accent)}
+
+  /* Grupperad */
+  .groupbar{display:flex;border-top:1px solid var(--line);background:#04101f}
+  .g{flex:1;background:none;border:none;color:var(--muted);font-family:var(--font);padding:9px 2px 11px;cursor:pointer;
+     display:flex;flex-direction:column;align-items:center;gap:3px}
+  .g .gi{font-size:1.2rem}.g .gl{font-size:.66rem;font-weight:700}
+  .g.on{color:var(--text)}.g.on .gl{color:var(--accent)}
+  .subrow{display:flex;gap:8px;padding:8px 10px;background:#04101f;border-top:1px solid #0c1c33;overflow-x:auto}
+  .spill{flex:none;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:7px 13px;
+         color:var(--muted);font-size:.8rem;font-weight:700;cursor:pointer;white-space:nowrap}
+  .spill.on{color:#fff;border-color:var(--accent);background:linear-gradient(160deg,#12294e,var(--surface-2))}
+  .hint{color:var(--muted);font-size:.72rem;text-align:center;padding:6px}
+</style>
+</head>
+<body>
+<h1>Forelder-meny · prototyper</h1>
+<p class="lead">Fire forslag til hvordan forelder-menyen kan takle 9 seksjoner (nå med <b>Rutiner</b> som eget punkt) uten å bli for bred. Velg en variant til venstre og klikk rundt i telefonen. Alle er interaktive.</p>
+
+<div class="wrap">
+  <div class="panel">
+    <h2>Variant</h2>
+    <button class="opt on" data-v="mer">
+      <b>A · «Mer»-overflow</b>
+      <small>4 faste faner + «Mer ⋯» åpner resten i et ark nedenfra.</small>
+      <span class="plusminus">+ Ryddig, kun 5 knapper i bredden\n− Ett ekstra trykk for sjeldne faner</span>
+    </button>
+    <button class="opt" data-v="group">
+      <b>B · Grupperte faner</b>
+      <small>3 grupper (Hjem / Oppgaver / Innsikt) + Settings. Undervalg som piller.</small>
+      <span class="plusminus">+ Logisk gruppering, få knapper\n− To nivåer å lære</span>
+    </button>
+    <button class="opt" data-v="drawer">
+      <b>C · Hamburger-meny</b>
+      <small>☰ åpner full liste. Maks plass til innhold.</small>
+      <span class="plusminus">+ Mest innholdsplass\n− Ingen faner synlige</span>
+    </button>
+    <button class="opt" data-v="scroll">
+      <b>D · Scrollbar rad</b>
+      <small>Alle 9 i én rad du drar sidelengs.</small>
+      <span class="plusminus">+ Ett nivå, enkelt\n− Skjulte faner til høyre</span>
+    </button>
+  </div>
+
+  <div class="phone">
+    <div class="screen" id="screen"></div>
+  </div>
+</div>
+
+<script>
+const SECTIONS = [
+  {k:'uke',   ic:'📅', l:'Uke'},
+  {k:'dag',   ic:'📝', l:'Dag',   badge:0},
+  {k:'plan',  ic:'🗓', l:'Plan'},
+  {k:'quests',ic:'⭐', l:'Quests',badge:3},
+  {k:'rutiner',ic:'🔁',l:'Rutiner'},
+  {k:'shop',  ic:'🛒', l:'Shop',  badge:1},
+  {k:'logg',  ic:'📋', l:'Logg'},
+  {k:'stat',  ic:'📊', l:'Stat'},
+  {k:'poeng', ic:'⚙️', l:'Settings'},
+];
+const byKey = k => SECTIONS.find(s=>s.k===k);
+const GROUPS = [
+  {k:'hjem',   ic:'🏠', l:'Hjem',    items:['uke','dag','plan']},
+  {k:'oppg',   ic:'⭐', l:'Oppgaver',items:['quests','rutiner','shop']},
+  {k:'innsikt',ic:'📊', l:'Innsikt', items:['logg','stat']},
+  {k:'poeng',  ic:'⚙️', l:'',        items:['poeng']},
+];
+
+const UI = { variant:'mer', tab:'dag', sheet:false, drawer:false, group:'hjem', groupTab:'dag' };
+const screen = document.getElementById('screen');
+const badgeHtml = s => s.badge ? `<span class="navbadge">${s.badge}</span>` : '';
+
+function brand(){
+  return `<div class="brand"><span class="logo">🪙</span><b>Honniscoins</b><span class="bal">128 💰</span></div>
+          <div class="topbar"><span>👨‍👩‍👦 Forelder</span><span>Bytt bruker</span></div>`;
+}
+function content(k){
+  const s = byKey(k);
+  return `<div class="content">
+    <div class="sectitle">${s.ic} ${s.l}</div>
+    <div class="card"><b>${s.l}-innhold</b><p>Dette er en dummy-flate. Her ville «${s.l}» vist sitt vanlige innhold. Rutiner har nå fått sin egen seksjon.</p></div>
+    <div class="card"><b>Eksempelrad</b><p>Innholdet skifter når du bytter fane.</p></div>
+  </div>`;
+}
+
+function render(){
+  if(UI.variant==='mer')    return renderMer();
+  if(UI.variant==='group')  return renderGroup();
+  if(UI.variant==='drawer') return renderDrawer();
+  if(UI.variant==='scroll') return renderScroll();
+}
+
+/* A · Mer-overflow */
+function renderMer(){
+  const primary = ['dag','quests','rutiner','shop'];
+  const overflow = SECTIONS.filter(s=>!primary.includes(s.k));
+  const overflowActive = overflow.some(s=>s.k===UI.tab);
+  const tabs = primary.map(k=>{const s=byKey(k);
+    return `<button class="t ${UI.tab===k?'on':''}" data-tab="${k}">
+      <span class="ti">${s.ic}${badgeHtml(s)}</span><span class="tl">${s.l}</span></button>`;}).join('');
+  const merBtn = `<button class="t ${overflowActive?'on':''}" data-mer>
+      <span class="ti">⋯</span><span class="tl">Mer</span></button>`;
+  const sheet = `<div class="backdrop ${UI.sheet?'show':''}" data-close></div>
+    <div class="sheet ${UI.sheet?'show':''}"><div class="grip"></div>
+      ${overflow.map(s=>`<button class="mitem ${UI.tab===s.k?'on':''}" data-tab="${s.k}">
+        <span class="mi">${s.ic}</span>${s.l}${badgeHtml(s)}</button>`).join('')}
+    </div>`;
+  screen.innerHTML = `${brand()}${content(UI.tab)}<div class="tabbar">${tabs}${merBtn}</div>${sheet}`;
+  bindTabs();
+  screen.querySelector('[data-mer]').onclick = ()=>{UI.sheet=!UI.sheet;render();};
+  const bd = screen.querySelector('[data-close]'); if(bd) bd.onclick=()=>{UI.sheet=false;render();};
+}
+
+/* B · Grupperte faner */
+function renderGroup(){
+  const grp = GROUPS.find(g=>g.k===UI.group)||GROUPS[0];
+  const bar = GROUPS.map(g=>`<button class="g ${UI.group===g.k?'on':''}" data-grp="${g.k}">
+      <span class="gi">${g.ic}</span>${g.l?`<span class="gl">${g.l}</span>`:''}</button>`).join('');
+  const sub = grp.items.length>1
+    ? `<div class="subrow">${grp.items.map(k=>{const s=byKey(k);
+        return `<button class="spill ${UI.groupTab===k?'on':''}" data-tab="${k}">${s.ic} ${s.l}${badgeHtml(s)}</button>`;}).join('')}</div>`
+    : '';
+  const shown = grp.items.length>1 ? (grp.items.includes(UI.groupTab)?UI.groupTab:grp.items[0]) : grp.items[0];
+  screen.innerHTML = `${brand()}${content(shown)}${sub}<div class="groupbar">${bar}</div>`;
+  screen.querySelectorAll('[data-grp]').forEach(b=>b.onclick=()=>{
+    UI.group=b.dataset.grp; const g=GROUPS.find(x=>x.k===UI.group);
+    UI.groupTab=g.items[0]; render();});
+  screen.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{UI.groupTab=b.dataset.tab;render();});
+}
+
+/* C · Hamburger-drawer */
+function renderDrawer(){
+  const s = byKey(UI.tab);
+  const list = SECTIONS.map(x=>`<button class="mitem ${UI.tab===x.k?'on':''}" data-tab="${x.k}">
+      <span class="mi">${x.ic}</span>${x.l}${badgeHtml(x)}</button>`).join('');
+  screen.innerHTML = `
+    <div class="apptop"><button class="burger" data-burger>☰</button>
+      <b>Honniscoins</b><span class="now">${s.ic} ${s.l}</span></div>
+    ${content(UI.tab)}
+    <div class="backdrop ${UI.drawer?'show':''}" data-close></div>
+    <div class="drawer ${UI.drawer?'show':''}"><div class="dh">Meny</div>${list}</div>`;
+  screen.querySelector('[data-burger]').onclick=()=>{UI.drawer=!UI.drawer;render();};
+  const bd=screen.querySelector('[data-close]'); if(bd) bd.onclick=()=>{UI.drawer=false;render();};
+  screen.querySelectorAll('.drawer [data-tab]').forEach(b=>b.onclick=()=>{UI.tab=b.dataset.tab;UI.drawer=false;render();});
+}
+
+/* D · Scrollbar rad */
+function renderScroll(){
+  const tabs = SECTIONS.map(s=>`<button class="t ${UI.tab===s.k?'on':''}" data-tab="${s.k}">
+      <span class="ti">${s.ic}${badgeHtml(s)}</span><span class="tl">${s.l}</span></button>`).join('');
+  screen.innerHTML = `${brand()}${content(UI.tab)}
+    <div class="hint">← dra sidelengs for flere →</div>
+    <div class="tabbar scroll">${tabs}</div>`;
+  bindTabs();
+}
+
+function bindTabs(){
+  screen.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{UI.tab=b.dataset.tab;UI.sheet=false;render();});
+}
+
+document.querySelectorAll('.opt').forEach(o=>o.onclick=()=>{
+  document.querySelectorAll('.opt').forEach(x=>x.classList.remove('on'));
+  o.classList.add('on');
+  UI.variant=o.dataset.v; UI.sheet=false; UI.drawer=false;
+  if(UI.variant==='group'){UI.group='hjem';UI.groupTab='dag';}
+  render();
+});
+render();
+</script>
+</body>
+</html>

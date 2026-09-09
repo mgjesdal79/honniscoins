@@ -746,21 +746,10 @@ function renderRutinerPage(host) {
     return;
   }
 
-  const total = todays.length;
-  const ferdig = total - openToday.length;
-  const pct = total ? Math.round((ferdig / total) * 100) : 0;
-  const summary = total
-    ? `<div class="rtsummary">
-         <div class="rtsumline"><b>Dagens rutiner</b><span class="muted">${openToday.length ? `${openToday.length} av ${total} igjen` : 'Alt ferdig i dag! 🎉'}</span></div>
-         <div class="progbar"><i style="width:${pct}%"></i></div>
-       </div>`
-    : '';
-
   const rtSection = (title, list) =>
     list.length ? `<div class="sec">${title}</div>${list.map((q) => sonRoutineCard(q, today, !!openState[q.id])).join('')}` : '';
 
   host.innerHTML = `
-    ${summary}
     ${rtSection('I dag', openToday)}
     ${rtSection('For i morgen', tomorrow)}
     ${rtSection('Venter på godkjenning', done)}
@@ -1029,32 +1018,35 @@ let editWeekday = 'mon';
 function renderParentHome() {
   const pendingQuests = activeQuests(App.state).filter((q) => q.status === 'done').length;
   const pendingShop = shopItemsByStatus(App.state, 'requested').length;
+  const pendingRoutines = activeQuests(App.state)
+    .filter((q) => isRoutineQuest(q) && q.status === 'done').length;
   const tabs = [
     ['uke', '📅', 'Uke'],
     ['dag', '📝', 'Dag'],
     ['timeplan', '🗓', 'Plan'],
     ['quests', '⭐', 'Quests'],
+    ['rutiner', '🔁', 'Rutiner'],
     ['shop', '🛒', 'Shop'],
     ['logg', '📋', 'Logg'],
     ['stat', '📊', 'Stat'],
     ['poeng', '⚙️', 'Settings'],
   ];
-  const bar = tabs
+  const grid = tabs
     .map(([k, ic, l]) => {
-      const badge = (k === 'quests' && pendingQuests) ? `<span class="navbadge">${pendingQuests}</span>`
-        : (k === 'shop' && pendingShop) ? `<span class="navbadge">${pendingShop}</span>` : '';
-      return `<button class="t ${App.parentTab === k ? 'on' : ''}" data-tab="${k}">
-        <span class="ti">${ic}${badge}</span><span class="tl">${l}</span></button>`;
+      const n = k === 'quests' ? pendingQuests : k === 'shop' ? pendingShop : k === 'rutiner' ? pendingRoutines : 0;
+      const badge = n ? `<span class="navbadge">${n}</span>` : '';
+      return `<button class="gt ${App.parentTab === k ? 'on' : ''}" data-tab="${k}">
+        ${badge}<span class="gti">${ic}</span><span class="gtl">${l}</span></button>`;
     })
     .join('');
   el.innerHTML = `
     ${brandHtml()}
     <div class="topbar"><span class="muted">👨‍👩‍👦 Forelder</span>
       <button class="link" id="switchUser">Bytt bruker</button></div>
-    <div class="tabbar">${bar}</div>
+    <div class="pgrid">${grid}</div>
     <div id="ptab"></div>`;
   document.getElementById('switchUser').onclick = () => setRole(null);
-  el.querySelectorAll('.t[data-tab]').forEach(
+  el.querySelectorAll('.gt[data-tab]').forEach(
     (b) =>
       (b.onclick = () => {
         App.parentTab = b.dataset.tab;
@@ -1066,6 +1058,7 @@ function renderParentHome() {
   if (App.parentTab === 'dag') return renderDayBody(host);
   if (App.parentTab === 'timeplan') return renderTimeplanTab(host);
   if (App.parentTab === 'quests') return renderQuestsTab(host);
+  if (App.parentTab === 'rutiner') return renderRutinerTab(host);
   if (App.parentTab === 'shop') return renderShopTab(host);
   if (App.parentTab === 'poeng') return renderPoengTab(host);
   if (App.parentTab === 'logg') return renderLoggTab(host);
@@ -1736,10 +1729,6 @@ function renderPoengTab(host) {
     <label>Epost for shop-varsler
       <input class="inp wide" id="notifyEmail" type="email" style="width:100%"
         value="${escapeHtml(s.settings.notifyEmail || '')}" placeholder="din@epost.no"></label>
-    <div class="sec">Daglige rutiner</div>
-    <div id="routinesHost"></div>
-    <button class="btn ghost" id="rtAddRoutine" style="margin-top:6px">＋ Ny rutine</button>
-    <div class="muted" style="font-size:.78rem;margin:8px 2px 0">Endring gjelder neste dag rutinen er aktiv. Dagens instans finjusterer du i Quests-fanen.</div>
     <div id="payoutHost"></div>`;
   const bind = (id, field) => {
     document.getElementById(id).onchange = (e) => {
@@ -1774,6 +1763,17 @@ function renderPoengTab(host) {
     s.settings.updatedAt = nowIso();
     save();
   };
+  renderPayoutSection(document.getElementById('payoutHost'));
+}
+
+// Egen forelder-fane: styring av daglige rutine-maler (flyttet ut av Settings).
+function renderRutinerTab(host) {
+  host.innerHTML = `
+    <div class="sec">Daglige rutiner</div>
+    <div class="muted" style="font-size:.82rem;margin:0 2px 10px">Maler som lager avkryssbare rutine-oppgaver hos sønn på valgte ukedager.</div>
+    <div id="routinesHost"></div>
+    <button class="btn ghost" id="rtAddRoutine" style="margin-top:6px">＋ Ny rutine</button>
+    <div class="muted" style="font-size:.78rem;margin:8px 2px 0">Endring gjelder neste dag rutinen er aktiv. Dagens instans finjusterer du i Quests-fanen.</div>`;
   const WD = [['mon', 'Man'], ['tue', 'Tir'], ['wed', 'Ons'], ['thu', 'Tor'], ['fri', 'Fre']];
   const renderRoutines = () => {
     const rhost = document.getElementById('routinesHost');
@@ -1910,7 +1910,6 @@ function renderPoengTab(host) {
     save();
     renderRoutines();
   };
-  renderPayoutSection(document.getElementById('payoutHost'));
 }
 
 function renderPayoutSection(host) {
