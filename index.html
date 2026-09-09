@@ -59,8 +59,7 @@
   .tabbar .t .tl{font-size:.6rem;font-weight:700;letter-spacing:.01em}
   .tabbar .t.on{background:var(--accent);color:#fff}
   /* Forelder-meny: permanent rutenett øverst (9 seksjoner) */
-  .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0 14px;position:sticky;top:0;z-index:5;
-         background:var(--bg);padding-bottom:2px}
+  .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0 14px}
   .pgrid .gt{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
              padding:12px 6px;border-radius:13px;color:var(--muted);background:var(--surface);border:1px solid var(--line);
              font-family:var(--font);cursor:pointer;min-height:66px}
@@ -322,7 +321,7 @@
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.09.09 (b49 · forelder: grid-meny + egen Rutiner-fane)';
+    window.APP_VERSION = '2026.09.09 (b50 · stat: heatmap snudd, kort i full bredde)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>
