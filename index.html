@@ -240,6 +240,11 @@
   .datemid{position:relative;flex:1;text-align:center;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:10px 6px}
   .datemid b{font-size:.95rem}.datemid .d{color:var(--muted);font-size:.82rem}
   .dateover{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:none;background:transparent}
+  .stepper{display:flex;align-items:center;gap:8px}
+  .stepper .sbtn{width:48px;height:48px;border-radius:12px;background:var(--surface);border:1px solid var(--line);color:#fff;font-size:1.6rem;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer}
+  .stepper .sbtn:active{background:var(--accent);border-color:var(--accent)}
+  .stepper input.sval{width:84px;height:48px;text-align:center;font-size:1.2rem;font-weight:800;flex:none;-moz-appearance:textfield;appearance:textfield}
+  .stepper input.sval::-webkit-outer-spin-button,.stepper input.sval::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   /* Lekser */
   .hwsec{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:16px 2px 8px;font-weight:800;display:flex;align-items:center;gap:6px}
   .hwtitle{font-size:1.25rem;font-weight:800;color:var(--text);margin:20px 2px 12px;display:flex;align-items:center;gap:8px}
@@ -322,7 +327,7 @@
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.09.09 (b52 · stat: gyldig fravær = turkis)';
+    window.APP_VERSION = '2026.09.09 (b53 · poeng-felt: stor stepper)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>

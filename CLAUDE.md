@@ -380,5 +380,15 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
 ## Konvensjoner
 - Norsk i UI og commit-meldinger. Unngå «På'an» som entusiastisk (se global memory).
 - Medaljeknapper: stil B = «fyll ved valg» (`.m.fill.sel` får farge). Sønn bruker store `.big`.
+- **Tall-stepper (`stepperHtml`/`bindSteppers` i app.js):** gjenbrukbar − [felt] + med store
+  48px-knapper og smalt sentrert felt (skjuler native spinner). Brukes på alle små heltalls-felt:
+  quest-poeng (`#qPoints`), lekse-poeng (`#hwPoints`/`#hwNewPoints`), rutine-poeng
+  (`data-r-points`) og poengverdier (`#vBronse`/`#vSolv`/`#vGull`). `stepperHtml(attrs, value,
+  {min,step})` beholder en ekte `<input>` med samme id/attributt (så eksisterende `.value`-lesing
+  virker); − / + oppdaterer feltet og sender `input`+`change` (så onchange-handlere fyres av
+  knappene også). `bindSteppers(host)` er idempotent (`data-bound`) og kalles sist i
+  `renderQuestsTab`/`bindParentHomework`/`renderPoengTab` + per rutine-kort. CSS `.stepper`/`.sbtn`/
+  `.sval` i index.html. Shop-pris + kr/coin beholdt som skrivefelt (store/desimale tall). Krever
+  ikke migrering. Prototype: `mockups/quest-poeng-prototyper.html`.
 - Design-spec: `docs/superpowers/specs/2026-08-21-honniscoins-lasing-streaks-sider-design.md`.
   Klikkbar mockup: `mockups/skisser.html`.
