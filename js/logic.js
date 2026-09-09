@@ -1498,6 +1498,46 @@ export function effortRecords(state) {
   return out;
 }
 
+// Per LÅST dag: antall timer fordelt på kategori – for 100 %-stablet «dagsfordeling».
+// Kategorier: gull/solv/bronse (medaljer), valid (gyldig fravær = uvurdert time på syk dag),
+// invalid (ugyldig fravær '0'), tom (uvurdert time på ikke-syk dag = grå rest).
+// Til forskjell fra effortRecords tar denne med fravær OG tomme timer, så stolpene alltid summerer.
+// subjectKey null/'__all__' = alle fag; ellers kun det valgte faget. Sortert på dato.
+export function dayComposition(state, subjectKey) {
+  const days = (state && state.days) || {};
+  const all = subjectKey == null || subjectKey === '__all__';
+  const out = [];
+  for (const date of Object.keys(days)) {
+    const day = days[date];
+    if (!day || day.locked !== true) continue;
+    const subjects = Array.isArray(day.subjects) ? day.subjects : [];
+    const marks = day.marks || {};
+    const idxSet = new Set();
+    subjects.forEach((_, i) => idxSet.add(i));
+    for (const k of Object.keys(marks)) idxSet.add(Number(k));
+    let gull = 0, solv = 0, bronse = 0, valid = 0, invalid = 0, tom = 0;
+    for (const i of idxSet) {
+      if (!all) {
+        const raw = subjects[i];
+        const label = (raw == null ? '' : String(raw)).trim();
+        if (!label || label.toLowerCase() !== subjectKey) continue;
+      }
+      const medal = marks[i] ? marks[i].medal : null;
+      if (medal === 'gull') gull++;
+      else if (medal === 'solv') solv++;
+      else if (medal === 'bronse') bronse++;
+      else if (medal === '0') invalid++;
+      else if (day.sick) valid++;
+      else tom++;
+    }
+    const total = gull + solv + bronse + valid + invalid + tom;
+    if (total === 0) continue;
+    out.push({ date, weekday: weekdayKey(date), gull, solv, bronse, valid, invalid, tom, total });
+  }
+  out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  return out;
+}
+
 // Periode-grenser for statistikk. 'all' | 'month' | 'd30' | 'd90'. todayIso = 'YYYY-MM-DD'.
 export function periodBounds(period, todayIso) {
   if (period === 'month') return { from: todayIso.slice(0, 8) + '01', to: todayIso };
