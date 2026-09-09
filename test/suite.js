@@ -1199,6 +1199,25 @@ export function runTests() {
       ]);
       eq('fag uten treff', L.statDailyTotal(recs, 'gym'), []);
     },
+    function dayComposition_basics() {
+      const s = L.defaultState();
+      s.days = {
+        // låst, ikke syk: gull, sølv, '0' (ugyldig), + 1 uvurdert (tom)
+        '2026-09-07': { subjects: ['matte', 'norsk', 'gym', 'kunst'], marks: { 0: { medal: 'gull' }, 1: { medal: 'solv' }, 2: { medal: '0' } }, locked: true, lockedAt: 't' },
+        // låst syk-dag: 1 medalje (syk-med-medalje) + 1 uvurdert = gyldig fravær
+        '2026-09-08': { subjects: ['a', 'b'], marks: { 0: { medal: 'gull' } }, sick: true, locked: true, lockedAt: 't' },
+        // ulåst → utelates
+        '2026-09-09': { subjects: ['x'], marks: { 0: { medal: 'gull' } }, locked: false },
+      };
+      const r = L.dayComposition(s);
+      eq('to låste dager', r.length, 2);
+      eq('dag 1 fordeling', r[0], { date: '2026-09-07', weekday: 'mon', gull: 1, solv: 1, bronse: 0, valid: 0, invalid: 1, tom: 1, total: 4 });
+      eq('dag 2 syk = gyldig fravær', r[1], { date: '2026-09-08', weekday: 'tue', gull: 1, solv: 0, bronse: 0, valid: 1, invalid: 0, tom: 0, total: 2 });
+      eq('tom state', L.dayComposition({ days: {} }), []);
+      const only = L.dayComposition(s, 'matte');
+      eq('fagfilter: kun matte-dag', only.length, 1);
+      eq('fagfilter: matte = 1 gull', only[0], { date: '2026-09-07', weekday: 'mon', gull: 1, solv: 0, bronse: 0, valid: 0, invalid: 0, tom: 0, total: 1 });
+    },
     function statWeeklyTotal_basics() {
       // 2026-08-10 = mandag (uke A), 2026-08-17 = mandag (uke B)
       const recs = [

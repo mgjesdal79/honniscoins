@@ -15,7 +15,7 @@ import {
   addHomework, updateHomework, deleteHomework, deleteHomeworkGroup, hideHomework,
   commitHomework, uncommitHomework, approveHomework, rejectHomework,
   effortRecords, periodBounds, filterRecordsByPeriod,
-  statBySubject, statByPosition, statHeatmap, statDailyTotal, statWeeklyTotal, statMedalDistribution,
+  statBySubject, statByPosition, statHeatmap, statDailyTotal, statWeeklyTotal, statMedalDistribution, dayComposition,
   addShopItem, updateShopItem, deleteShopItem, setShopPrice, requestShopItem, cancelShopRequest,
   commitShopPurchase, hidePurchase, shopItemsByStatus, activeShopItems, activePurchases,
   visiblePurchases, shopSpentTotal, reservedTotal, availableBalance,
@@ -2115,6 +2115,8 @@ function statContentHtml(state) {
     <div class="statgrid">
       ${statCard('Utvikling over tid', trendSub,
         statTrendControls(subjects, subjSel, gran, dayAllowed) + trendBody, true)}
+      ${statCard('Dagsfordeling', 'Hver dag like høy – andel medalje, fravær og tomme timer',
+        svgDayComposition(filterRecordsByPeriod(dayComposition(state), bounds)), true)}
       ${statCard('Innsats per fag', 'Snitt-medalje per fag (🥇3 🥈2 🥉1)', svgBySubject(bySub), true)}
       ${statCard('Innsats etter når på dagen', 'Snitt per timenummer', svgByPosition(byPos), true)}
       ${statCard('Time × ukedag', 'Snitt per timenummer og ukedag', svgHeatmap(heat), true)}
@@ -2311,6 +2313,40 @@ function svgDailyTotal(daily) {
       g += `<text x="${cx}" y="${Y(d.total) - 6}" text-anchor="middle" class="axv">${d.total}</text>`;
     if (i % step === 0 || i === daily.length - 1)
       g += `<text x="${cx}" y="${T + ih + 18}" text-anchor="middle" class="axl">${d.date.slice(5)}</text>`;
+  });
+  return legend + svgWrap(W, H, g);
+}
+
+// Dagsfordeling: én like høy stolpe per dag (100 %), fargene = andel av dagens timer.
+// Nederst → øverst: gull, sølv, bronse, gyldig fravær, ugyldig fravær '0', tom (grå rest).
+function svgDayComposition(comp) {
+  const W = STAT_VBW, H = 260, L = 8, R = 8, T = 10, B = 28, iw = W - L - R, ih = H - T - B;
+  const legend = `<div class="statlegend">
+    <span><i style="background:var(--gull)"></i>Gull</span>
+    <span><i style="background:var(--solv)"></i>Sølv</span>
+    <span><i style="background:var(--bronse)"></i>Bronse</span>
+    <span><i style="background:var(--valid)"></i>Gyldig fravær</span>
+    <span><i style="background:var(--invalid)"></i>Ugyldig fravær «0»</span>
+    <span><i style="background:var(--tom)"></i>Ikke fylt</span></div>`;
+  if (!comp.length)
+    return legend + svgWrap(W, H, `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="axl">Ingen data</text>`);
+  const cw = iw / comp.length, bw = Math.min(34, cw * 0.72);
+  const segs = [['gull', 'var(--gull)'], ['solv', 'var(--solv)'], ['bronse', 'var(--bronse)'],
+    ['valid', 'var(--valid)'], ['invalid', 'var(--invalid)'], ['tom', 'var(--tom)']];
+  const step = Math.max(1, Math.ceil(comp.length / 8));
+  let g = '';
+  comp.forEach((d, i) => {
+    const cx = L + cw * (i + 0.5), x = cx - bw / 2;
+    let yBase = T + ih;
+    segs.forEach(([k, col]) => {
+      if (!d[k]) return;
+      const full = ih * (d[k] / d.total);
+      g += `<rect x="${x}" y="${(yBase - full).toFixed(1)}" width="${bw}" height="${full.toFixed(1)}" fill="${col}"/>`;
+      yBase -= full;
+    });
+    g += `<rect x="${x}" y="${T}" width="${bw}" height="${ih}" fill="none" stroke="var(--grid)" rx="2"/>`;
+    if (i % step === 0 || i === comp.length - 1)
+      g += `<text x="${cx}" y="${T + ih + 16}" text-anchor="middle" class="axl">${d.date.slice(5)}</text>`;
   });
   return legend + svgWrap(W, H, g);
 }

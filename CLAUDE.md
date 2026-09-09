@@ -256,6 +256,16 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
      tallet i cella er ekstra kanal, + `.statlegend` «Svakt 🥉 / Middels 🥈 / Sterkt 🥇». Lyse
      grønn-trinn får mørk celletekst.
   5. `statMedalDistribution` — andel gull/sølv/bronse per fag (`svgDistribution`).
+- **Dagsfordeling-kort (`svgDayComposition`, ligger RETT UNDER «Utvikling over tid»):** én
+  **like høy** stolpe per låst dag (100 %-stablet) — fargene viser *andelen* av dagens timer,
+  ikke volum. Segmenter nedenfra→opp: gull → sølv → bronse → **gyldig fravær** (`--valid`, grønn)
+  → **ugyldig fravær «0»** (`--invalid`, rød) → **tom/ikke fylt** (`--tom`, grå rest). Ny ren fn
+  `dayComposition(state, subjectKey)` i logic.js teller per låst dag `{date,weekday,gull,solv,
+  bronse,valid,invalid,tom,total}` — til forskjell fra `effortRecords` tar den med fravær OG tomme
+  timer. Regel per time-slot (subjects+marks-indekser): medalje→medalje, `'0'`→invalid, uvurdert
+  på **syk** dag→valid (gyldig fravær; syk-med-medalje teller fortsatt som medalje), uvurdert på
+  ikke-syk dag→tom. Filtreres på periode via `filterRecordsByPeriod` (dato). CSS-vars `--valid`/
+  `--invalid`/`--tom` i `.statgrid`. Prototype: `mockups/utvikling-fordeling-prototype.html`.
 - **UI-plassering:** forelder i egen **Stat**-fane (`renderStatistikkTab`); sønn nederst på
   **Poeng**-siden. Begge kaller `statContentHtml(state)` + `bindStatChips(host)` (binder
   periode-chips, custom-datoinputs, Dag/Uke-toggle og fag-`<select>#statSubject`).
@@ -340,7 +350,7 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   `docs/superpowers/plans/2026-09-06-honniscoins-shop.md`.
 
 ## Testing
-- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 438 assertions per nå (inkl. sidequests
+- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 444 assertions per nå (inkl. sidequests
   m/arkiv, lekser, rutiner inkl. rekkefølge/tekst-synk + egen-fane-helpere
   (`routineInstancesForDate`/`routinesRemaining`/arkiv-filter), shop m/saldo·reservasjon·commit·
   fletting·bilde-patch, logg-beskjæring og statistikk/streak).
