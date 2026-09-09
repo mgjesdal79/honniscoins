@@ -2115,10 +2115,10 @@ function statContentHtml(state) {
     <div class="statgrid">
       ${statCard('Utvikling over tid', trendSub,
         statTrendControls(subjects, subjSel, gran, dayAllowed) + trendBody, true)}
-      ${statCard('Innsats per fag', 'Snitt-medalje per fag (🥇3 🥈2 🥉1)', svgBySubject(bySub))}
-      ${statCard('Innsats etter når på dagen', 'Snitt per timenummer', svgByPosition(byPos))}
-      ${statCard('Ukedag × time', 'Snitt per ukedag og timenummer', svgHeatmap(heat), true)}
-      ${statCard('Medaljefordeling per fag', 'Andel gull/sølv/bronse', svgDistribution(dist))}
+      ${statCard('Innsats per fag', 'Snitt-medalje per fag (🥇3 🥈2 🥉1)', svgBySubject(bySub), true)}
+      ${statCard('Innsats etter når på dagen', 'Snitt per timenummer', svgByPosition(byPos), true)}
+      ${statCard('Time × ukedag', 'Snitt per timenummer og ukedag', svgHeatmap(heat), true)}
+      ${statCard('Medaljefordeling per fag', 'Andel gull/sølv/bronse', svgDistribution(dist), true)}
     </div>`;
 }
 
@@ -2217,9 +2217,11 @@ function svgByPosition(byPos) {
 // Visning 3: heatmap ukedag x timenummer.
 function svgHeatmap(heat) {
   const names = { mon: 'Man', tue: 'Tir', wed: 'Ons', thu: 'Tor', fri: 'Fre' };
-  const cols = heat.positions.length || 1;
-  const W = STAT_VBW, H = 60 + heat.weekdays.length * 42, L = 46, R = 14, T = 26, B = 16;
-  const iw = W - L - R, ih = H - T - B, cw = iw / cols, ch = ih / heat.weekdays.length, gap = 3;
+  // Timer = rader, ukedager = kolonner.
+  const rows = heat.positions.length || 1;
+  const cols = heat.weekdays.length || 1;
+  const W = STAT_VBW, H = 60 + rows * 42, L = 46, R = 14, T = 26, B = 16;
+  const iw = W - L - R, ih = H - T - B, cw = iw / cols, ch = ih / rows, gap = 3;
   // Intuitiv skala: svakt (🥉≈1) rød → middels (🥈≈2) grå → sterkt (🥇≈3) grønn.
   // [fyllfarge, tekstfarge] – lys grønn krever mørk tekst for kontrast.
   const ramp = [
@@ -2228,11 +2230,13 @@ function svgHeatmap(heat) {
   ];
   const idx = (avg) => Math.max(0, Math.min(4, Math.round(((avg - 1) / 2) * 4)));
   let g = '';
-  heat.positions.forEach((p, j) =>
-    (g += `<text x="${L + cw * (j + 0.5)}" y="${T - 9}" text-anchor="middle" class="axl">${hourLabel(p)}</text>`));
-  heat.weekdays.forEach((wd, i) => {
-    g += `<text x="${L - 6}" y="${T + ch * (i + 0.5) + 4}" text-anchor="end" class="axl">${names[wd]}</text>`;
-    heat.positions.forEach((p, j) => {
+  // Kolonne-overskrifter: ukedager
+  heat.weekdays.forEach((wd, j) =>
+    (g += `<text x="${L + cw * (j + 0.5)}" y="${T - 9}" text-anchor="middle" class="axl">${names[wd]}</text>`));
+  // Rader: timenummer
+  heat.positions.forEach((p, i) => {
+    g += `<text x="${L - 6}" y="${T + ch * (i + 0.5) + 4}" text-anchor="end" class="axl">${hourLabel(p)}</text>`;
+    heat.weekdays.forEach((wd, j) => {
       const c = heat.cell[wd][p];
       const x = L + cw * j + gap / 2, y = T + ch * i + gap / 2;
       if (!c) {

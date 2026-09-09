@@ -72,8 +72,8 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   `.rtpill`(+`.wait`)/`.rtchev`/`.rtbody`/`.btnrow`.
 - **Uke-stripe-badge (`renderUkenPage`):** låst dag = «🔒 +X» (grønn), ulåst dag med opptjente
   poeng = «~X» (dempet, klasse `.b.prev`), tom/ingen poeng = «·». Ikke bare «·» overalt.
-- **Forelder-meny (`renderParentHome`):** **permanent 3-kolonners rutenett** (`.pgrid`, sticky
-  øverst, klasse `.gt`/`.gti`/`.gtl`) med 9 seksjoner — IKKE lenger én bred fane-rad (byttet b49
+- **Forelder-meny (`renderParentHome`):** **permanent 3-kolonners rutenett** (`.pgrid`, IKKE
+  sticky, klasse `.gt`/`.gti`/`.gtl`) med 9 seksjoner — IKKE lenger én bred fane-rad (byttet b49
   fordi 9 punkter ble for bredt): Uke 📅 / Dag 📝 / Plan 🗓 / **Quests** ⭐ / **Rutiner** 🔁 /
   Shop 🛒 / Logg 📋 / Stat 📊 / **Settings** ⚙️ (`App.parentTab ∈ {uke,dag,timeplan,quests,
   rutiner,shop,poeng,logg,stat}`). Settings intern nøkkel er fortsatt `'poeng'`.
@@ -248,7 +248,8 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
      - Fag-valg faller tilbake til «Totalt» hvis valgt fag ikke finnes i perioden.
   2. `statBySubject` — snitt-medalje per fag (rangerte stolper, `svgBySubject`).
   3. `statByPosition` — snitt per timenummer (`svgByPosition`).
-  4. `statHeatmap` — ukedag × time (`svgHeatmap`, span2). **Farge = intuitiv divergerende
+  4. `statHeatmap` — **time × ukedag** (`svgHeatmap`, span2): **timenummer = rader, ukedager =
+     kolonner** (snudd b50 etter ønske). **Farge = intuitiv divergerende
      skala svakt→sterkt** (rød `--hm1` → grå `--hm2/--hm3` → grønn `--hm4/--hm5`), *ikke* den
      gamle blå enkelt-hue `--seq*`-rampen. `idx(avg)=round((avg-1)/2·4)` mapper snitt 1–3 til de
      5 trinnene; lysheten øker monotont med verdien (lesbart også ved rød/grønn-fargeblindhet),
@@ -260,7 +261,8 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   periode-chips, custom-datoinputs, Dag/Uke-toggle og fag-`<select>#statSubject`).
 - **Bredde:** statistikk bryter ut av mobil-bredden på laptop via `body.statwide` (togglet i
   `routeToView` for forelder-Stat-fane ELLER sønn-Poeng), `@media (min-width:820px)` gir
-  2-kolonners `.statgrid` (`.span2` = full bredde). Sønnens Poeng-innhold ligger i `.narrowcol`.
+  2-kolonners `.statgrid` (`.span2` = full bredde). **Alle fem kortene bruker nå `span2`** (b50)
+  → stablet i full bredde etter hverandre, også på laptop. Sønnens Poeng-innhold ligger i `.narrowcol`.
 - **Mobil-lesbarhet:** SVG-ene har fast `viewBox`-bredde `STAT_VBW` (modul-var i app.js).
   `statContentHtml` setter `STAT_NARROW = !matchMedia('(min-width:820px)')` og `STAT_VBW =
   narrow ? 380 : 800` FØR grafene bygges. Smal viewBox ⇒ 1 SVG-enhet ≈ 1 skjermpiksel, så
