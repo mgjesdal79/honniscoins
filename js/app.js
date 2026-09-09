@@ -865,69 +865,101 @@ function renderShopAddForm(box, role, item = null) {
   let pickedImage = editing ? (item.image || null) : null;
   const swatches = SHOP_COLORS.map((c) =>
     `<span class="sw ${c.id === pickedColor ? 'sel' : ''}" data-col="${c.id}" style="background:${c.grad}"></span>`).join('');
-  const imgPreview = () => pickedImage
-    ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-         <img src="${pickedImage}" alt="" style="width:44px;height:44px;border-radius:8px;object-fit:cover">
-         <button class="link" id="shopImgClear" type="button">Fjern bilde</button></div>`
-    : '';
+  const priceVal = editing && item.price ? item.price : '';
   box.innerHTML = `
     <div class="card${editing ? ' editing' : ''}" style="margin-top:10px">
       ${editing ? '<div class="sec" style="margin-top:0">Rediger vare</div>' : ''}
       <input class="inp wide" id="shopTitle" placeholder="Tittel (f.eks. LEGO-sett)" style="width:100%;margin-bottom:8px" value="${editing ? escapeHtml(item.title || '') : ''}">
       <input class="inp wide" id="shopLink" placeholder="Lenke til produkt (valgfri)" style="width:100%;margin-bottom:8px" value="${editing ? escapeHtml(item.link || '') : ''}">
-      ${role === 'parent' && !editing ? `<label>Pris <input class="inp" id="shopPrice" type="number" min="0" placeholder="coins"></label>` : ''}
+      <div class="shopfld">
+        <div class="shopfld-lbl">💰 Pris</div>
+        <div class="shopprice-row">
+          <input class="inp shopprice" id="shopPrice" type="number" min="0" inputmode="numeric" placeholder="0" value="${priceVal}">
+          <span class="shopprice-unit">coins</span>
+        </div>
+        <div class="shopfld-hint">La stå tom for å foreslå ønske uten pris.</div>
+      </div>
       <div class="sfld">Farge på kortet</div>
       <div class="colorpick">${swatches}</div>
-      <div class="sfld">Bilde av premien</div>
-      <div id="shopImgPrev">${imgPreview()}</div>
-      <label class="btn ghost filebtn">
-        <span aria-hidden="true">📷</span> <span id="shopImgBtnTxt">${pickedImage ? 'Bytt bilde' : 'Last opp bilde'}</span>
-        <input type="file" id="shopImg" accept="image/*">
-      </label>
-      <div style="display:flex;gap:8px;margin-top:12px">
+      <div class="shopimgsec">
+        <div class="shopimgsec-head">🎁 Bilde av premien</div>
+        <div class="shopimgsec-sub">Slik ser kortet ut i shopen:</div>
+        <div class="shoppvwrap">
+          <div class="shopcard shoppv">
+            <div class="img" id="shopPvImg"></div>
+            <div class="body">
+              <div class="ttl" id="shopPvTtl"></div>
+              <div class="price" id="shopPvPrice"></div>
+            </div>
+          </div>
+        </div>
+        <div class="shopimgbtns">
+          <label class="btn ghost filebtn">
+            <span aria-hidden="true">📷</span> <span id="shopImgBtnTxt">${pickedImage ? 'Bytt bilde' : 'Last opp bilde'}</span>
+            <input type="file" id="shopImg" accept="image/*">
+          </label>
+          <button class="link" id="shopImgClear" type="button" style="${pickedImage ? '' : 'display:none'}">Fjern bilde</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
         <button class="btn good" id="shopSave">${editing ? 'Lagre endringer' : 'Legg til'}</button>
         <button class="btn ghost" id="shopCancelAdd">Avbryt</button>
       </div>
     </div>`;
-  const prev = document.getElementById('shopImgPrev');
+  const pvImg = document.getElementById('shopPvImg');
+  const pvTtl = document.getElementById('shopPvTtl');
+  const pvPrice = document.getElementById('shopPvPrice');
   const btnTxt = document.getElementById('shopImgBtnTxt');
-  const syncImgUi = () => {
-    prev.innerHTML = imgPreview();
+  const clearBtn = document.getElementById('shopImgClear');
+  const titleInp = document.getElementById('shopTitle');
+  const priceInp = document.getElementById('shopPrice');
+  const syncPreview = () => {
+    pvImg.style.background = shopGrad(pickedColor);
+    pvImg.innerHTML = pickedImage ? `<img src="${pickedImage}" alt="">` : '<span class="ph">🎁</span>';
+    pvTtl.textContent = titleInp.value.trim() || 'Uten navn';
+    const p = Number(priceInp.value);
+    if (priceInp.value.trim() && p > 0) {
+      pvPrice.textContent = `💰 ${p}`;
+      pvPrice.classList.remove('none');
+    } else {
+      pvPrice.textContent = 'Ingen pris ennå';
+      pvPrice.classList.add('none');
+    }
     if (btnTxt) btnTxt.textContent = pickedImage ? 'Bytt bilde' : 'Last opp bilde';
-    bindClear();
+    if (clearBtn) clearBtn.style.display = pickedImage ? '' : 'none';
   };
-  const bindClear = () => {
-    const c = document.getElementById('shopImgClear');
-    if (c) c.onclick = () => { pickedImage = null; syncImgUi(); };
-  };
-  bindClear();
+  syncPreview();
+  clearBtn.onclick = () => { pickedImage = null; syncPreview(); };
+  titleInp.oninput = syncPreview;
+  priceInp.oninput = syncPreview;
   box.querySelectorAll('.sw').forEach((sw) => (sw.onclick = () => {
     pickedColor = sw.dataset.col;
     box.querySelectorAll('.sw').forEach((x) => x.classList.toggle('sel', x === sw));
+    syncPreview();
   }));
   const fileInput = document.getElementById('shopImg');
   fileInput.onchange = async () => {
     if (fileInput.files && fileInput.files[0]) {
       try { pickedImage = await resizeImageToSquarePng(fileInput.files[0]); } catch { pickedImage = null; }
-      syncImgUi();
+      syncPreview();
     }
   };
   document.getElementById('shopCancelAdd').onclick = () => { box.innerHTML = ''; };
   document.getElementById('shopSave').onclick = () => {
-    const title = document.getElementById('shopTitle').value.trim();
+    const title = titleInp.value.trim();
     if (!title) return;
     const link = document.getElementById('shopLink').value.trim();
+    const price = Number(priceInp.value) || 0;
     if (editing) {
       App.state = updateShopItem(App.state, {
-        id: item.id, patch: { title, link, image: pickedImage, color: pickedColor }, actor: role,
+        id: item.id, patch: { title, link, image: pickedImage, color: pickedColor, price }, actor: role,
       }, { now: nowIso(), id: newId() });
       save(); routeToView();
       return;
     }
-    const price = role === 'parent' ? Number(document.getElementById('shopPrice').value) || 0 : 0;
     App.state = addShopItem(App.state, {
       title, link, image: pickedImage, color: pickedColor,
-      price, priceSet: role === 'parent' && price > 0, by: role,
+      price, priceSet: price > 0, by: role,
     }, { now: nowIso(), id: newId() });
     save(); routeToView();
   };
