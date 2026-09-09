@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Honniscoins · Shop-skjema · prototype</title>
+<style>
+  :root{
+    --bg:#000;--surface:#0b1a33;--surface-2:#0f2547;--line:#1c3a63;
+    --text:#fff;--muted:#9fb3cf;--accent:#3b6fe0;--gold:#ffce3a;--good:#3ddc97;--bad:#ff8080;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#05060a;color:var(--text);font-family:var(--font);padding:20px;line-height:1.45}
+  h1{font-size:1.2rem;margin:0 0 4px}
+  .lead{color:var(--muted);margin:0 0 18px;font-size:.88rem;max-width:560px}
+  .cols{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+  .col{width:380px;max-width:100%}
+  .col h2{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px}
+  .sec{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:14px 2px 8px;font-weight:700}
+  .inp{background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:9px 10px;color:#fff;font-family:var(--font);font-size:1rem}
+  .inp.wide{width:100%;margin-bottom:8px}
+
+  /* ---- prominent pris-felt ---- */
+  .pricefld{margin:12px 0 4px}
+  .pricefld .plbl{font-size:.9rem;font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+  .pricewrap{display:flex;align-items:center;gap:10px}
+  .pricewrap input{width:50%;max-width:170px;border:2px solid var(--gold);border-radius:12px;
+       background:var(--surface-2);color:#fff;font-family:var(--font);
+       font-size:1.3rem;font-weight:800;padding:11px 12px;outline:none;-moz-appearance:textfield}
+  .pricewrap input::-webkit-outer-spin-button,.pricewrap input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .pricewrap .unit{color:var(--muted);font-weight:700;font-size:.9rem}
+  .pricehint{color:var(--muted);font-size:.74rem;margin:6px 2px 0}
+
+  /* ---- farge ---- */
+  .sfld{font-size:.8rem;font-weight:700;color:var(--muted);margin:14px 0 6px}
+  .colorpick{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}
+  .colorpick .sw{width:30px;height:30px;border-radius:9px;border:2px solid rgba(255,255,255,.18);cursor:pointer}
+  .colorpick .sw.sel{border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
+
+  /* ---- bilde-panel med luft ---- */
+  .imgpanel{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+  .imgpanel .head{font-size:1rem;font-weight:800;margin-bottom:2px}
+  .imgpanel .sub{color:var(--muted);font-size:.78rem;margin-bottom:12px}
+  .previewwrap{display:flex;justify-content:center;margin-bottom:14px}
+  /* mini-kort som speiler ekte .shopcard */
+  .pvcard{width:150px;border-radius:18px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+  .pvcard .pvimg{height:132px;display:flex;align-items:center;justify-content:center;position:relative;padding:6px}
+  .pvcard .pvimg img{max-width:96%;max-height:96%;object-fit:contain}
+  .pvcard .pvimg .ph{font-size:3rem;opacity:.9}
+  .pvcard .pvbody{background:#0d1f3d;padding:10px;display:flex;flex-direction:column;gap:6px}
+  .pvcard .pvttl{font-weight:800;font-size:.9rem;line-height:1.15}
+  .pvcard .pvprice{display:flex;align-items:center;gap:4px;font-weight:800;color:var(--gold);font-size:1rem}
+  .filebtn{width:auto;display:inline-flex;align-items:center;gap:8px;cursor:pointer;border:1px solid var(--line);
+       background:transparent;color:#fff;border-radius:10px;padding:10px 14px;font-size:.92rem;font-weight:700}
+  .filebtn input[type=file]{display:none}
+  .btn{border:none;border-radius:11px;padding:11px 14px;font-weight:800;font-size:.95rem;cursor:pointer;font-family:var(--font)}
+  .btn.good{background:var(--good);color:#04120b}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:#fff}
+  .link{background:none;border:none;color:var(--muted);font-size:.82rem;text-decoration:underline;cursor:pointer}
+  .row2{display:flex;gap:8px;margin-top:14px}
+  .imgbtns{display:flex;gap:12px;align-items:center;justify-content:center}
+  .note{color:var(--muted);font-size:.82rem;margin-top:12px}
+  ul{margin:6px 0 0;padding-left:18px;color:var(--muted);font-size:.84rem}
+  li{margin:3px 0}
+</style>
+</head>
+<body>
+<h1>Shop-skjema · redesign</h1>
+<p class="lead">Pris tilgjengelig for <b>begge</b> (sønn + forelder), også ved redigering, og gjort prominent (uten stepper/forslag). «Bilde av premien» har fått luft + en <b>levende forhåndsvisning mot bakgrunnsfargen</b>, så du ser hvordan kortet blir.</p>
+
+<div class="cols">
+  <div class="col">
+    <h2>Redesignet skjema</h2>
+    <div class="card">
+      <input class="inp wide" id="fTitle" placeholder="Tittel (f.eks. LEGO-sett)" value="LEGO Technic">
+      <input class="inp wide" id="fLink" placeholder="Lenke til produkt (valgfri)">
+
+      <!-- PRIS – prominent -->
+      <div class="pricefld">
+        <div class="plbl">💰 Pris</div>
+        <div class="pricewrap">
+          <input id="fPrice" type="number" min="0" inputmode="numeric" placeholder="0" value="250">
+          <span class="unit">coins</span>
+        </div>
+        <div class="pricehint">La stå tom for å foreslå ønske uten pris – forelder (eller du) kan sette pris senere.</div>
+      </div>
+
+      <div class="sfld">Farge på kortet</div>
+      <div class="colorpick" id="fColors"></div>
+
+      <!-- BILDE – eget luftig panel med preview -->
+      <div class="imgpanel">
+        <div class="head">🎁 Bilde av premien</div>
+        <div class="sub">Slik ser kortet ut i shopen:</div>
+        <div class="previewwrap">
+          <div class="pvcard">
+            <div class="pvimg" id="pvImg"><span class="ph">🎁</span></div>
+            <div class="pvbody">
+              <div class="pvttl" id="pvTtl">LEGO Technic</div>
+              <div class="pvprice" id="pvPrice">💰 250</div>
+            </div>
+          </div>
+        </div>
+        <div class="imgbtns">
+          <label class="filebtn"><span aria-hidden="true">📷</span> <span id="fImgTxt">Last opp bilde</span>
+            <input type="file" id="fImg" accept="image/*"></label>
+          <button class="link" id="fImgClear" type="button" style="display:none">Fjern bilde</button>
+        </div>
+      </div>
+
+      <div class="row2">
+        <button class="btn good" style="flex:1">Legg til</button>
+        <button class="btn ghost" style="flex:1">Avbryt</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <h2>Hva er endret</h2>
+    <div class="card">
+      <ul>
+        <li><b>Pris for begge roller + ved redigering</b> – feltet vises alltid (sønn og forelder, opprett og rediger).</li>
+        <li><b>Prominent pris-felt</b> – stor gull-innrammet boks med 💰 og «coins», tydelig i skjemaet. Ingen stepper/forslag.</li>
+        <li><b>Tom pris = ønske uten pris</b> (status <code>wish</code>) – blir <code>available</code> når pris settes.</li>
+        <li><b>Luft rundt «Bilde av premien»</b> – eget panel med skillestrek over og egen overskrift.</li>
+        <li><b>Levende forhåndsvisning</b> – bildet vises mot valgt bakgrunnsfarge i et mini-kort som speiler ekte shop-kort (tittel + pris følger med). Bytt farge → preview oppdateres.</li>
+      </ul>
+      <p class="note">Prøv: skriv tittel/pris, klikk farger, last opp et bilde – forhåndsvisningen oppdateres live.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  const GRADS = [
+    ['green','radial-gradient(120% 120% at 50% 0,#39d353,#0f8a2e)'],
+    ['blue','radial-gradient(120% 120% at 50% 0,#37a6ff,#1660c0)'],
+    ['purple','radial-gradient(120% 120% at 50% 0,#b06bff,#6a27b8)'],
+    ['orange','radial-gradient(120% 120% at 50% 0,#ff9f43,#e0621a)'],
+    ['red','radial-gradient(120% 120% at 50% 0,#ff5a52,#c81e14)'],
+    ['pink','radial-gradient(120% 120% at 50% 0,#ff6bd6,#c81e9e)'],
+    ['rose','radial-gradient(120% 120% at 50% 0,#ff5a8a,#c81450)'],
+    ['yellow','radial-gradient(120% 120% at 50% 0,#ffd93b,#e0a81a)'],
+    ['lime','radial-gradient(120% 120% at 50% 0,#b6f542,#6a9e1a)'],
+    ['teal','radial-gradient(120% 120% at 50% 0,#2fd6c3,#0f8a7e)'],
+    ['cyan','radial-gradient(120% 120% at 50% 0,#37d6ff,#1690c0)'],
+    ['indigo','radial-gradient(120% 120% at 50% 0,#7b6bff,#3a27b8)'],
+    ['black','radial-gradient(120% 120% at 50% 0,#4a4a4a,#101010)'],
+    ['graydark','radial-gradient(120% 120% at 50% 0,#8a8f96,#4b5058)'],
+    ['graylight','radial-gradient(120% 120% at 50% 0,#d4d8dd,#9aa0a8)'],
+    ['white','radial-gradient(120% 120% at 50% 0,#ffffff,#d6dade)'],
+  ];
+  let picked = 'blue', img = null;
+  const pvImg = document.getElementById('pvImg');
+  const cbox = document.getElementById('fColors');
+
+  const applyColor = () => { pvImg.style.background = GRADS.find(g => g[0] === picked)[1]; };
+  cbox.innerHTML = GRADS.map(([id, g]) =>
+    `<span class="sw ${id === picked ? 'sel' : ''}" data-c="${id}" style="background:${g}"></span>`).join('');
+  cbox.querySelectorAll('.sw').forEach(sw => sw.onclick = () => {
+    picked = sw.dataset.c;
+    cbox.querySelectorAll('.sw').forEach(x => x.classList.toggle('sel', x === sw));
+    applyColor();
+  });
+  applyColor();
+
+  const syncImg = () => {
+    pvImg.innerHTML = img ? `<img src="${img}" alt="">` : '<span class="ph">🎁</span>';
+    document.getElementById('fImgTxt').textContent = img ? 'Bytt bilde' : 'Last opp bilde';
+    document.getElementById('fImgClear').style.display = img ? '' : 'none';
+  };
+  document.getElementById('fImg').onchange = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader(); r.onload = () => { img = r.result; syncImg(); }; r.readAsDataURL(f);
+  };
+  document.getElementById('fImgClear').onclick = () => { img = null; syncImg(); };
+
+  const fTtl = document.getElementById('fTitle'), fPrice = document.getElementById('fPrice');
+  const pvTtl = document.getElementById('pvTtl'), pvPrice = document.getElementById('pvPrice');
+  fTtl.oninput = () => pvTtl.textContent = fTtl.value || 'Uten navn';
+  fPrice.oninput = () => pvPrice.textContent = fPrice.value ? `💰 ${fPrice.value}` : 'ingen pris';
+</script>
+</body>
+</html>

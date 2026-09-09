@@ -332,14 +332,25 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
 - **UI:** sønn `renderShopPage`/`bindSonShop` (seksjoner Til salgs / reservert / ønsker / Kjøpt +
   `renderShopAddForm`). Forelder ny **Shop-fane** 🛒 (`renderShopTab`, `App.parentTab='shop'`,
   badge = antall `requested`): forespørsler-kø (commit/avvis), sett pris på `wish`, aktive varer.
-- **Rediger vare (tittel/lenke/farge/bilde):** `renderShopAddForm(box, role, item)` er delt av
-  tilføy OG rediger — `item` satt = rediger-modus (forhåndsutfylt, bildeforhåndsvisning +
-  «Fjern bilde», INGEN prisfelt; pris beholdes som egen «Sett pris»-flyt for forelder). Kaller
-  `updateShopItem` (ellers `addShopItem`). Helper `openShopEdit(containerId, itemId, role)` åpner
-  skjemaet i tilføy-containeren (`shopAddForm`/`shopAddFormP`) + `scrollIntoView`. Rediger-knapp
-  (`.btn good .shopedit`) på sønnens til-salgs-kort (`data-shopedit`) og forelderens ønske-/aktive-
-  kort (`data-shopeditp`); IKKE på `requested` (i flukt/reservert). Bildeopplasting = tydelig
-  `.filebtn`-knapp («📷 Last opp/Bytt bilde») under `.sfld`-etikett, ikke rå file-input.
+- **Rediger vare (tittel/lenke/pris/farge/bilde):** `renderShopAddForm(box, role, item)` er delt
+  av tilføy OG rediger — `item` satt = rediger-modus (forhåndsutfylt). Kaller `updateShopItem`
+  (patch inkl. `price`, som veksler `wish↔available`) ved rediger, ellers `addShopItem`. Helper
+  `openShopEdit(containerId, itemId, role)` åpner skjemaet i tilføy-containeren (`shopAddForm`/
+  `shopAddFormP`) + `scrollIntoView`. Rediger-knapp (`.btn good .shopedit`) på sønnens
+  til-salgs-kort (`data-shopedit`) og forelderens ønske-/aktive-kort (`data-shopeditp`); IKKE på
+  `requested` (i flukt/reservert).
+- **Pris i skjemaet (b54):** prisfelt vises for **BEGGE roller** (sønn + forelder), både ved
+  opprett OG rediger — begge kan foreslå/endre pris. Tom pris = `wish` (ønske uten pris);
+  `price>0` ⇒ `priceSet:true` ⇒ `available`. Feltet er **prominent**: gull-innrammet
+  (`.inp.shopprice`, `border:2px var(--gold)`), **halv bredde** med «coins» til høyre
+  (`.shopfld`/`.shopprice-row`/`.shopprice-unit`) — INGEN stepper, INGEN forslag (bevisst valg).
+- **Bilde-panel + levende preview (b54):** «Bilde av premien» er et eget luftig panel
+  (`.shopimgsec`, skillestrek + egen overskrift). Under vises et **mini shop-kort-preview**
+  (`.shopcard.shoppv`) som speiler ekte kort: bilde/🎁-placeholder mot valgt bakgrunnsgradient +
+  tittel + pris («Ingen pris ennå» = `.price.none` når tom). `syncPreview()` oppdaterer live ved
+  endring av tittel/pris/farge/bilde. Bildeopplasting = tydelig `.filebtn`-knapp
+  («📷 Last opp/Bytt bilde») + «Fjern bilde»-lenke i `.shopimgbtns`. Prototype:
+  `mockups/shop-skjema-prototype.html`.
 - **Coins vises som 💰** (pengesekk) i hele UI-et — IKKE 🪙 sølvmynt (byttet b46).
 - **Varsling:** `settings.notifyEmail` (tom = kun badge). `requestShopItem` → `notifyRequest(room,
   {to,title,link,price})` i store.js → POST `action:'notify'` til edge-funksjonen; feiler stille.

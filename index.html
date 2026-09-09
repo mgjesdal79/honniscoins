@@ -321,13 +321,28 @@
   .filebtn{width:auto;display:inline-flex;align-items:center;gap:8px;cursor:pointer}
   .filebtn input[type=file]{display:none}
   .btn.good.shopedit{width:auto;padding:9px 14px;font-size:.9rem;border-radius:10px}
+  /* Shop-skjema: prominent pris + luftig bilde-panel + levende preview */
+  .shopfld{margin:14px 0 2px}
+  .shopfld-lbl{font-size:.92rem;font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+  .shopprice-row{display:flex;align-items:center;gap:10px}
+  .inp.shopprice{width:50%;max-width:170px;border:2px solid var(--gold);border-radius:12px;font-size:1.3rem;font-weight:800;padding:11px 12px;-moz-appearance:textfield;appearance:textfield}
+  .inp.shopprice::-webkit-outer-spin-button,.inp.shopprice::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .shopprice-unit{color:var(--muted);font-weight:700}
+  .shopfld-hint{color:var(--muted);font-size:.74rem;margin:6px 2px 0}
+  .shopimgsec{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+  .shopimgsec-head{font-size:1rem;font-weight:800;margin-bottom:2px}
+  .shopimgsec-sub{color:var(--muted);font-size:.78rem;margin-bottom:12px}
+  .shoppvwrap{display:flex;justify-content:center;margin-bottom:14px}
+  .shoppv{width:150px}
+  .shoppv .price.none{color:var(--muted);font-weight:700}
+  .shopimgbtns{display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap}
 </style>
 </head>
 <body>
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.09.09 (b53 · poeng-felt: stor stepper)';
+    window.APP_VERSION = '2026.09.09 (b54 · shop: pris for begge + rediger, prominent felt, bilde-preview)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>
