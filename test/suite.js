@@ -364,6 +364,44 @@ export function runTests() {
       const s = L.addRoutine(s0, { routine: { id: 'r-new', title: 'Ny', points: 5, weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], enabled: true } }, { now: '2026-09-14T09:00:00.000Z', id: 'r-new' }); // mandag
       eq('dagens instans laget straks', s.quests.filter((q) => q.source === 'routine').map((q) => q.id), ['r-new-2026-09-14']);
     },
+    function expireStale_marks_past_open_routine_skipped() {
+      const s0 = L.defaultState();
+      s0.quests = [
+        { id: 'r-2026-09-08', title: 'Sekk', points: 5, status: 'open', source: 'routine', routineId: 'r', routineDate: '2026-09-08', subtasks: [], removed: false, updatedAt: '2026-09-08T00:00:00.000Z' },
+        { id: 'r-2026-09-13', title: 'Sekk', points: 5, status: 'open', source: 'routine', routineId: 'r', routineDate: '2026-09-13', subtasks: [], removed: false, updatedAt: 'x' },
+        { id: 'q-manual', title: 'Manuell', points: 3, status: 'open', source: undefined, routineDate: null, removed: false, updatedAt: 'x' },
+      ];
+      const s = L.expireStaleRoutineInstances(s0, '2026-09-13');
+      const past = s.quests.find((q) => q.id === 'r-2026-09-08');
+      eq('fortidig åpen → skipped', past.status, 'skipped');
+      eq('skippedBy system', past.skippedBy, 'system');
+      eq('i dag urørt', s.quests.find((q) => q.id === 'r-2026-09-13').status, 'open');
+      eq('manuell quest urørt', s.quests.find((q) => q.id === 'q-manual').status, 'open');
+    },
+    function expireStale_leaves_done_and_approved() {
+      const s0 = L.defaultState();
+      s0.quests = [
+        { id: 'r-2026-09-08', status: 'done', source: 'routine', routineId: 'r', routineDate: '2026-09-08', removed: false, updatedAt: 'x' },
+        { id: 'r-2026-09-07', status: 'approved', source: 'routine', routineId: 'r', routineDate: '2026-09-07', removed: false, updatedAt: 'x' },
+      ];
+      const s = L.expireStaleRoutineInstances(s0, '2026-09-13');
+      eq('done urørt', s.quests[0].status, 'done');
+      eq('approved urørt', s.quests[1].status, 'approved');
+    },
+    function migrate_expires_stale_and_reveals_lead_instance() {
+      // Gjenskaper feilen: gammel åpen instans (sykdom, aldri «ikke gjort») skjulte
+      // den nye leadDay-instansen via overlappingRoutineIds.
+      const s0 = L.defaultState();
+      s0.settings.routines = [{ id: 'routine-sekk', title: 'Sekk', points: 5, subtasks: [], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], enabled: true, leadDay: true, updatedAt: 't' }];
+      s0.settings.routinesSeeded = true;
+      s0.quests = [{ id: 'routine-sekk-2026-09-08', title: 'Sekk', points: 5, status: 'open', source: 'routine', routineId: 'routine-sekk', routineDate: '2026-09-08', subtasks: [], removed: false, updatedAt: '2026-09-08T00:00:00.000Z' }];
+      const m = L.migrate(s0, '2026-09-13'); // søndag
+      const stale = m.quests.find((q) => q.id === 'routine-sekk-2026-09-08');
+      eq('gammel instans utløpt', stale.status, 'skipped');
+      const lead = m.quests.find((q) => q.id === 'routine-sekk-2026-09-14');
+      ok('mandagens instans laget', !!lead && lead.status === 'open');
+      ok('mandagens instans IKKE skjult', !L.overlappingRoutineIds(m).includes('routine-sekk-2026-09-14'));
+    },
     function deleteRoutine_removes_and_stamps() {
       const s0 = L.defaultState();
       s0.settings.routines = [{ id: 'r1', title: 'A', points: 5, subtasks: [], weekdays: ['mon'], enabled: true, updatedAt: 't0' }];

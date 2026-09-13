@@ -539,6 +539,30 @@ export function syncOpenRoutineInstances(state, todayIso, stamp) {
   return s;
 }
 
+// Selv-heling: rutine-instanser er dag-bundet. En instans hvis dag er passert men
+// fortsatt står `open` (aldri gjort/skippet — f.eks. sykdom uten at noen trykket
+// «Ikke gjort») er en MISSET rutine. Ellers henger den for alltid som «aktiv quest»
+// hos forelder OG blokkerer nye instanser: `overlappingRoutineIds` regner den som
+// rutinens tidligste åpne og skjuler dagens/morgendagens instans. Merk den derfor
+// `skipped` (ingen poeng) automatisk. Deterministisk today-stamp (00:00) > gammel
+// updatedAt → vinner fletting, men er lik på tvers av klienter samme dag (ingen flip).
+// Idempotent (guard status==='open'). Ren funksjon.
+export function expireStaleRoutineInstances(state, todayIso) {
+  const s = clone(state);
+  if (!todayIso || !Array.isArray(s.quests)) return s;
+  const stamp = todayIso + 'T00:00:00.000Z';
+  for (const q of s.quests) {
+    if (q.source !== 'routine' || q.removed || q.status !== 'open') continue;
+    if (!q.routineDate || q.routineDate >= todayIso) continue; // kun passerte dager
+    q.status = 'skipped';
+    q.doneAt = null;
+    q.skippedAt = stamp;
+    q.skippedBy = 'system';
+    q.updatedAt = stamp;
+  }
+  return s;
+}
+
 // Fyller manglende felt og markerer eksisterende dager med innhold som låst,
 // så opptjente poeng ikke forsvinner når «lås styrer alt» tas i bruk. Ren funksjon.
 export function migrate(state, todayIso) {
@@ -602,7 +626,8 @@ export function migrate(state, todayIso) {
       }
     }
   }
-  const out = syncOpenRoutineInstances(generateDailyRoutines(s, todayIso), todayIso);
+  const gen = generateDailyRoutines(expireStaleRoutineInstances(s, todayIso), todayIso);
+  const out = syncOpenRoutineInstances(gen, todayIso);
   out.log = pruneLog(out.log);
   return pruneShopImages(out);
 }
