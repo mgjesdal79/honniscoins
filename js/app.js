@@ -626,12 +626,22 @@ function sonRoutineCard(q, today, open) {
   const ready = allSubtasksDone(q);
   const tomorrow = (q.routineDate || '') > today;
   const waiting = q.status === 'done';
+  // Framdriftsstripe (kollapset kort) erstatter «9/10»-pilla for rutiner som er i
+  // gang: gir raskt visuelt innblikk i hvor mye som gjenstår. Ferdig/til-godkjenning
+  // beholder status-pille; rutiner uten deloppgaver får «å gjøre»-pille.
+  const showBar = !waiting && !ready && tot > 0;
   const pill = waiting
     ? `<span class="rtpill wait">⏳ til godkjenning</span>`
     : ready
       ? `<span class="rtpill ok">✓ ferdig</span>`
-      : `<span class="rtpill ${done > 0 ? 'part' : ''}">${tot ? `${done}/${tot}` : 'å gjøre'}</span>`;
+      : showBar
+        ? ''
+        : `<span class="rtpill">å gjøre</span>`;
   const badge = tomorrow ? `<span class="qrec lead" style="margin:0">🌙 i morgen</span>` : '';
+  const pct = tot ? Math.round((done / tot) * 100) : 0;
+  const prog = showBar
+    ? `<div class="rtprog"><div class="progbar ${done > 0 ? 'part' : ''}"><i style="width:${pct}%"></i></div><span class="rtprogtxt">${done}/${tot} gjort</span></div>`
+    : '';
   const body = waiting
     ? `
     ${sonSubtaskList(q, false)}
@@ -651,6 +661,7 @@ function sonRoutineCard(q, today, open) {
       <span class="rtttl">${escapeHtml(q.title)}</span>
       <span class="rtsum">${badge}${pill}<span class="rtchev">▾</span></span>
     </button>
+    ${prog}
     <div class="rtbody" ${open ? '' : 'hidden'}>${body}</div>
   </div>`;
 }
