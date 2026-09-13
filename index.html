@@ -231,6 +231,11 @@
   .rtpill.wait{color:var(--gold)}
   .rtchev{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:var(--surface-2);font-size:1.25rem;line-height:1;transition:transform .2s ease;flex:none}
   .rtcard.open .rtchev{transform:rotate(180deg)}
+  .rtprog{display:flex;align-items:center;gap:10px;padding:0 14px 14px}
+  .rtcard.open .rtprog{display:none}
+  .rtprog .progbar{flex:1}
+  .rtprogtxt{flex:none;font-size:.74rem;font-weight:800;color:var(--muted);white-space:nowrap}
+  .progbar.part i{background:linear-gradient(90deg,var(--gold),#ffe08a)}
   .rtbody{padding:0 14px 14px}
   .btn.danger{color:var(--bad);border-color:#5a2020}
   textarea.inp{display:block;width:100%;box-sizing:border-box;min-height:88px;resize:vertical;margin:0 0 8px;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:8px 10px;color:#fff;font-family:var(--font);font-size:1rem}
@@ -342,7 +347,7 @@
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.09.13 (b56 · rutiner: utløp gamle åpne instanser → slutter å skjule nye)';
+    window.APP_VERSION = '2026.09.13 (b57 · rutiner: framdriftsstripe på kollapset kort)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>
