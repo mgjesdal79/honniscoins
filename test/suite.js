@@ -336,6 +336,34 @@ export function runTests() {
       eq('migrate helet poeng', q.points, 5);
       eq('migrate helet deloppgaver', q.subtasks.map((x) => x.text), ['Bøker']);
     },
+    function updateRoutine_leadDay_on_generates_tomorrow_now() {
+      // Forelder skrur på «vis fra dagen før» søndag kveld på en mandags-rutine.
+      // Morgendagens (mandags-)instans skal materialiseres MED ÉN GANG (uten reload),
+      // så den flettes ut til sønnen via vanlig quest-fletting.
+      const s0 = L.defaultState();
+      s0.settings.routines = [{ id: 'r-mon', title: 'Mandag', points: 5, subtasks: [], weekdays: ['mon'], enabled: true, leadDay: false, updatedAt: 't' }];
+      s0.settings.routinesSeeded = true;
+      const s = L.updateRoutine(s0, { id: 'r-mon', patch: { leadDay: true } }, { now: '2026-09-13T18:00:00.000Z', id: 'l1' }); // søndag
+      const inst = s.quests.filter((q) => q.source === 'routine');
+      eq('mandagens instans laget straks', inst.map((q) => q.id), ['r-mon-2026-09-14']);
+      eq('routineDate = mandag', inst[0].routineDate, '2026-09-14');
+    },
+    function updateRoutine_enable_generates_todays_instance_now() {
+      // Forelder skrur PÅ en rutine på en aktiv ukedag → dagens instans lages straks.
+      const s0 = L.defaultState();
+      s0.settings.routines = [{ id: 'r1', title: 'A', points: 5, subtasks: [], weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], enabled: false, updatedAt: 't' }];
+      s0.settings.routinesSeeded = true;
+      const s = L.updateRoutine(s0, { id: 'r1', patch: { enabled: true } }, { now: '2026-09-14T09:00:00.000Z', id: 'l1' }); // mandag
+      eq('dagens instans laget straks', s.quests.filter((q) => q.source === 'routine').map((q) => q.id), ['r1-2026-09-14']);
+    },
+    function addRoutine_generates_todays_instance_now() {
+      // Forelder legger til en ny rutine på en aktiv ukedag → dagens instans lages straks.
+      const s0 = L.defaultState();
+      s0.settings.routines = [];
+      s0.settings.routinesSeeded = true;
+      const s = L.addRoutine(s0, { routine: { id: 'r-new', title: 'Ny', points: 5, weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], enabled: true } }, { now: '2026-09-14T09:00:00.000Z', id: 'r-new' }); // mandag
+      eq('dagens instans laget straks', s.quests.filter((q) => q.source === 'routine').map((q) => q.id), ['r-new-2026-09-14']);
+    },
     function deleteRoutine_removes_and_stamps() {
       const s0 = L.defaultState();
       s0.settings.routines = [{ id: 'r1', title: 'A', points: 5, subtasks: [], weekdays: ['mon'], enabled: true, updatedAt: 't0' }];

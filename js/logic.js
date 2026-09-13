@@ -754,7 +754,10 @@ export function addRoutine(state, { routine = {} }, ctx) {
   });
   s.settings.updatedAt = ctx.now;
   s.log.push({ id: ctx.id, at: ctx.now, actor: 'parent', type: 'routine', action: 'add' });
-  return s;
+  // Materialiser dagens (+ evt. morgendagens leadDay-)instans med en gang, slik at
+  // en ny/aktivert rutine dukker opp hos sønnen uten full reload (flettes som quest).
+  const today = (ctx.now || '').slice(0, 10);
+  return syncOpenRoutineInstances(generateDailyRoutines(s, today), today, ctx.now);
 }
 
 // Forelder oppdaterer en rutine-mal.
@@ -771,8 +774,11 @@ export function updateRoutine(state, { id, patch }, ctx) {
   r.updatedAt = ctx.now;
   s.settings.updatedAt = ctx.now;
   s.log.push({ id: ctx.id, at: ctx.now, actor: 'parent', type: 'routine', action: 'edit', routine: id });
-  // Synk dagens ikke-innsendte instans med en gang (bumper updatedAt så det flettes til sønnen).
-  return syncOpenRoutineInstances(s, (ctx.now || '').slice(0, 10), ctx.now);
+  // Generer manglende dagens/morgendags-instanser (f.eks. når «vis fra dagen før» eller
+  // «på» slås på) OG synk eksisterende ikke-innsendte instanser med malen — begge med én
+  // gang (bumper updatedAt så nye instanser/endringer flettes til sønnen uten full reload).
+  const today = (ctx.now || '').slice(0, 10);
+  return syncOpenRoutineInstances(generateDailyRoutines(s, today), today, ctx.now);
 }
 
 // Forelder sletter en rutine-mal.
