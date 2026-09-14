@@ -623,16 +623,14 @@ function sonQuestCard(q, kind, today) {
 function sonRoutineCard(q, today, open) {
   const subs = q.subtasks || [];
   const done = subs.filter((st) => st.done).length, tot = subs.length;
-  const ready = allSubtasksDone(q);
   const tomorrow = (q.routineDate || '') > today;
   const waiting = q.status === 'done';
-  // Framdriftsstripe (kollapset kort) erstatter «9/10»-pilla for rutiner som er i
-  // gang: gir raskt visuelt innblikk i hvor mye som gjenstår. Ferdig/til-godkjenning
-  // beholder status-pille; rutiner uten deloppgaver får «å gjøre»-pille.
-  const showBar = !waiting && !ready && tot > 0;
+  const completed = q.status === 'completed';
+  // Framdriftsstripe (kollapset kort) kun for åpne rutiner i gang med deloppgaver.
+  const showBar = q.status === 'open' && tot > 0;
   const pill = waiting
     ? `<span class="rtpill wait">⏳ til godkjenning</span>`
-    : ready
+    : completed
       ? `<span class="rtpill ok">✓ ferdig</span>`
       : showBar
         ? ''
@@ -642,20 +640,31 @@ function sonRoutineCard(q, today, open) {
   const prog = showBar
     ? `<div class="rtprog"><div class="progbar ${done > 0 ? 'part' : ''}"><i style="width:${pct}%"></i></div><span class="rtprogtxt">${done}/${tot} gjort</span></div>`
     : '';
-  const body = waiting
-    ? `
+  let body;
+  if (waiting) {
+    body = `
     ${sonSubtaskList(q, false)}
     <div class="qmeta"><span class="qdue wait">⏳ Sendt til godkjenning</span></div>
     <div class="btnrow">
       <button class="btn ghost qbtn" data-uncommit="${q.id}">Angre</button>
-    </div>`
-    : `
+    </div>`;
+  } else if (completed) {
+    // Ferdig 0-coins-rutine: redigerbare deloppgaver (avhuking vekker → open).
+    // Uten deloppgaver finnes ingen boks å hake av → egen «Angre»-knapp.
+    body = `
+    ${sonSubtaskList(q, true)}
+    ${tot === 0 ? `<div class="btnrow"><button class="btn ghost qbtn" data-uncommit="${q.id}">Angre</button></div>` : ''}`;
+  } else {
+    // open: deloppgave-rutiner auto-fullfører ved siste avhuking (ingen «ferdig»-knapp);
+    // rutiner uten deloppgaver beholder manuell «Marker som ferdig».
+    body = `
     ${sonSubtaskList(q, true)}
     <div class="btnrow">
-      <button class="btn good qbtn" data-commit="${q.id}" ${ready ? '' : 'disabled'}>${ready ? '🔒 Marker som ferdig' : 'Huk av alle først'}</button>
+      ${tot === 0 ? `<button class="btn good qbtn" data-commit="${q.id}">🔒 Marker som ferdig</button>` : ''}
       <button class="btn ghost qbtn" data-skip="${q.id}">🚫 Ikke gjort</button>
     </div>`;
-  return `<div class="rtcard ${open ? 'open' : ''} ${waiting ? 'wait' : ready ? 'done' : ''}">
+  }
+  return `<div class="rtcard ${open ? 'open' : ''} ${waiting ? 'wait' : completed ? 'done' : ''}">
     <button class="rthead" data-rtoggle="${q.id}">
       <span class="rtic">🔁</span>
       <span class="rtttl">${escapeHtml(q.title)}</span>
@@ -741,7 +750,9 @@ function renderRutinerPage(host) {
   const routines = activeQuests(s).filter(isRoutineQuest);
 
   const todays = routineInstancesForDate(s, today);
-  const openToday = todays.filter((q) => q.status === 'open');
+  const openToday = todays
+    .filter((q) => q.status === 'open' || q.status === 'completed')
+    .sort((a, b) => (a.status === 'completed' ? 1 : 0) - (b.status === 'completed' ? 1 : 0));
   const tomorrow = routines.filter((q) => q.status === 'open' && (q.routineDate || '') > today && !hidden.has(q.id));
   const done = routines.filter((q) => q.status === 'done');
   const skipped = routines.filter((q) => q.status === 'skipped' && (q.routineDate || '') >= today);
@@ -2083,6 +2094,7 @@ function renderLoggTab(host) {
           edit: `✏️ Redigerte ${t}`,
           delete: `🗑️ Slettet ${t}`,
           done: `🔒 Meldte ferdig ${t}`,
+          complete: `✓ Fullførte ${t}`,
           undo: `↩︎ Angret ferdigmelding ${t}`,
           approve: `✅ Godkjente ${t}${e.points ? ` · <b>+${e.points}</b>` : ''}`,
           reject: `↩︎ Sendte tilbake ${t}${e.note ? ' · «' + escapeHtml(e.note) + '»' : ''}`,
