@@ -1516,6 +1516,63 @@ export function runTests() {
       eq('priceSet false', s.shopItems[0].priceSet, false);
       eq('status tilbake til wish', s.shopItems[0].status, 'wish');
     },
+    function commitQuest_zero_coin_routine_becomes_completed() {
+      let s = L.defaultState();
+      s.quests.push({ id: 'r0', title: 'Huskeliste', points: 0, status: 'open', source: 'routine', routineId: 'r', routineDate: '2026-09-14', subtasks: [], removed: false, updatedAt: 't0', doneAt: null });
+      s = L.commitQuest(s, { id: 'r0', actor: 'son' }, { now: 't1', id: 'l1' });
+      eq('0-coins rutine -> completed', s.quests[0].status, 'completed');
+      eq('doneAt satt', s.quests[0].doneAt, 't1');
+      eq('logg complete', s.log.find((e) => e.action === 'complete').quest, 'r0');
+    },
+    function commitQuest_pointed_routine_still_done() {
+      let s = L.defaultState();
+      s.quests.push({ id: 'r5', title: 'Rutine', points: 5, status: 'open', source: 'routine', routineId: 'r', routineDate: '2026-09-14', subtasks: [], removed: false, updatedAt: 't0', doneAt: null });
+      s = L.commitQuest(s, { id: 'r5', actor: 'son' }, { now: 't1', id: 'l1' });
+      eq('poeng-rutine -> done', s.quests[0].status, 'done');
+      eq('logg done', s.log.find((e) => e.action === 'done').quest, 'r5');
+    },
+    function toggle_last_subtask_pointed_routine_auto_done() {
+      let s = L.defaultState();
+      s.quests.push({ id: 'r5', title: 'Sekk', points: 5, status: 'open', source: 'routine', routineId: 'r', routineDate: '2026-09-14', removed: false, updatedAt: 't0', doneAt: null, subtasks: [{ id: 'a', text: 'x', done: true }, { id: 'b', text: 'y', done: false }] });
+      s = L.toggleQuestSubtask(s, { id: 'r5', subId: 'b', actor: 'son' }, { now: '2026-09-14T08:00:00.000Z', id: 'l1' });
+      eq('siste boks -> done', s.quests[0].status, 'done');
+      eq('doneAt satt', s.quests[0].doneAt, '2026-09-14T08:00:00.000Z');
+      eq('logg done', s.log.find((e) => e.action === 'done').quest, 'r5');
+    },
+    function toggle_last_subtask_zero_coin_routine_auto_completed() {
+      let s = L.defaultState();
+      s.quests.push({ id: 'r0', title: 'Huskeliste', points: 0, status: 'open', source: 'routine', routineId: 'r', routineDate: '2026-09-14', removed: false, updatedAt: 't0', doneAt: null, subtasks: [{ id: 'a', text: 'x', done: true }, { id: 'b', text: 'y', done: false }] });
+      s = L.toggleQuestSubtask(s, { id: 'r0', subId: 'b', actor: 'son' }, { now: '2026-09-14T08:00:00.000Z', id: 'l1' });
+      eq('siste boks -> completed', s.quests[0].status, 'completed');
+      eq('logg complete', s.log.find((e) => e.action === 'complete').quest, 'r0');
+    },
+    function toggle_non_last_subtask_stays_open() {
+      let s = L.defaultState();
+      s.quests.push({ id: 'r5', title: 'Sekk', points: 5, status: 'open', source: 'routine', routineId: 'r', routineDate: '2026-09-14', removed: false, updatedAt: 't0', doneAt: null, subtasks: [{ id: 'a', text: 'x', done: false }, { id: 'b', text: 'y', done: false }] });
+      s = L.toggleQuestSubtask(s, { id: 'r5', subId: 'a', actor: 'son' }, { now: '2026-09-14T08:00:00.000Z', id: 'l1' });
+      eq('ikke ferdig -> open', s.quests[0].status, 'open');
+    },
+    function uncheck_completed_routine_wakes_to_open() {
+      let s = L.defaultState();
+      s.quests.push({ id: 'r0', title: 'Huskeliste', points: 0, status: 'completed', source: 'routine', routineId: 'r', routineDate: '2026-09-14', removed: false, updatedAt: 't0', doneAt: 't0', subtasks: [{ id: 'a', text: 'x', done: true }, { id: 'b', text: 'y', done: true }] });
+      s = L.toggleQuestSubtask(s, { id: 'r0', subId: 'a', actor: 'son' }, { now: '2026-09-14T09:00:00.000Z', id: 'l1' });
+      eq('avhuking vekker -> open', s.quests[0].status, 'open');
+      eq('doneAt nullstilt', s.quests[0].doneAt, null);
+      eq('logg undo', s.log.find((e) => e.action === 'undo').quest, 'r0');
+    },
+    function uncheck_completed_routine_past_date_stays_completed() {
+      let s = L.defaultState();
+      s.quests.push({ id: 'r0', title: 'Huskeliste', points: 0, status: 'completed', source: 'routine', routineId: 'r', routineDate: '2026-09-10', removed: false, updatedAt: 't0', doneAt: 't0', subtasks: [{ id: 'a', text: 'x', done: true }, { id: 'b', text: 'y', done: true }] });
+      s = L.toggleQuestSubtask(s, { id: 'r0', subId: 'a', actor: 'son' }, { now: '2026-09-14T09:00:00.000Z', id: 'l1' });
+      eq('passert dag -> forblir completed', s.quests[0].status, 'completed');
+      eq('subtask urørt (låst)', s.quests[0].subtasks[0].done, true);
+    },
+    function skip_does_not_touch_completed_routine() {
+      let s = L.defaultState();
+      s.quests.push({ id: 'r0', title: 'Huskeliste', points: 0, status: 'completed', source: 'routine', routineId: 'r', routineDate: '2026-09-14', removed: false, updatedAt: 't0', doneAt: 't0', subtasks: [{ id: 'a', text: 'x', done: true }] });
+      s = L.skipRoutineInstance(s, { id: 'r0', actor: 'son' }, { now: '2026-09-14T10:00:00.000Z', id: 'l1' });
+      eq('completed er terminal for skip', s.quests[0].status, 'completed');
+    },
   ];
 
   for (const t of tests) {

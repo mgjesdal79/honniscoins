@@ -67,9 +67,15 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   samtidig (ingen accordion). Åpen-tilstand i `App.routineSonOpen` (ren visning, ikke persistert,
   keyet på instans-id via `data-rtoggle`). Rutiner-siden har seksjoner: I dag / For i morgen 🌙 /
   **Venter på godkjenning** (også sammenleggbare rutine-kort, `sonRoutineCard` med `status:'done'`
-  → ⏳-pille + «Angre») / Ikke gjort / Godkjent-arkiv. **Ingen «X av Y»-ratio/framdriftsstripe**
-  (fjernet b49 – ble opplevd som støy). CSS: `.rtcard`/`.rthead`/`.rtic`/`.rtttl`/`.rtsum`/
-  `.rtpill`(+`.wait`)/`.rtchev`/`.rtbody`/`.btnrow`.
+  → ⏳-pille + «Angre») / Ikke gjort / Godkjent-arkiv. **Framdriftsstripe på kollapset kort
+  (b57):** rutiner som er i gang viser en `.progbar`-stripe (full bredde, under tittelen, «to
+  linjer») + `X/Y gjort`-tekst i STEDET for «X/Y»-ratiopilla — raskt visuelt innblikk i hvor mye
+  som gjenstår. Delvis = gull-gradient (`.progbar.part`), tom/0 % = grå. Ferdig → «✓ ferdig»-pille,
+  til-godkjenning → «⏳ til godkjenning»-pille, rutine uten deloppgaver → «å gjøre»-pille (ingen
+  stripe). Stripa vises KUN kollapset (`.rtcard.open .rtprog{display:none}`) — åpent kort viser
+  deloppgavelista + «X av N gjort» i stedet. (Ren tekst-ratio ble fjernet b49 som støy; b57 gir en
+  visuell stripe i stedet.) CSS: `.rtcard`/`.rthead`/`.rtic`/`.rtttl`/`.rtsum`/`.rtpill`(+`.wait`)/
+  `.rtchev`/`.rtprog`/`.rtprogtxt`/`.progbar`(+`.part`)/`.rtbody`/`.btnrow`.
 - **Uke-stripe-badge (`renderUkenPage`):** låst dag = «🔒 +X» (grønn), ulåst dag med opptjente
   poeng = «~X» (dempet, klasse `.b.prev`), tom/ingen poeng = «·». Ikke bare «·» overalt.
 - **Forelder-meny (`renderParentHome`):** **permanent 3-kolonners rutenett** (`.pgrid`, IKKE
@@ -127,16 +133,29 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   `routine-sekk` «Pakk sekken» (man–fre), `routine-matbag` «Pakk matbagen» (man–fre),
   `routine-gymbag` «Pakk gymbagen» (man/ons/tor/fre — IKKE tirsdag), alle 5 poeng, enabled.
   Slettet seed kommer ikke tilbake.
-- **Generering (`generateDailyRoutines`, kalt sist i `migrate`):** én instans per aktiv mal
-  hvis dagens `weekdayKey` er i malens `weekdays`; deterministiske id-er `<routineId>-<dato>`
-  (id `routine` → legacy `routine-<dato>`); kun i dag (ingen backfill); idempotent via
-  `mergeQuestList` (LWW).
+- **Generering (`generateDailyRoutines`, kalt i `migrate`):** én instans per aktiv mal hvis
+  dagens `weekdayKey` er i malens `weekdays`; deterministiske id-er `<routineId>-<dato>` (id
+  `routine` → legacy `routine-<dato>`); kun i dag (ingen backfill); idempotent via `mergeQuestList`
+  (LWW). **«Vis fra dagen før» (`settings.routines[].leadDay`, default false):** når på lages OGSÅ
+  morgendagens instans (`makeInstance(r, tomorrowIso)`) — slik dukker f.eks. en mandagsrutine opp
+  hos sønnen søndag kveld i seksjonen «For i morgen 🌙».
+- **Utløp av gamle instanser (`expireStaleRoutineInstances`, kalt i `migrate` FØR generering, b56):**
+  rutine-instanser er dag-bundet. En instans hvis `routineDate < i dag` som fortsatt står `open`
+  (aldri gjort/skippet — f.eks. sykdom uten å trykke «Ikke gjort») merkes automatisk `skipped`
+  (`skippedBy:'system'`, deterministisk today-stamp så det vinner fletting uten flip-flop; idempotent
+  via guard `status==='open'`). **Hvorfor:** ellers henger den for alltid som datoløs «aktiv quest»
+  hos forelder OG blokkerer nye instanser — `overlappingRoutineIds` regner den som rutinens tidligste
+  åpne og skjuler dagens/morgendagens instans (var rotårsak til «nye rutiner dukker ikke opp»).
 - **Instans-felt (utover vanlig quest):** `source:'routine'`, `routineId`, `routineDate:'YYYY-MM-DD'`,
   `subtasks:[{id,text,done}]`. Manuelle quests har ingen `subtasks`/`source` → all UI/logikk
   tåler manglende subtasks (tom liste).
 - **Mutasjoner (rene fn i logic.js):** `addRoutine(state,{routine},ctx)` (legger til ny mal),
   `updateRoutine(state,{id,patch},ctx)` (oppdaterer mal), `deleteRoutine(state,{id},ctx)`
-  (fjerner mal) — erstatter `setDailyRoutine`. Alle bumper `settings.updatedAt` og logger
+  (fjerner mal) — erstatter `setDailyRoutine`. **`addRoutine`/`updateRoutine` genererer instanser
+  STRAKS (b55):** begge returnerer `syncOpenRoutineInstances(generateDailyRoutines(s, today), today,
+  ctx.now)`, så ny/aktivert rutine — eller å skru på `leadDay` — materialiserer dagens/morgendagens
+  instans med én gang (lander i blobben, flettes til sønnen som quest uten full reload). `updateRoutine`
+  synker i tillegg eksisterende åpne instanser mot malen. Alle bumper `settings.updatedAt` og logger
   `type:'routine'`. Uendret: `allSubtasksDone(quest)` (tom liste = true), `commitQuest` gatet
   (sønn kan ikke markere ferdig før alle subtasks er huket av), `toggleQuestSubtask(state,
   {id,subId},ctx)` (bumper `quest.updatedAt`, logges ikke), `updateQuest` utvidet med
@@ -156,9 +175,25 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   dagens åpne instans og **bevarer sønnens «done» ved å matche på TEKST (ikke indeks)**, så
   omrokkering ikke flytter avkryssingen til feil oppgave (like tekster konsumeres i rekkefølge;
   ukjent/omdøpt tekst = ikke gjort).
+- **Auto-fullføring når alt er huket av (b58):** rutine-instanser avanserer automatisk når
+  siste deloppgave hukes av — INGEN «Marker som ferdig»-klikk for deloppgave-rutiner (knappen
+  er fjernet for dem; rutiner UTEN deloppgaver beholder den). Regel i `toggleQuestSubtask`
+  (ren fn): rutine + status `open` + alle deloppgaver avhuket → `done` (poeng > 0, til
+  godkjenning) eller ny terminal-status **`completed`** (0 coins, ingen godkjenning). Å fjerne
+  en avhuking på en `completed`-rutine **vekker** den (`completed → open`), gated til
+  `routineDate >= i dag` (som `unskipRoutineInstance`; passert `completed`-rutine er helt
+  låst — toggle er no-op via tidlig retur før mutasjon). `commitQuest` ruter også 0-coins-
+  rutiner (uten deloppgaver) til `completed`. `completed` er son-terminal: teller ikke i
+  saldo (`questPointsTotal` kun `approved`; 0-coins = 0), rører ikke `routinesRemaining`/
+  `overlappingRoutineIds`/`expireStaleRoutineInstances` (alle ser kun `open`), og dukker IKKE
+  opp i forelderens godkjenningskø/badge (`status==='done'`). Ingen migrering. UI: `completed`
+  vises i sønnens **«I dag»** (etter åpne) med «✓ ferdig»-pille (`.rtpill.ok`) og redigerbare
+  deloppgaver (avhuking vekker); logg-action `complete` → «✓ Fullførte …».
 - **Future (ikke bygget):** ferie-modus (skru av rating + rutine på gitte datoer), flerbruker/deling.
 - **Spec/plan:** `docs/superpowers/specs/2026-09-04-honniscoins-flere-rutiner-design.md`,
-  `docs/superpowers/plans/2026-09-04-honniscoins-flere-rutiner.md`.
+  `docs/superpowers/plans/2026-09-04-honniscoins-flere-rutiner.md`;
+  `docs/superpowers/specs/2026-09-14-honniscoins-rutiner-auto-fullfor-design.md`,
+  `docs/superpowers/plans/2026-09-14-honniscoins-rutiner-auto-fullfor.md`.
 
 ## Lekser (skolelekser per dag)
 - **Konsept:** forelder registrerer lekser (fag, tekst, poeng, hvilke dager). Sønn «committer»
@@ -361,9 +396,11 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
   `docs/superpowers/plans/2026-09-06-honniscoins-shop.md`.
 
 ## Testing
-- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 444 assertions per nå (inkl. sidequests
+- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 473 assertions per nå (inkl. sidequests
   m/arkiv, lekser, rutiner inkl. rekkefølge/tekst-synk + egen-fane-helpere
-  (`routineInstancesForDate`/`routinesRemaining`/arkiv-filter), shop m/saldo·reservasjon·commit·
+  (`routineInstancesForDate`/`routinesRemaining`/arkiv-filter) + leadDay/straks-generering ved
+  add/update + `expireStaleRoutineInstances`-utløp (b55/b56) + auto-fullføring/vekk (`completed`,
+  b58), shop m/saldo·reservasjon·commit·
   fletting·bilde-patch, logg-beskjæring og statistikk/streak).
 - **Kjør:** `/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc -m test/run-jsc.js`
   (jsc støtter ES-moduler; ingen node/deno/bun i miljøet).

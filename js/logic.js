@@ -815,16 +815,18 @@ export function deleteRoutine(state, { id }, ctx) {
   return s;
 }
 
-// Sønn markerer ferdig (commit): open -> done.
+// Sønn markerer ferdig (commit): open -> done (eller completed for 0-coins-rutine).
 export function commitQuest(state, { id, actor = 'son' }, ctx) {
   const s = clone(state);
   const i = findQuestIdx(s, id);
   if (i < 0) return s;
   if (!allSubtasksDone(s.quests[i])) return s; // alle subtasks må være huket av
-  s.quests[i].status = 'done';
-  s.quests[i].doneAt = ctx.now;
-  s.quests[i].updatedAt = ctx.now;
-  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: 'done', quest: id, title: s.quests[i].title });
+  const q = s.quests[i];
+  const zeroRoutine = q.source === 'routine' && (Number(q.points) || 0) === 0;
+  q.status = zeroRoutine ? 'completed' : 'done';
+  q.doneAt = ctx.now;
+  q.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: zeroRoutine ? 'complete' : 'done', quest: id, title: q.title });
   return s;
 }
 
@@ -841,14 +843,39 @@ export function uncommitQuest(state, { id, actor = 'son' }, ctx) {
 }
 
 // Sønn veksler én subtask. Bumper quest.updatedAt så fletting (LWW) synker riktig.
+// For rutine-instanser: siste avhuking auto-avanserer (done/completed); å fjerne en
+// avhuking på en completed 0-coins-rutine vekker den tilbake til open.
 export function toggleQuestSubtask(state, { id, subId, actor = 'son' }, ctx) {
   const s = clone(state);
   const i = findQuestIdx(s, id);
   if (i < 0) return s;
-  const st = (s.quests[i].subtasks || []).find((x) => x.id === subId);
+  const q = s.quests[i];
+  const st = (q.subtasks || []).find((x) => x.id === subId);
   if (!st) return s;
+  // Passert completed rutine er låst (som unskipRoutineInstance) — ingen toggle/vekk.
+  if (q.source === 'routine' && q.status === 'completed') {
+    const past = q.routineDate && ctx.now && q.routineDate < ctx.now.slice(0, 10);
+    if (past) return s;
+  }
   st.done = !st.done;
-  s.quests[i].updatedAt = ctx.now;
+  q.updatedAt = ctx.now;
+  if (q.source === 'routine' && q.status !== 'approved') {
+    const subs = q.subtasks || [];
+    const allDone = subs.length > 0 && subs.every((x) => x.done);
+    if (q.status === 'open' && allDone) {
+      const zero = (Number(q.points) || 0) === 0;
+      q.status = zero ? 'completed' : 'done';
+      q.doneAt = ctx.now;
+      s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: zero ? 'complete' : 'done', quest: id, title: q.title });
+    } else if (q.status === 'completed' && !allDone) {
+      const todayIso = (ctx.now || '').slice(0, 10);
+      if (!(q.routineDate && todayIso && q.routineDate < todayIso)) {
+        q.status = 'open';
+        q.doneAt = null;
+        s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: 'undo', quest: id, title: q.title });
+      }
+    }
+  }
   return s;
 }
 
@@ -879,13 +906,13 @@ export function rejectQuest(state, { id, note = '', actor = 'parent' }, ctx) {
 // --- Rutine-instanser: «ikke gjort»-lukking + overlapp-filter ------------
 
 // Merk en rutine-instans som «ikke gjort» (lukker uten poeng). Sønn eller forelder.
-// Godkjente instanser (som alt har gitt poeng) røres ikke.
+// Godkjente/fullførte instanser (terminale) røres ikke.
 export function skipRoutineInstance(state, { id, actor = 'son' }, ctx) {
   const s = clone(state);
   const i = findQuestIdx(s, id);
   if (i < 0) return s;
   const q = s.quests[i];
-  if (q.source !== 'routine' || q.status === 'approved') return s;
+  if (q.source !== 'routine' || q.status === 'approved' || q.status === 'completed') return s;
   q.status = 'skipped';
   q.doneAt = null;
   q.skippedAt = ctx.now;
