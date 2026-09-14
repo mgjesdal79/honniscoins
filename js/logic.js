@@ -906,13 +906,13 @@ export function rejectQuest(state, { id, note = '', actor = 'parent' }, ctx) {
 // --- Rutine-instanser: «ikke gjort»-lukking + overlapp-filter ------------
 
 // Merk en rutine-instans som «ikke gjort» (lukker uten poeng). Sønn eller forelder.
-// Godkjente instanser (som alt har gitt poeng) røres ikke.
+// Godkjente/fullførte instanser (terminale) røres ikke.
 export function skipRoutineInstance(state, { id, actor = 'son' }, ctx) {
   const s = clone(state);
   const i = findQuestIdx(s, id);
   if (i < 0) return s;
   const q = s.quests[i];
-  if (q.source !== 'routine' || q.status === 'approved') return s;
+  if (q.source !== 'routine' || q.status === 'approved' || q.status === 'completed') return s;
   q.status = 'skipped';
   q.doneAt = null;
   q.skippedAt = ctx.now;

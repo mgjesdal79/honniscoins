@@ -1567,6 +1567,12 @@ export function runTests() {
       eq('passert dag -> forblir completed', s.quests[0].status, 'completed');
       eq('subtask urørt (låst)', s.quests[0].subtasks[0].done, true);
     },
+    function skip_does_not_touch_completed_routine() {
+      let s = L.defaultState();
+      s.quests.push({ id: 'r0', title: 'Huskeliste', points: 0, status: 'completed', source: 'routine', routineId: 'r', routineDate: '2026-09-14', removed: false, updatedAt: 't0', doneAt: 't0', subtasks: [{ id: 'a', text: 'x', done: true }] });
+      s = L.skipRoutineInstance(s, { id: 'r0', actor: 'son' }, { now: '2026-09-14T10:00:00.000Z', id: 'l1' });
+      eq('completed er terminal for skip', s.quests[0].status, 'completed');
+    },
   ];
 
   for (const t of tests) {
