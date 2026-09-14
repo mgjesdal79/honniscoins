@@ -843,14 +843,34 @@ export function uncommitQuest(state, { id, actor = 'son' }, ctx) {
 }
 
 // Sønn veksler én subtask. Bumper quest.updatedAt så fletting (LWW) synker riktig.
+// For rutine-instanser: siste avhuking auto-avanserer (done/completed); å fjerne en
+// avhuking på en completed 0-coins-rutine vekker den tilbake til open.
 export function toggleQuestSubtask(state, { id, subId, actor = 'son' }, ctx) {
   const s = clone(state);
   const i = findQuestIdx(s, id);
   if (i < 0) return s;
-  const st = (s.quests[i].subtasks || []).find((x) => x.id === subId);
+  const q = s.quests[i];
+  const st = (q.subtasks || []).find((x) => x.id === subId);
   if (!st) return s;
   st.done = !st.done;
-  s.quests[i].updatedAt = ctx.now;
+  q.updatedAt = ctx.now;
+  if (q.source === 'routine' && q.status !== 'approved') {
+    const subs = q.subtasks || [];
+    const allDone = subs.length > 0 && subs.every((x) => x.done);
+    if (q.status === 'open' && allDone) {
+      const zero = (Number(q.points) || 0) === 0;
+      q.status = zero ? 'completed' : 'done';
+      q.doneAt = ctx.now;
+      s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: zero ? 'complete' : 'done', quest: id, title: q.title });
+    } else if (q.status === 'completed' && !allDone) {
+      const todayIso = (ctx.now || '').slice(0, 10);
+      if (!(q.routineDate && todayIso && q.routineDate < todayIso)) {
+        q.status = 'open';
+        q.doneAt = null;
+        s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: 'undo', quest: id, title: q.title });
+      }
+    }
+  }
   return s;
 }
 
