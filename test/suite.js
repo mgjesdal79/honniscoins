@@ -1565,6 +1565,7 @@ export function runTests() {
       s.quests.push({ id: 'r0', title: 'Huskeliste', points: 0, status: 'completed', source: 'routine', routineId: 'r', routineDate: '2026-09-10', removed: false, updatedAt: 't0', doneAt: 't0', subtasks: [{ id: 'a', text: 'x', done: true }, { id: 'b', text: 'y', done: true }] });
       s = L.toggleQuestSubtask(s, { id: 'r0', subId: 'a', actor: 'son' }, { now: '2026-09-14T09:00:00.000Z', id: 'l1' });
       eq('passert dag -> forblir completed', s.quests[0].status, 'completed');
+      eq('subtask urørt (låst)', s.quests[0].subtasks[0].done, true);
     },
   ];
 

@@ -852,6 +852,11 @@ export function toggleQuestSubtask(state, { id, subId, actor = 'son' }, ctx) {
   const q = s.quests[i];
   const st = (q.subtasks || []).find((x) => x.id === subId);
   if (!st) return s;
+  // Passert completed rutine er låst (som unskipRoutineInstance) — ingen toggle/vekk.
+  if (q.source === 'routine' && q.status === 'completed') {
+    const past = q.routineDate && ctx.now && q.routineDate < ctx.now.slice(0, 10);
+    if (past) return s;
+  }
   st.done = !st.done;
   q.updatedAt = ctx.now;
   if (q.source === 'routine' && q.status !== 'approved') {
