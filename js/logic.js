@@ -815,16 +815,18 @@ export function deleteRoutine(state, { id }, ctx) {
   return s;
 }
 
-// Sønn markerer ferdig (commit): open -> done.
+// Sønn markerer ferdig (commit): open -> done (eller completed for 0-coins-rutine).
 export function commitQuest(state, { id, actor = 'son' }, ctx) {
   const s = clone(state);
   const i = findQuestIdx(s, id);
   if (i < 0) return s;
   if (!allSubtasksDone(s.quests[i])) return s; // alle subtasks må være huket av
-  s.quests[i].status = 'done';
-  s.quests[i].doneAt = ctx.now;
-  s.quests[i].updatedAt = ctx.now;
-  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: 'done', quest: id, title: s.quests[i].title });
+  const q = s.quests[i];
+  const zeroRoutine = q.source === 'routine' && (Number(q.points) || 0) === 0;
+  q.status = zeroRoutine ? 'completed' : 'done';
+  q.doneAt = ctx.now;
+  q.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'quest', action: zeroRoutine ? 'complete' : 'done', quest: id, title: q.title });
   return s;
 }
 

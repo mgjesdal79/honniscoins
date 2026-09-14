@@ -1516,6 +1516,21 @@ export function runTests() {
       eq('priceSet false', s.shopItems[0].priceSet, false);
       eq('status tilbake til wish', s.shopItems[0].status, 'wish');
     },
+    function commitQuest_zero_coin_routine_becomes_completed() {
+      let s = L.defaultState();
+      s.quests.push({ id: 'r0', title: 'Huskeliste', points: 0, status: 'open', source: 'routine', routineId: 'r', routineDate: '2026-09-14', subtasks: [], removed: false, updatedAt: 't0', doneAt: null });
+      s = L.commitQuest(s, { id: 'r0', actor: 'son' }, { now: 't1', id: 'l1' });
+      eq('0-coins rutine -> completed', s.quests[0].status, 'completed');
+      eq('doneAt satt', s.quests[0].doneAt, 't1');
+      eq('logg complete', s.log.find((e) => e.action === 'complete').quest, 'r0');
+    },
+    function commitQuest_pointed_routine_still_done() {
+      let s = L.defaultState();
+      s.quests.push({ id: 'r5', title: 'Rutine', points: 5, status: 'open', source: 'routine', routineId: 'r', routineDate: '2026-09-14', subtasks: [], removed: false, updatedAt: 't0', doneAt: null });
+      s = L.commitQuest(s, { id: 'r5', actor: 'son' }, { now: 't1', id: 'l1' });
+      eq('poeng-rutine -> done', s.quests[0].status, 'done');
+      eq('logg done', s.log.find((e) => e.action === 'done').quest, 'r5');
+    },
   ];
 
   for (const t of tests) {
