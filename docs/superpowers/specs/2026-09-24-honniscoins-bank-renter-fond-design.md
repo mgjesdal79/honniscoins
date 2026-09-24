@@ -181,9 +181,10 @@ Slå sammen dagens **Poeng 💵** og nye **Bank 🏦** til én fane **Penger �
 
 ### Forelder
 
-- I **Penger/Settings-fanen**: felt for **sparerente** (% per uke) via stepper/felt +
-  liten read-only oversikt over hva sønnen har i banken (sparekonto-verdi, fond-verdi,
-  total). Fond-parametre vises ikke (faste).
+- **v1:** I **Settings-fanen**: felt for **sparerente** (% per uke) via stepper/felt. Det er
+  alt forelder trenger for at v1 skal fungere i produksjon. Fond-parametre vises ikke (faste).
+- **v2 (rett etter v1 er live):** read-only oversikt over hva sønnen har i banken
+  (sparekonto-verdi, fond-verdi, total) i Penger/Settings-fanen.
 
 ### Logg
 
@@ -202,6 +203,15 @@ Slå sammen dagens **Poeng 💵** og nye **Bank 🏦** til én fane **Penger �
 
 - Bump `APP_VERSION` i `index.html`.
 - Branch + spesifikke filer (dcg blokkerer push til main og `git add -A`), PR → merge.
+
+## Fasing (leveranse)
+
+- **v1 → produksjon først:** hele kjernemodellen (ledger, `navForDate`, sparekonto, fond,
+  saldo-integrasjon, migrering, fletting), sønnens **Bank**-visning under Penger-hubben,
+  inn/ut-dialog, forelderens **sparerente-innstilling**, logg-gren, tester. Deploy og verifiser
+  live før fase 2.
+- **v2 (rett etter):** forelderens read-only bank-oversikt (sparekonto/fond/total). Bygger kun
+  på v1s rene fn — ingen modellendring.
 
 ## Avgrensninger / YAGNI
 
