@@ -116,6 +116,44 @@ function addDaysIso(iso, n) {
   return isoDate(d);
 }
 
+// --- Bank: fondskurve (deterministisk simulert indeks) -------------------
+export const BANK_FUND_EPOCH = '2024-01-01';
+export const BANK_FUND_DRIFT = 0.0035; // ~+0,35 %/dag ≈ +2,5 %/uke forventet
+export const BANK_FUND_VOL = 0.02; // amplitude før cap
+export const BANK_FUND_CAP = 0.03; // ±3 %/dag rails
+const BANK_FUND_SEED = 0x9e3779b9;
+
+// Deterministisk støy i [-1,1] fra (seed, datostreng) — ren, ingen rng-tilstand.
+function bankNoise(iso) {
+  let h = BANK_FUND_SEED >>> 0;
+  for (let i = 0; i < iso.length; i++) {
+    h = Math.imul(h ^ iso.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  h = Math.imul(h ^ (h >>> 16), 2246822507);
+  h = Math.imul(h ^ (h >>> 13), 3266489909);
+  h ^= h >>> 16;
+  return ((h >>> 0) / 4294967296) * 2 - 1;
+}
+
+const navCache = new Map();
+// NAV(iso): 100 ved epoke, produkt av daglige (railede) avkastninger fram til iso.
+export function navForDate(iso) {
+  if (!iso || iso <= BANK_FUND_EPOCH) return 100;
+  if (navCache.has(iso)) return navCache.get(iso);
+  let nav = 100;
+  let d = BANK_FUND_EPOCH;
+  while (d < iso) {
+    d = addDaysIso(d, 1);
+    let r = BANK_FUND_DRIFT + BANK_FUND_VOL * bankNoise(d);
+    if (r > BANK_FUND_CAP) r = BANK_FUND_CAP;
+    if (r < -BANK_FUND_CAP) r = -BANK_FUND_CAP;
+    nav *= 1 + r;
+  }
+  navCache.set(iso, nav);
+  return nav;
+}
+
 // 0=søn..6=lør -> nøkkel eller null i helg
 export function weekdayKey(iso) {
   const dow = parseIso(iso).getDay();
