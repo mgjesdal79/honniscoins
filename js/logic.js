@@ -284,22 +284,31 @@ export function bankTransactions(state) {
   return led.slice().sort((a, b) => (b.at || b.date || '').localeCompare(a.at || a.date || ''));
 }
 
-// Dag-for-dag verdi de siste `days` dagene (fra første hendelse t.o.m. today), nyeste først.
-// Hver rad: {date, savings, fund, total}. Tom liste når banken aldri er brukt.
-export function bankHistory(state, today, days = 14) {
+// Dag-for-dag verdi i intervallet [from, to] (nyeste først). `from`=null → fra første
+// hendelse; `from` før første hendelse klippes til første hendelse (ingen tomme dager før
+// banken ble tatt i bruk). Hver rad: {date, savings, fund, total}.
+export function bankHistoryRange(state, from, to) {
   const led = state.bank && state.bank.ledger ? state.bank.ledger : [];
   if (!led.length) return [];
-  const first = led.reduce((m, e) => (e.date < m ? e.date : m), today);
+  const end = to || (new Date().toISOString().slice(0, 10));
+  const first = led.reduce((m, e) => (e.date < m ? e.date : m), end);
+  const start = from && from > first ? from : first;
   const out = [];
-  let d = today;
-  for (let i = 0; i < days; i++) {
-    if (d < first) break;
+  let d = end;
+  let guard = 0;
+  while (d >= start && guard < 1000) {
     const savings = savingsValue(state, d);
     const fund = fundValue(state, d);
     out.push({ date: d, savings, fund, total: savings + fund });
     d = addDaysIso(d, -1);
+    guard++;
   }
   return out;
+}
+
+// Bekvemmelighet: siste `days` dager t.o.m. today (nyeste først). Tom når banken aldri brukt.
+export function bankHistory(state, today, days = 14) {
+  return bankHistoryRange(state, addDaysIso(today, -(days - 1)), today);
 }
 
 // 0=søn..6=lør -> nøkkel eller null i helg

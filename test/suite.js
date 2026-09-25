@@ -1701,6 +1701,16 @@ export function runTests() {
       ok('total = sparekonto + fond', Math.abs(hist[0].total - (hist[0].savings + hist[0].fund)) < 1e-9);
       ok('sparekonto vokser over tid', hist[0].savings > hist[hist.length - 1].savings);
       ok('fond aldri under innskudd (gulv)', hist[hist.length - 1].fund >= 2 - 1e-9);
+      // eksplisitt range
+      const r2 = L.bankHistoryRange(s, '2026-09-03', '2026-09-05');
+      eq('range = 3 dager', r2.length, 3);
+      eq('range nyeste først', r2[0].date, '2026-09-05');
+      // from før første hendelse klippes til første hendelse
+      const r3 = L.bankHistoryRange(s, '2026-08-01', '2026-09-02');
+      eq('klippet til første hendelse', r3[r3.length - 1].date, '2026-09-01');
+      // from=null → fra første hendelse
+      const r4 = L.bankHistoryRange(s, null, '2026-09-03');
+      eq('null from = fra første hendelse', r4[r4.length - 1].date, '2026-09-01');
     },
   ];
 

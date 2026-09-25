@@ -21,7 +21,7 @@ import {
   visiblePurchases, shopSpentTotal, reservedTotal, availableBalance,
   depositBank, withdrawBank, savingsValue, savingsPrincipal, fundValue, fundMarketValue,
   netInBank, spendable, bankValue, totalWealth, navForDate,
-  bankTransactions, bankHistory,
+  bankTransactions, bankHistoryRange,
 } from './logic.js';
 
 const el = document.getElementById('app');
@@ -44,7 +44,10 @@ const App = {
   questArchiveOpen: false, // «Vis arkiv» for godkjente sidequests (visningstilstand)
   editHwId: null,      // forelder redigerer lekse
   homeworkOpen: {},    // {hwId: true} – ekspanderte lekse-kort hos forelder (visningstilstand)
-  sonMoneyTab: 'oversikt', // 'oversikt' | 'bank' – sub-fane på sønnens Penger-side
+  sonMoneyTab: 'oversikt', // 'oversikt' | 'bank' | 'stat' – sub-fane på sønnens Penger-side
+  bankView: 'main',    // 'main' | 'history' – Bank-fanens undervisning
+  bankPeriod: 'd30',   // 'd30' | 'd90' | 'all' | 'custom' – dag-for-dag-perioden
+  bankFrom: null, bankTo: null, // egendefinert periode ('YYYY-MM-DD')
 };
 
 // --- hjelpere ------------------------------------------------------------
@@ -508,7 +511,7 @@ function renderPoengPage(host) {
     </div>`;
   const bindMoney = () => {
     host.querySelectorAll('.subtab[data-money]').forEach((b) => {
-      b.onclick = () => { App.sonMoneyTab = b.dataset.money; routeToView(); };
+      b.onclick = () => { App.sonMoneyTab = b.dataset.money; App.bankView = 'main'; routeToView(); };
     });
   };
   if (moneyTab === 'bank') {
@@ -586,6 +589,7 @@ function fundSparklineSvg(today) {
 }
 
 function renderBankView(host) {
+  if ((App.bankView || 'main') === 'history') return renderBankHistoryView(host);
   const s = App.state;
   const today = isoDate(new Date());
   const spend = spendable(s);
@@ -632,7 +636,7 @@ function renderBankView(host) {
       <div class="bankform" id="bf-fund" hidden></div>
     </div>
 
-    ${bankHistoryHtml(s, today)}
+    <button class="btn" data-bank-history style="width:100%;margin-bottom:12px">📅 Se dag-for-dag-oversikt →</button>
     ${bankTxHtml(s)}`;
 
   bindBankView(host);
@@ -640,32 +644,80 @@ function renderBankView(host) {
 
 const dm = (iso) => { const [, m, d] = iso.split('-'); return `${+d}.${+m}`; };
 
-// Dag-for-dag-tabell: sparekonto / fond / total, nyeste øverst, med dagsendring på total.
-function bankHistoryHtml(s, today) {
-  const hist = bankHistory(s, today, 14);
-  if (!hist.length) return '';
+// Egne periode-grenser for Bank (samme mønster som statBounds).
+function bankBounds(today) {
+  if ((App.bankPeriod || 'd30') === 'custom') return { from: App.bankFrom || null, to: App.bankTo || today };
+  return periodBounds(App.bankPeriod || 'd30', today);
+}
+
+// Egen underside: dag-for-dag-tabell med periodevalg (30 d / 90 d / alle / custom).
+function renderBankHistoryView(host) {
+  const s = App.state;
+  const today = isoDate(new Date());
+  const period = App.bankPeriod || 'd30';
+  const b = bankBounds(today);
+  const hist = bankHistoryRange(s, b.from, b.to || today);
   const rnd = (x) => Math.round(x);
-  const rows = hist.map((r, i) => {
-    const prev = hist[i + 1]; // eldre dag
-    const delta = prev ? r.total - prev.total : 0;
-    const d = Math.round(delta);
-    const dCls = d > 0 ? 'up' : (d < 0 ? 'down' : '');
-    const dTxt = prev ? `<span class="gain ${dCls}">${d > 0 ? '+' : ''}${d}</span>` : '';
-    return `<div class="bankrow${i === 0 ? ' now' : ''}">
-        <div class="bankrow-d">${dm(r.date)}${i === 0 ? ' <span class="muted">i dag</span>' : ''}</div>
-        <div class="bankrow-v">🏦 ${rnd(r.savings)}</div>
-        <div class="bankrow-v">📈 ${rnd(r.fund)}</div>
-        <div class="bankrow-t">${rnd(r.total)} ${dTxt}</div>
+
+  const periods = [['d30', 'Siste 30 d'], ['d90', 'Siste 90 d'], ['all', 'Alle'], ['custom', 'Egendefinert']];
+  const chips = periods
+    .map(([k, l]) => `<button class="statchip ${period === k ? 'on' : ''}" data-bp="${k}">${l}</button>`)
+    .join('');
+  const rangeRow = period === 'custom'
+    ? `<div class="statrange">
+        <label>Fra <input type="date" id="bankFrom" value="${App.bankFrom || ''}" max="${today}"></label>
+        <label>Til <input type="date" id="bankTo" value="${App.bankTo || today}" max="${today}"></label>
+      </div>`
+    : '';
+
+  let body;
+  if (!hist.length) {
+    body = `<div class="card statempty">📅 Ingen bank-historikk for valgt periode.</div>`;
+  } else {
+    const rows = hist.map((r, i) => {
+      const prev = hist[i + 1]; // eldre dag
+      const d = prev ? Math.round(r.total - prev.total) : 0;
+      const dCls = d > 0 ? 'up' : (d < 0 ? 'down' : '');
+      const dTxt = prev ? `<span class="gain ${dCls}">${d > 0 ? '+' : ''}${d}</span>` : '';
+      return `<div class="bankrow${i === 0 ? ' now' : ''}">
+          <div class="bankrow-d">${dm(r.date)}${i === 0 && r.date === today ? ' <span class="muted">i dag</span>' : ''}</div>
+          <div class="bankrow-v">🏦 ${rnd(r.savings)}</div>
+          <div class="bankrow-v">📈 ${rnd(r.fund)}</div>
+          <div class="bankrow-t">${rnd(r.total)} ${dTxt}</div>
+        </div>`;
+    }).join('');
+    body = `<div class="card bankcard" style="padding:8px 10px">
+        <div class="bankrow head">
+          <div class="bankrow-d">Dato</div><div class="bankrow-v">Spare</div>
+          <div class="bankrow-v">Fond</div><div class="bankrow-t">Totalt</div>
+        </div>
+        ${rows}
       </div>`;
-  }).join('');
-  return `<div class="sec">📅 Dag for dag</div>
-    <div class="card bankcard" style="padding:8px 10px">
-      <div class="bankrow head">
-        <div class="bankrow-d">Dato</div><div class="bankrow-v">Spare</div>
-        <div class="bankrow-v">Fond</div><div class="bankrow-t">Totalt</div>
-      </div>
-      ${rows}
-    </div>`;
+  }
+
+  host.innerHTML = `
+    <button class="btn" data-bank-back style="margin-bottom:10px">← Tilbake til banken</button>
+    <div class="sec">📅 Dag for dag</div>
+    <div class="statperiod">${chips}</div>${rangeRow}
+    ${body}`;
+  bindBankHistory(host);
+}
+
+function bindBankHistory(host) {
+  const back = host.querySelector('[data-bank-back]');
+  if (back) back.onclick = () => { App.bankView = 'main'; renderSon(); };
+  host.querySelectorAll('.statchip[data-bp]').forEach((b) => (b.onclick = () => {
+    App.bankPeriod = b.dataset.bp;
+    if (App.bankPeriod === 'custom' && !App.bankFrom) {
+      const d = new Date(); d.setDate(d.getDate() - 29);
+      App.bankFrom = isoDate(d); App.bankTo = isoDate(new Date());
+    }
+    renderSon();
+  }));
+  const from = host.querySelector('#bankFrom');
+  if (from) from.onchange = () => { App.bankFrom = from.value || null; App.bankPeriod = 'custom'; renderSon(); };
+  const to = host.querySelector('#bankTo');
+  if (to) to.onchange = () => { App.bankTo = to.value || null; App.bankPeriod = 'custom'; renderSon(); };
 }
 
 // Transaksjonsliste (inn/ut), nyeste øverst.
@@ -718,6 +770,8 @@ function bindBankView(host) {
   };
   host.querySelectorAll('[data-bank-in]').forEach((b) => (b.onclick = () => openForm(b.dataset.bankIn, 'in')));
   host.querySelectorAll('[data-bank-out]').forEach((b) => (b.onclick = () => openForm(b.dataset.bankOut, 'out')));
+  const hbtn = host.querySelector('[data-bank-history]');
+  if (hbtn) hbtn.onclick = () => { App.bankView = 'history'; renderSon(); };
 }
 
 // Frist-tekst for en quest sett fra sønnen: forfalt (rødt), i dag, om N dager, dato.
