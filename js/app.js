@@ -503,16 +503,23 @@ function renderPoengPage(host) {
   const tabsBar = `<div class="subtabs">
       <button class="subtab ${moneyTab === 'oversikt' ? 'on' : ''}" data-money="oversikt">Oversikt</button>
       <button class="subtab ${moneyTab === 'bank' ? 'on' : ''}" data-money="bank">🏦 Bank</button>
+      <button class="subtab ${moneyTab === 'stat' ? 'on' : ''}" data-money="stat">📊 Statistikk</button>
     </div>`;
   const bindMoney = () => {
     host.querySelectorAll('.subtab[data-money]').forEach((b) => {
-      b.onclick = () => { App.sonMoneyTab = b.dataset.money; renderPoengPage(host); };
+      b.onclick = () => { App.sonMoneyTab = b.dataset.money; routeToView(); };
     });
   };
   if (moneyTab === 'bank') {
     host.innerHTML = tabsBar + '<div id="bankbody"></div>';
     bindMoney();
     renderBankView(document.getElementById('bankbody'));
+    return;
+  }
+  if (moneyTab === 'stat') {
+    host.innerHTML = tabsBar + statContentHtml(s);
+    bindMoney();
+    bindStatChips(host);
     return;
   }
 
@@ -552,11 +559,8 @@ function renderPoengPage(host) {
 
     <div class="sec">🥇 Gull-streak (timer på rad)</div>
     ${statGrid(gd)}
-    </div>
-    <div class="sec">📊 Statistikk</div>
-    ${statContentHtml(s)}`;
+    </div>`;
   bindMoney();
-  bindStatChips(host);
 }
 
 // Liten sparkline (siste 30 dager NAV) — punktene bygges i JS, ikke hardkodet.
@@ -2660,7 +2664,7 @@ function svgWrap(w, h, inner) {
 function routeToView() {
   // Statistikk bryter ut av mobil-bredden – ses på laptop (forelder-fane + sønn-Poeng).
   const wide = (App.role === 'parent' && App.parentUnlocked && App.parentTab === 'stat')
-    || (App.role === 'son' && App.sonPage === 'poeng');
+    || (App.role === 'son' && App.sonPage === 'poeng' && (App.sonMoneyTab || 'oversikt') === 'stat');
   document.body.classList.toggle('statwide', wide);
   if (!App.role) return renderWho();
   if (App.role === 'son') return renderSon();
