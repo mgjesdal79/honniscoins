@@ -21,6 +21,7 @@ import {
   visiblePurchases, shopSpentTotal, reservedTotal, availableBalance,
   depositBank, withdrawBank, savingsValue, savingsPrincipal, fundValue, fundMarketValue,
   netInBank, spendable, bankValue, totalWealth, navForDate,
+  bankTransactions, bankHistory,
 } from './logic.js';
 
 const el = document.getElementById('app');
@@ -629,9 +630,59 @@ function renderBankView(host) {
         <button class="btn" data-bank-out="fund">Ta ut</button>
       </div>
       <div class="bankform" id="bf-fund" hidden></div>
-    </div>`;
+    </div>
+
+    ${bankHistoryHtml(s, today)}
+    ${bankTxHtml(s)}`;
 
   bindBankView(host);
+}
+
+const dm = (iso) => { const [, m, d] = iso.split('-'); return `${+d}.${+m}`; };
+
+// Dag-for-dag-tabell: sparekonto / fond / total, nyeste øverst, med dagsendring på total.
+function bankHistoryHtml(s, today) {
+  const hist = bankHistory(s, today, 14);
+  if (!hist.length) return '';
+  const rnd = (x) => Math.round(x);
+  const rows = hist.map((r, i) => {
+    const prev = hist[i + 1]; // eldre dag
+    const delta = prev ? r.total - prev.total : 0;
+    const d = Math.round(delta);
+    const dCls = d > 0 ? 'up' : (d < 0 ? 'down' : '');
+    const dTxt = prev ? `<span class="gain ${dCls}">${d > 0 ? '+' : ''}${d}</span>` : '';
+    return `<div class="bankrow${i === 0 ? ' now' : ''}">
+        <div class="bankrow-d">${dm(r.date)}${i === 0 ? ' <span class="muted">i dag</span>' : ''}</div>
+        <div class="bankrow-v">🏦 ${rnd(r.savings)}</div>
+        <div class="bankrow-v">📈 ${rnd(r.fund)}</div>
+        <div class="bankrow-t">${rnd(r.total)} ${dTxt}</div>
+      </div>`;
+  }).join('');
+  return `<div class="sec">📅 Dag for dag</div>
+    <div class="card bankcard" style="padding:8px 10px">
+      <div class="bankrow head">
+        <div class="bankrow-d">Dato</div><div class="bankrow-v">Spare</div>
+        <div class="bankrow-v">Fond</div><div class="bankrow-t">Totalt</div>
+      </div>
+      ${rows}
+    </div>`;
+}
+
+// Transaksjonsliste (inn/ut), nyeste øverst.
+function bankTxHtml(s) {
+  const tx = bankTransactions(s);
+  if (!tx.length) return '';
+  const items = tx.slice(0, 30).map((e) => {
+    const prod = e.product === 'fund' ? '📈 Fond' : '🏦 Sparekonto';
+    const inn = e.type === 'deposit';
+    return `<div class="bankrow">
+        <div class="bankrow-d">${dm(e.date)}</div>
+        <div class="bankrow-v" style="flex:2;text-align:left">${prod}</div>
+        <div class="bankrow-t"><span class="gain ${inn ? 'up' : 'down'}">${inn ? '+' : '−'}${e.amount} 💰</span></div>
+      </div>`;
+  }).join('');
+  return `<div class="sec">🧾 Transaksjoner</div>
+    <div class="card bankcard" style="padding:8px 10px">${items}</div>`;
 }
 
 function bindBankView(host) {

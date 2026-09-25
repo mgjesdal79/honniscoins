@@ -1680,6 +1680,28 @@ export function runTests() {
       const s3 = L.withdrawBank(s, { product: 'fund', amount: 5, by: 'son' }, ctx2);
       eq('uttak fra tomt fond = no-op', s3.bank.ledger.length, s.bank.ledger.length);
     },
+    function bank_history_transactions() {
+      let s = shopStateWithCoins();
+      s.bank = { ledger: [] };
+      s.settings.bank = { savingsWeeklyRate: 0.02 };
+      // tom bank → tom historikk + tomme transaksjoner
+      eq('tom historikk', L.bankHistory(s, '2026-09-10', 14).length, 0);
+      eq('tom transaksjonsliste', L.bankTransactions(s).length, 0);
+      // to innskudd på samme dag
+      s = L.depositBank(s, { product: 'savings', amount: 4, by: 'son' }, { now: '2026-09-01T09:00:00.000Z', id: 'h1' });
+      s = L.depositBank(s, { product: 'fund', amount: 2, by: 'son' }, { now: '2026-09-01T09:05:00.000Z', id: 'h2' });
+      const tx = L.bankTransactions(s);
+      eq('to transaksjoner', tx.length, 2);
+      eq('nyeste først', tx[0].id, 'h2'); // fond kl 09:05 øverst
+      // historikk t.o.m. 08.09, nyeste først, starter ved første hendelse (01.09)
+      const hist = L.bankHistory(s, '2026-09-08', 30);
+      eq('historikk = 8 dager (01–08.09)', hist.length, 8);
+      eq('nyeste rad først', hist[0].date, '2026-09-08');
+      eq('eldste rad = første hendelse', hist[hist.length - 1].date, '2026-09-01');
+      ok('total = sparekonto + fond', Math.abs(hist[0].total - (hist[0].savings + hist[0].fund)) < 1e-9);
+      ok('sparekonto vokser over tid', hist[0].savings > hist[hist.length - 1].savings);
+      ok('fond aldri under innskudd (gulv)', hist[hist.length - 1].fund >= 2 - 1e-9);
+    },
   ];
 
   for (const t of tests) {

@@ -278,6 +278,30 @@ export function withdrawBank(state, { product, amount, by = 'son' }, ctx) {
   return s;
 }
 
+// Alle bank-transaksjoner, nyeste først (for visning).
+export function bankTransactions(state) {
+  const led = state.bank && state.bank.ledger ? state.bank.ledger : [];
+  return led.slice().sort((a, b) => (b.at || b.date || '').localeCompare(a.at || a.date || ''));
+}
+
+// Dag-for-dag verdi de siste `days` dagene (fra første hendelse t.o.m. today), nyeste først.
+// Hver rad: {date, savings, fund, total}. Tom liste når banken aldri er brukt.
+export function bankHistory(state, today, days = 14) {
+  const led = state.bank && state.bank.ledger ? state.bank.ledger : [];
+  if (!led.length) return [];
+  const first = led.reduce((m, e) => (e.date < m ? e.date : m), today);
+  const out = [];
+  let d = today;
+  for (let i = 0; i < days; i++) {
+    if (d < first) break;
+    const savings = savingsValue(state, d);
+    const fund = fundValue(state, d);
+    out.push({ date: d, savings, fund, total: savings + fund });
+    d = addDaysIso(d, -1);
+  }
+  return out;
+}
+
 // 0=søn..6=lør -> nøkkel eller null i helg
 export function weekdayKey(iso) {
   const dow = parseIso(iso).getDay();
