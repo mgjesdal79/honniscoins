@@ -240,7 +240,7 @@ function setSonPage(key) {
 
 // Topp-logo med alltid synlig saldo.
 function brandHtml() {
-  const bal = computeBalance(App.state);
+  const bal = Math.round(totalWealth(App.state, isoDate(new Date())));
   return `<div class="brand">
       <img src="icon-192.png" alt="" width="34" height="34" style="border-radius:9px">
       <b>Honniscoins:</b><span class="brandbal">${bal} 💰</span>
@@ -1945,6 +1945,11 @@ function renderPoengTab(host) {
       <div class="row" style="border:none"><div class="lbl">Kr per Honniscoin</div>
         <input class="inp" id="krRate" type="number" min="0" step="0.5" value="${s.settings.krPerCoin}"></div>
     </div>
+    <div class="sec">🏦 Bank</div>
+    <div class="card" style="padding:2px 12px">
+      <div class="row" style="border:none"><div class="lbl">Sparerente <span class="muted">(% per uke)</span></div>
+        ${stepperHtml('id="savRate"', Math.round(((s.settings.bank && s.settings.bank.savingsWeeklyRate) || 0) * 100), { min: 0, step: 1 })}</div>
+    </div>
     <div class="sec">Varsling</div>
     <label>Epost for shop-varsler
       <input class="inp wide" id="notifyEmail" type="email" style="width:100%"
@@ -1980,6 +1985,14 @@ function renderPoengTab(host) {
   const emailInp = document.getElementById('notifyEmail');
   if (emailInp) emailInp.onchange = () => {
     s.settings.notifyEmail = emailInp.value.trim() || null;
+    s.settings.updatedAt = nowIso();
+    save();
+  };
+  const savRate = document.getElementById('savRate');
+  if (savRate) savRate.onchange = () => {
+    const pct = Math.max(0, Number(savRate.value) || 0);
+    if (!s.settings.bank) s.settings.bank = { savingsWeeklyRate: 0 };
+    s.settings.bank.savingsWeeklyRate = pct / 100;
     s.settings.updatedAt = nowIso();
     save();
   };
@@ -2242,6 +2255,11 @@ function renderLoggTab(host) {
           'import-add': `📥 Importerte lekse ${t}`,
         };
         txt = map[e.action] || `Lekse ${t}`;
+      } else if (e.type === 'bank') {
+        const prod = e.product === 'fund' ? 'fond' : 'sparekonto';
+        txt = e.action === 'deposit'
+          ? `🏦 Satte inn <b>${e.amount} 💰</b> i ${prod}`
+          : `🏦 Tok ut <b>${e.amount} 💰</b> fra ${prod}`;
       } else if (e.type === 'resync') {
         const dl = fmtDayLabel(e.day);
         txt =
