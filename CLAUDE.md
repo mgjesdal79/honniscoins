@@ -395,13 +395,65 @@ timeplan, poengverdier og utbetalinger. Norsk UI. Live på GitHub Pages.
 - **Spec/plan:** `docs/superpowers/specs/2026-09-06-honniscoins-shop-design.md`,
   `docs/superpowers/plans/2026-09-06-honniscoins-shop.md`.
 
+## Banken (sparekonto + fond) — sønnen investerer opptjente coins
+- **Konsept:** sønnen velger mellom to produkter for opptjente coins. Begge frie inn/ut (ingen
+  hard lås); vekst akkumulerer over tid.
+  - **🏦 Sparekonto** — lineær rente, garantert. Rente stemples per innskudd (`entry.rate`);
+    forelder setter sats i Settings.
+  - **📈 Fond** — deterministisk simulert indekskurve (`navForDate`), ±3 %/dag «rails», svak
+    positiv drift. Vist verdi **aldri under innskudd** (gulv på principal — papirtap av gevinst,
+    ikke av innskudd).
+- **Ledger-fold-arkitektur (viktig):** én append-only `bank.ledger` er SANNHETEN; all verdi/
+  holdning er RENE funksjoner av ledger + dato (deterministisk, flettevennlig). Ingen lagret
+  saldo. Fletting: `bank.ledger` via **union-by-id** (append-only, som `log`/`payouts`);
+  `settings.bank` via settings-LWW. Migrering (`migrate`): sikrer `bank={ledger:[]}` +
+  `settings.bank={savingsWeeklyRate:0.02}`.
+- **Datamodell:** topp-nivå `bank.ledger:[]`, hver: `{id, product:'savings'|'fund',
+  type:'deposit'|'withdraw', amount, date:'YYYY-MM-DD', at, by, rate?}` (`rate` kun på
+  savings-innskudd). `settings.bank.savingsWeeklyRate` (brøk, default 0.02 = 2 %/uke).
+- **Rene fn (logic.js):** kurve `navForDate(iso)` (epoke 2024-01-01, NAV=100, seeded støy,
+  `BANK_FUND_*`-konstanter). Sparekonto: `foldSavings`→lotter, `savingsLotValue`
+  (`amount×(1+rate×uker)`, uker = dager/7 desimal → vokser DAGLIG), `savingsValue(state,date)`,
+  `savingsPrincipal`. Fond: `foldFund`→`{units,principal}`, `fundMarketValue(state,date)`,
+  `fundValue(state,date)`=`max(units×nav, principal)`. Uttak reduserer eldste lotter først
+  (savings, behold date/rate) / units+principal proporsjonalt med `f=amount/V` (fund).
+  Saldo: `netInBank`=Σinn−Σut (dato-uavhengig), `spendable`=`availableBalance` (nå bank-bevisst),
+  `bankValue(state,date)`, `totalWealth(state,date)`. Mutasjoner: `depositBank`/`withdrawBank`
+  (`{product,amount,by}`, floorer beløp, deposit gatet på `availableBalance`, withdraw gatet på
+  produktverdi; logger `type:'bank'`). Historikk: `bankHistoryRange(state,from,to)` (nyeste
+  først; `from=null`→fra første hendelse; datoer før første hendelse klippes; guard 1000 dager),
+  `bankHistory(state,today,days=14)` delegerer, `bankTransactions(state)` (nyeste først).
+- **Saldo-integrasjon (elegant):** `availableBalance` trekker nå fra `netInBank` → shop-gating
+  (både `renderShopPage` `canBuy` OG `requestShopItem`) respekterer automatisk penger i banken.
+  Topp-logo (`brandHtml`) viser **`totalWealth`** (ledig + bank), ikke bare saldo.
+- **UI (sønn):** Poeng-siden heter **Penger** 💰 (SON_PAGES) med tre sub-tabs
+  (`App.sonMoneyTab ∈ {oversikt, bank, stat}`, `.subtabs`/`.subtab`): **Oversikt** (saldo/bonus/
+  streaks), **🏦 Bank**, **📊 Statistikk** (stats flyttet hit fra bunnen av Oversikt; `body.statwide`
+  gjelder KUN på stat-fanen). Bank-visning (`renderBankView`/`bindBankView`): formue-header,
+  produktkort m/ sparkline (`fundSparklineSvg`, siste 30 dager NAV) + dagsendring, inn/ut-skjema
+  (`stepperHtml`, råd-/verdi-sperre), transaksjonsliste, + knapp til **egen dag-for-dag-side**
+  (`App.bankView ∈ {main, history}`; `renderBankHistoryView`/`bindBankHistory`) med periode-chips
+  (Siste 30 d / 90 d / Alle / Egendefinert, `App.bankPeriod`/`bankFrom`/`bankTo`, gjenbruker
+  `.statchip`/`.statperiod`/`.statrange`; default 30 d) + tabell (Spare/Fond/Totalt, dagsendring).
+  Sub-tab-bytte nullstiller `bankView` til `main`. CSS: `.bankcard`/`.bankhead`/`.bankval`/`.gain`
+  (`.up`/`.down`)/`.spark`/`.bankform`/`.bankrow`(+`.head`/`.now`/`-d`/`-v`/`-t`).
+- **UI (forelder):** Settings (`renderPoengTab`) har «🏦 Bank»-seksjon → **Sparerente (%/uke)**
+  (`#savRate` stepper, lagres som brøk `pct/100`, bumper `settings.updatedAt`; gjelder kun NYE
+  innskudd — eksisterende lotter beholder stemplet rate). Logg-gren (`renderLoggTab`,
+  `type:'bank'`): «🏦 Satte inn/Tok ut … i sparekonto/fond».
+- **v2 (ikke bygget):** forelder-oversikt (kun visning) over sønnens bank.
+- **Spec/plan:** `docs/superpowers/specs/2026-09-24-honniscoins-bank-renter-fond-design.md`,
+  `docs/superpowers/plans/2026-09-24-honniscoins-bank-renter-fond.md`.
+
 ## Testing
-- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 473 assertions per nå (inkl. sidequests
+- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 519 assertions per nå (inkl. sidequests
   m/arkiv, lekser, rutiner inkl. rekkefølge/tekst-synk + egen-fane-helpere
   (`routineInstancesForDate`/`routinesRemaining`/arkiv-filter) + leadDay/straks-generering ved
   add/update + `expireStaleRoutineInstances`-utløp (b55/b56) + auto-fullføring/vekk (`completed`,
   b58), shop m/saldo·reservasjon·commit·
-  fletting·bilde-patch, logg-beskjæring og statistikk/streak).
+  fletting·bilde-patch, logg-beskjæring, statistikk/streak og **banken** (b59–b62:
+  `navForDate`/rails, sparekonto-fold, fond-gulv, saldo-integrasjon, mutasjoner,
+  `bankHistoryRange`/`bankTransactions`)).
 - **Kjør:** `/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc -m test/run-jsc.js`
   (jsc støtter ES-moduler; ingen node/deno/bun i miljøet).
 - Nettleser: `test/tests.html` (tynn renderer av samme suite).
