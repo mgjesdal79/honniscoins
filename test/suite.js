@@ -1573,6 +1573,113 @@ export function runTests() {
       s = L.skipRoutineInstance(s, { id: 'r0', actor: 'son' }, { now: '2026-09-14T10:00:00.000Z', id: 'l1' });
       eq('completed er terminal for skip', s.quests[0].status, 'completed');
     },
+
+    // --- bank ---
+    function bank_state_scaffolding() {
+      const s = L.defaultState();
+      eq('bank.ledger tom', s.bank.ledger, []);
+      eq('savingsWeeklyRate default', s.settings.bank.savingsWeeklyRate, 0.02);
+      // migrate på gammelt rom uten bank
+      const old = L.defaultState();
+      delete old.bank;
+      delete old.settings.bank;
+      const m = L.migrate(old, '2026-09-24');
+      eq('migrate legger bank', m.bank.ledger, []);
+      eq('migrate legger rate', m.settings.bank.savingsWeeklyRate, 0.02);
+      // fletting: union-by-id av ledger
+      const a = L.defaultState(); a.bank.ledger = [{ id: 'e1', product: 'savings', type: 'deposit', amount: 5, date: '2026-09-01', at: 't1' }];
+      const b = L.defaultState(); b.bank.ledger = [{ id: 'e2', product: 'fund', type: 'deposit', amount: 7, date: '2026-09-02', at: 't2' }];
+      const merged = L.mergeState(a, b);
+      eq('union ledger lengde', merged.bank.ledger.length, 2);
+    },
+    function bank_navForDate() {
+      eq('nav ved epoke = 100', L.navForDate(L.BANK_FUND_EPOCH), 100);
+      eq('nav før epoke = 100', L.navForDate('2020-01-01'), 100);
+      // determinisme: samme dato gir samme verdi
+      eq('determinisme', L.navForDate('2026-06-15'), L.navForDate('2026-06-15'));
+      // rails: hver dags avkastning ligger innenfor ±3 %
+      let prev = L.navForDate('2026-06-01');
+      let okCap = true;
+      let d = '2026-06-01';
+      for (let i = 0; i < 30; i++) {
+        d = L.isoDate(new Date(new Date(d).getTime() + 86400000));
+        const cur = L.navForDate(d);
+        const r = cur / prev - 1;
+        if (r > 0.0301 || r < -0.0301) okCap = false;
+        prev = cur;
+      }
+      ok('daglig endring innenfor ±3 %', okCap);
+      ok('nav er positiv', L.navForDate('2026-06-15') > 0);
+    },
+    function bank_savings() {
+      const s = L.defaultState();
+      s.bank.ledger = [
+        { id: 'd1', product: 'savings', type: 'deposit', amount: 100, date: '2026-01-01', rate: 0.02, at: 't1' },
+      ];
+      // 1 uke senere: 100 * (1 + 0.02 * 1) = 102
+      eq('rente etter 1 uke', Math.round(L.savingsValue(s, '2026-01-08')), 102);
+      eq('principal', L.savingsPrincipal(s), 100);
+      // partielt uttak: ta ut 51 etter 1 uke (verdi 102) -> halvparten igjen
+      s.bank.ledger.push({ id: 'w1', product: 'savings', type: 'withdraw', amount: 51, date: '2026-01-08', at: 't2' });
+      eq('principal etter halvt uttak', Math.round(L.savingsPrincipal(s)), 50);
+      // resten fortsetter å tjene rente fra opprinnelig dato
+      eq('verdi rett etter uttak', Math.round(L.savingsValue(s, '2026-01-08')), 51);
+    },
+    function bank_fund() {
+      // deposit 100 på epoke (nav=100) -> 1 unit, principal 100
+      const s = L.defaultState();
+      s.bank.ledger = [
+        { id: 'f1', product: 'fund', type: 'deposit', amount: 100, date: '2024-01-01', at: 't1' },
+      ];
+      const nav = L.navForDate('2026-06-15');
+      eq('markedsverdi = units*nav', Math.round(L.fundMarketValue(s, '2026-06-15')), Math.round(nav));
+      // gulv: vist verdi aldri under innskudd
+      ok('gulv >= innskudd', L.fundValue(s, '2026-06-15') >= 100 - 1e-6);
+      // gulv-invariant også rett etter innskudd
+      const s2 = L.defaultState();
+      s2.bank.ledger = [{ id: 'f2', product: 'fund', type: 'deposit', amount: 50, date: '2024-01-01', at: 't1' }];
+      ok('fundValue >= principal alltid', L.fundValue(s2, '2024-01-02') >= 50 - 1e-6);
+      const payoutFloor = Math.max(L.fundMarketValue(s2, '2024-01-02'), 50);
+      ok('fullt uttak >= innskudd', payoutFloor >= 50 - 1e-6);
+    },
+    function bank_balance_integration() {
+      // start: 1 låst gull-dag med 2 gull = 6 coins
+      const s = shopStateWithCoins();
+      s.bank = { ledger: [] };
+      s.settings.bank = { savingsWeeklyRate: 0.02 };
+      eq('start spendable = 6', L.spendable(s), 6);
+      eq('netInBank = 0', L.netInBank(s), 0);
+      // sett inn 4 i sparekonto
+      s.bank.ledger.push({ id: 'd', product: 'savings', type: 'deposit', amount: 4, date: '2026-09-01', rate: 0, at: 't1' });
+      eq('netInBank etter innskudd', L.netInBank(s), 4);
+      eq('spendable synker', L.spendable(s), 2);
+      eq('availableBalance = spendable', L.availableBalance(s), 2);
+      // total formue uendret (ingen rente, rate 0)
+      eq('totalWealth uendret', Math.round(L.totalWealth(s, '2026-09-01')), 6);
+      // ta ut alt igjen
+      s.bank.ledger.push({ id: 'w', product: 'savings', type: 'withdraw', amount: 4, date: '2026-09-01', at: 't2' });
+      eq('netInBank tilbake 0', L.netInBank(s), 0);
+      eq('spendable tilbake 6', L.spendable(s), 6);
+    },
+    function bank_mutations() {
+      const ctx1 = { now: '2026-09-01T09:00:00.000Z', id: 'm1' };
+      const ctx2 = { now: '2026-09-01T09:01:00.000Z', id: 'm2' };
+      let s = shopStateWithCoins(); // 6 coins
+      s.bank = { ledger: [] };
+      s.settings.bank = { savingsWeeklyRate: 0.02 };
+      // innskudd stempler gjeldende rente
+      s = L.depositBank(s, { product: 'savings', amount: 4, by: 'son' }, ctx1);
+      eq('ledger 1 entry', s.bank.ledger.length, 1);
+      eq('rate stemplet', s.bank.ledger[0].rate, 0.02);
+      eq('logg-gren bank', s.log[s.log.length - 1].type, 'bank');
+      // kan ikke sette inn mer enn spendable (spendable nå = 2)
+      const before = s.bank.ledger.length;
+      s = L.depositBank(s, { product: 'savings', amount: 999, by: 'son' }, ctx2);
+      eq('råd-sperre: ingen ny entry', s.bank.ledger.length, before);
+      // uttak mer enn verdi = no-op
+      const s3 = L.withdrawBank(s, { product: 'fund', amount: 5, by: 'son' }, ctx2);
+      eq('uttak fra tomt fond = no-op', s3.bank.ledger.length, s.bank.ledger.length);
+    },
   ];
 
   for (const t of tests) {

@@ -36,6 +36,7 @@ export function defaultState() {
       notifyEmail: null,
       routines: [],
       routinesSeeded: false,
+      bank: { savingsWeeklyRate: 0.02 },
       schemaVersion: 2,
       updatedAt: null,
     },
@@ -47,6 +48,7 @@ export function defaultState() {
     shopItems: [],
     purchases: [],
     log: [],
+    bank: { ledger: [] },
   };
 }
 
@@ -626,6 +628,9 @@ export function migrate(state, todayIso) {
       }
     }
   }
+  if (!s.bank || !Array.isArray(s.bank.ledger)) s.bank = { ledger: [] };
+  if (!s.settings.bank) s.settings.bank = { savingsWeeklyRate: 0.02 };
+  else if (s.settings.bank.savingsWeeklyRate == null) s.settings.bank.savingsWeeklyRate = 0.02;
   const gen = generateDailyRoutines(expireStaleRoutineInstances(s, todayIso), todayIso);
   const out = syncOpenRoutineInstances(gen, todayIso);
   out.log = pruneLog(out.log);
@@ -1126,6 +1131,10 @@ export function mergeState(local, remote) {
   // shop: LWW per id på updatedAt (statusendringer/sletting/hidden vinner nyest)
   for (const key of ['shopItems', 'purchases']) {
     if (local[key] || remote[key]) out[key] = mergeById(local[key], remote[key]);
+  }
+  // bank.ledger: append-only union på id (som log/payouts)
+  if (local.bank || remote.bank) {
+    out.bank = { ledger: unionById((local.bank || {}).ledger || [], (remote.bank || {}).ledger || []) };
   }
   return out;
 }
