@@ -249,6 +249,35 @@ export function totalWealth(state, today) {
   return spendable(state) + bankValue(state, today);
 }
 
+export function depositBank(state, { product, amount, by = 'son' }, ctx) {
+  const s = clone(state);
+  if (!s.bank) s.bank = { ledger: [] };
+  const amt = Math.floor(Number(amount) || 0);
+  if (amt <= 0) return s;
+  if (product !== 'savings' && product !== 'fund') return s;
+  if (amt > availableBalance(s)) return s; // råd-sperre
+  const date = (ctx.now || '').slice(0, 10);
+  const entry = { id: ctx.id, product, type: 'deposit', amount: amt, date, at: ctx.now, by };
+  if (product === 'savings') entry.rate = (s.settings.bank && s.settings.bank.savingsWeeklyRate) || 0;
+  s.bank.ledger.push(entry);
+  s.log.push({ id: ctx.id, at: ctx.now, actor: by, type: 'bank', action: 'deposit', product, amount: amt });
+  return s;
+}
+
+export function withdrawBank(state, { product, amount, by = 'son' }, ctx) {
+  const s = clone(state);
+  if (!s.bank) s.bank = { ledger: [] };
+  const amt = Math.floor(Number(amount) || 0);
+  if (amt <= 0) return s;
+  if (product !== 'savings' && product !== 'fund') return s;
+  const today = (ctx.now || '').slice(0, 10);
+  const val = product === 'savings' ? savingsValue(s, today) : fundValue(s, today);
+  if (amt > Math.floor(val + 1e-9)) return s; // kan ikke ta ut mer enn produktverdi
+  s.bank.ledger.push({ id: ctx.id, product, type: 'withdraw', amount: amt, date: today, at: ctx.now, by });
+  s.log.push({ id: ctx.id, at: ctx.now, actor: by, type: 'bank', action: 'withdraw', product, amount: amt });
+  return s;
+}
+
 // 0=søn..6=lør -> nøkkel eller null i helg
 export function weekdayKey(iso) {
   const dow = parseIso(iso).getDay();
