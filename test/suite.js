@@ -1643,23 +1643,23 @@ export function runTests() {
       ok('fullt uttak >= innskudd', payoutFloor >= 50 - 1e-6);
     },
     function bank_balance_integration() {
-      // start: 1 låst gull-dag med 2 gull = 6 coins
       const s = shopStateWithCoins();
       s.bank = { ledger: [] };
       s.settings.bank = { savingsWeeklyRate: 0.02 };
-      eq('start spendable = 6', L.spendable(s), 6);
+      const base = L.computeBalance(s); // robust mot oppmøte-bonus
+      eq('start spendable = base', L.spendable(s), base);
       eq('netInBank = 0', L.netInBank(s), 0);
       // sett inn 4 i sparekonto
       s.bank.ledger.push({ id: 'd', product: 'savings', type: 'deposit', amount: 4, date: '2026-09-01', rate: 0, at: 't1' });
       eq('netInBank etter innskudd', L.netInBank(s), 4);
-      eq('spendable synker', L.spendable(s), 2);
-      eq('availableBalance = spendable', L.availableBalance(s), 2);
+      eq('spendable synker', L.spendable(s), base - 4);
+      eq('availableBalance = spendable', L.availableBalance(s), base - 4);
       // total formue uendret (ingen rente, rate 0)
-      eq('totalWealth uendret', Math.round(L.totalWealth(s, '2026-09-01')), 6);
+      eq('totalWealth uendret', Math.round(L.totalWealth(s, '2026-09-01')), base);
       // ta ut alt igjen
       s.bank.ledger.push({ id: 'w', product: 'savings', type: 'withdraw', amount: 4, date: '2026-09-01', at: 't2' });
       eq('netInBank tilbake 0', L.netInBank(s), 0);
-      eq('spendable tilbake 6', L.spendable(s), 6);
+      eq('spendable tilbake', L.spendable(s), base);
     },
     function bank_mutations() {
       const ctx1 = { now: '2026-09-01T09:00:00.000Z', id: 'm1' };

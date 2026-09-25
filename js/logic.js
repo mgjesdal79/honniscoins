@@ -92,7 +92,7 @@ export function computeBalance(state) {
 }
 
 export function availableBalance(state) {
-  return computeBalance(state) - reservedTotal(state);
+  return computeBalance(state) - reservedTotal(state) - netInBank(state);
 }
 
 // --- Dato / ukedag -------------------------------------------------------
@@ -228,6 +228,25 @@ export function fundMarketValue(state, today) {
 export function fundValue(state, today) {
   const { units, principal } = foldFund(state);
   return Math.max(units * navForDate(today), principal);
+}
+
+// Netto coins parkert i banken (dato-uavhengig): Σ innskudd − Σ uttak.
+export function netInBank(state) {
+  const led = state.bank && state.bank.ledger ? state.bank.ledger : [];
+  return led.reduce((sum, e) => sum + (e.type === 'deposit' ? e.amount : -e.amount), 0);
+}
+
+// Ledige coins (det shop/utbetaling bruker) = saldo − reservert − i banken.
+export function spendable(state) {
+  return availableBalance(state);
+}
+
+export function bankValue(state, today) {
+  return savingsValue(state, today) + fundValue(state, today);
+}
+
+export function totalWealth(state, today) {
+  return spendable(state) + bankValue(state, today);
 }
 
 // 0=søn..6=lør -> nøkkel eller null i helg
