@@ -154,6 +154,82 @@ export function navForDate(iso) {
   return nav;
 }
 
+function daysBetween(a, b) {
+  return Math.round((parseIso(b) - parseIso(a)) / 86400000);
+}
+
+// Sorter bank-hendelser for et produkt kronologisk (date, så at).
+function bankEvents(state, product) {
+  return (state.bank && state.bank.ledger ? state.bank.ledger : [])
+    .filter((e) => e.product === product)
+    .slice()
+    .sort((a, b) => (a.date === b.date ? (a.at || '').localeCompare(b.at || '') : a.date.localeCompare(b.date)));
+}
+
+function savingsLotValue(lot, iso) {
+  const weeks = Math.max(0, daysBetween(lot.date, iso) / 7);
+  return lot.amount * (1 + (lot.rate || 0) * weeks);
+}
+
+// Fold savings-hendelser til gjenværende lotter [{amount,date,rate}].
+export function foldSavings(state) {
+  const lots = [];
+  for (const e of bankEvents(state, 'savings')) {
+    if (e.type === 'deposit') {
+      lots.push({ amount: e.amount, date: e.date, rate: e.rate == null ? 0 : e.rate });
+    } else if (e.type === 'withdraw') {
+      let w = e.amount;
+      for (const lot of lots) {
+        if (w <= 1e-9) break;
+        const val = savingsLotValue(lot, e.date);
+        if (val <= 0) continue;
+        const take = Math.min(w, val);
+        lot.amount *= 1 - take / val; // behold date/rate → resten fortsetter å tjene rente
+        w -= take;
+      }
+    }
+  }
+  return lots.filter((l) => l.amount > 1e-9);
+}
+
+export function savingsValue(state, today) {
+  return foldSavings(state).reduce((sum, lot) => sum + savingsLotValue(lot, today), 0);
+}
+
+export function savingsPrincipal(state) {
+  return foldSavings(state).reduce((sum, lot) => sum + lot.amount, 0);
+}
+
+// Fold fund-hendelser til {units, principal}. Uttak mot gulvet (max(marked,principal)).
+export function foldFund(state) {
+  let units = 0;
+  let principal = 0;
+  for (const e of bankEvents(state, 'fund')) {
+    const nav = navForDate(e.date);
+    if (e.type === 'deposit') {
+      units += e.amount / nav;
+      principal += e.amount;
+    } else if (e.type === 'withdraw') {
+      const V = Math.max(units * nav, principal); // vist verdi m/ gulv
+      if (V <= 0) continue;
+      const f = Math.min(1, e.amount / V);
+      units *= 1 - f;
+      principal *= 1 - f;
+    }
+  }
+  return { units, principal };
+}
+
+export function fundMarketValue(state, today) {
+  return foldFund(state).units * navForDate(today);
+}
+
+// Vist verdi = max(marked, innskudd) → papirtap av gevinst, aldri under innskudd.
+export function fundValue(state, today) {
+  const { units, principal } = foldFund(state);
+  return Math.max(units * navForDate(today), principal);
+}
+
 // 0=søn..6=lør -> nøkkel eller null i helg
 export function weekdayKey(iso) {
   const dow = parseIso(iso).getDay();
