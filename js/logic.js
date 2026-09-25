@@ -36,6 +36,7 @@ export function defaultState() {
       notifyEmail: null,
       routines: [],
       routinesSeeded: false,
+      bank: { savingsWeeklyRate: 0.02 },
       schemaVersion: 2,
       updatedAt: null,
     },
@@ -47,6 +48,7 @@ export function defaultState() {
     shopItems: [],
     purchases: [],
     log: [],
+    bank: { ledger: [] },
   };
 }
 
@@ -90,7 +92,7 @@ export function computeBalance(state) {
 }
 
 export function availableBalance(state) {
-  return computeBalance(state) - reservedTotal(state);
+  return computeBalance(state) - reservedTotal(state) - netInBank(state);
 }
 
 // --- Dato / ukedag -------------------------------------------------------
@@ -112,6 +114,168 @@ function addDaysIso(iso, n) {
   const d = parseIso(iso);
   d.setDate(d.getDate() + n);
   return isoDate(d);
+}
+
+// --- Bank: fondskurve (deterministisk simulert indeks) -------------------
+export const BANK_FUND_EPOCH = '2024-01-01';
+export const BANK_FUND_DRIFT = 0.0035; // ~+0,35 %/dag ≈ +2,5 %/uke forventet
+export const BANK_FUND_VOL = 0.02; // amplitude før cap
+export const BANK_FUND_CAP = 0.03; // ±3 %/dag rails
+const BANK_FUND_SEED = 0x9e3779b9;
+
+// Deterministisk støy i [-1,1] fra (seed, datostreng) — ren, ingen rng-tilstand.
+function bankNoise(iso) {
+  let h = BANK_FUND_SEED >>> 0;
+  for (let i = 0; i < iso.length; i++) {
+    h = Math.imul(h ^ iso.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  h = Math.imul(h ^ (h >>> 16), 2246822507);
+  h = Math.imul(h ^ (h >>> 13), 3266489909);
+  h ^= h >>> 16;
+  return ((h >>> 0) / 4294967296) * 2 - 1;
+}
+
+const navCache = new Map();
+// NAV(iso): 100 ved epoke, produkt av daglige (railede) avkastninger fram til iso.
+export function navForDate(iso) {
+  if (!iso || iso <= BANK_FUND_EPOCH) return 100;
+  if (navCache.has(iso)) return navCache.get(iso);
+  let nav = 100;
+  let d = BANK_FUND_EPOCH;
+  while (d < iso) {
+    d = addDaysIso(d, 1);
+    let r = BANK_FUND_DRIFT + BANK_FUND_VOL * bankNoise(d);
+    if (r > BANK_FUND_CAP) r = BANK_FUND_CAP;
+    if (r < -BANK_FUND_CAP) r = -BANK_FUND_CAP;
+    nav *= 1 + r;
+  }
+  navCache.set(iso, nav);
+  return nav;
+}
+
+function daysBetween(a, b) {
+  return Math.round((parseIso(b) - parseIso(a)) / 86400000);
+}
+
+// Sorter bank-hendelser for et produkt kronologisk (date, så at).
+function bankEvents(state, product) {
+  return (state.bank && state.bank.ledger ? state.bank.ledger : [])
+    .filter((e) => e.product === product)
+    .slice()
+    .sort((a, b) => (a.date === b.date ? (a.at || '').localeCompare(b.at || '') : a.date.localeCompare(b.date)));
+}
+
+function savingsLotValue(lot, iso) {
+  const weeks = Math.max(0, daysBetween(lot.date, iso) / 7);
+  return lot.amount * (1 + (lot.rate || 0) * weeks);
+}
+
+// Fold savings-hendelser til gjenværende lotter [{amount,date,rate}].
+export function foldSavings(state) {
+  const lots = [];
+  for (const e of bankEvents(state, 'savings')) {
+    if (e.type === 'deposit') {
+      lots.push({ amount: e.amount, date: e.date, rate: e.rate == null ? 0 : e.rate });
+    } else if (e.type === 'withdraw') {
+      let w = e.amount;
+      for (const lot of lots) {
+        if (w <= 1e-9) break;
+        const val = savingsLotValue(lot, e.date);
+        if (val <= 0) continue;
+        const take = Math.min(w, val);
+        lot.amount *= 1 - take / val; // behold date/rate → resten fortsetter å tjene rente
+        w -= take;
+      }
+    }
+  }
+  return lots.filter((l) => l.amount > 1e-9);
+}
+
+export function savingsValue(state, today) {
+  return foldSavings(state).reduce((sum, lot) => sum + savingsLotValue(lot, today), 0);
+}
+
+export function savingsPrincipal(state) {
+  return foldSavings(state).reduce((sum, lot) => sum + lot.amount, 0);
+}
+
+// Fold fund-hendelser til {units, principal}. Uttak mot gulvet (max(marked,principal)).
+export function foldFund(state) {
+  let units = 0;
+  let principal = 0;
+  for (const e of bankEvents(state, 'fund')) {
+    const nav = navForDate(e.date);
+    if (e.type === 'deposit') {
+      units += e.amount / nav;
+      principal += e.amount;
+    } else if (e.type === 'withdraw') {
+      const V = Math.max(units * nav, principal); // vist verdi m/ gulv
+      if (V <= 0) continue;
+      const f = Math.min(1, e.amount / V);
+      units *= 1 - f;
+      principal *= 1 - f;
+    }
+  }
+  return { units, principal };
+}
+
+export function fundMarketValue(state, today) {
+  return foldFund(state).units * navForDate(today);
+}
+
+// Vist verdi = max(marked, innskudd) → papirtap av gevinst, aldri under innskudd.
+export function fundValue(state, today) {
+  const { units, principal } = foldFund(state);
+  return Math.max(units * navForDate(today), principal);
+}
+
+// Netto coins parkert i banken (dato-uavhengig): Σ innskudd − Σ uttak.
+export function netInBank(state) {
+  const led = state.bank && state.bank.ledger ? state.bank.ledger : [];
+  return led.reduce((sum, e) => sum + (e.type === 'deposit' ? e.amount : -e.amount), 0);
+}
+
+// Ledige coins (det shop/utbetaling bruker) = saldo − reservert − i banken.
+export function spendable(state) {
+  return availableBalance(state);
+}
+
+export function bankValue(state, today) {
+  return savingsValue(state, today) + fundValue(state, today);
+}
+
+export function totalWealth(state, today) {
+  return spendable(state) + bankValue(state, today);
+}
+
+export function depositBank(state, { product, amount, by = 'son' }, ctx) {
+  const s = clone(state);
+  if (!s.bank) s.bank = { ledger: [] };
+  const amt = Math.floor(Number(amount) || 0);
+  if (amt <= 0) return s;
+  if (product !== 'savings' && product !== 'fund') return s;
+  if (amt > availableBalance(s)) return s; // råd-sperre
+  const date = (ctx.now || '').slice(0, 10);
+  const entry = { id: ctx.id, product, type: 'deposit', amount: amt, date, at: ctx.now, by };
+  if (product === 'savings') entry.rate = (s.settings.bank && s.settings.bank.savingsWeeklyRate) || 0;
+  s.bank.ledger.push(entry);
+  s.log.push({ id: ctx.id, at: ctx.now, actor: by, type: 'bank', action: 'deposit', product, amount: amt });
+  return s;
+}
+
+export function withdrawBank(state, { product, amount, by = 'son' }, ctx) {
+  const s = clone(state);
+  if (!s.bank) s.bank = { ledger: [] };
+  const amt = Math.floor(Number(amount) || 0);
+  if (amt <= 0) return s;
+  if (product !== 'savings' && product !== 'fund') return s;
+  const today = (ctx.now || '').slice(0, 10);
+  const val = product === 'savings' ? savingsValue(s, today) : fundValue(s, today);
+  if (amt > Math.floor(val + 1e-9)) return s; // kan ikke ta ut mer enn produktverdi
+  s.bank.ledger.push({ id: ctx.id, product, type: 'withdraw', amount: amt, date: today, at: ctx.now, by });
+  s.log.push({ id: ctx.id, at: ctx.now, actor: by, type: 'bank', action: 'withdraw', product, amount: amt });
+  return s;
 }
 
 // 0=søn..6=lør -> nøkkel eller null i helg
@@ -626,6 +790,9 @@ export function migrate(state, todayIso) {
       }
     }
   }
+  if (!s.bank || !Array.isArray(s.bank.ledger)) s.bank = { ledger: [] };
+  if (!s.settings.bank) s.settings.bank = { savingsWeeklyRate: 0.02 };
+  else if (s.settings.bank.savingsWeeklyRate == null) s.settings.bank.savingsWeeklyRate = 0.02;
   const gen = generateDailyRoutines(expireStaleRoutineInstances(s, todayIso), todayIso);
   const out = syncOpenRoutineInstances(gen, todayIso);
   out.log = pruneLog(out.log);
@@ -1126,6 +1293,10 @@ export function mergeState(local, remote) {
   // shop: LWW per id på updatedAt (statusendringer/sletting/hidden vinner nyest)
   for (const key of ['shopItems', 'purchases']) {
     if (local[key] || remote[key]) out[key] = mergeById(local[key], remote[key]);
+  }
+  // bank.ledger: append-only union på id (som log/payouts)
+  if (local.bank || remote.bank) {
+    out.bank = { ledger: unionById((local.bank || {}).ledger || [], (remote.bank || {}).ledger || []) };
   }
   return out;
 }

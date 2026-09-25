@@ -19,6 +19,8 @@ import {
   addShopItem, updateShopItem, deleteShopItem, setShopPrice, requestShopItem, cancelShopRequest,
   commitShopPurchase, hidePurchase, shopItemsByStatus, activeShopItems, activePurchases,
   visiblePurchases, shopSpentTotal, reservedTotal, availableBalance,
+  depositBank, withdrawBank, savingsValue, savingsPrincipal, fundValue, fundMarketValue,
+  netInBank, spendable, bankValue, totalWealth, navForDate,
 } from './logic.js';
 
 const el = document.getElementById('app');
@@ -41,6 +43,7 @@ const App = {
   questArchiveOpen: false, // «Vis arkiv» for godkjente sidequests (visningstilstand)
   editHwId: null,      // forelder redigerer lekse
   homeworkOpen: {},    // {hwId: true} – ekspanderte lekse-kort hos forelder (visningstilstand)
+  sonMoneyTab: 'oversikt', // 'oversikt' | 'bank' – sub-fane på sønnens Penger-side
 };
 
 // --- hjelpere ------------------------------------------------------------
@@ -194,7 +197,7 @@ function renderWho() {
 
 const SON_PAGES = [
   { key: 'uken', icon: '📅', label: 'Uken' },
-  { key: 'poeng', icon: '💵', label: 'Poeng' },
+  { key: 'poeng', icon: '💰', label: 'Penger' },
   { key: 'sidequests', icon: '⭐', label: 'Oppdrag' },
   { key: 'rutiner', icon: '🔁', label: 'Rutiner' },
   { key: 'shop', icon: '🛒', label: 'Shop' },
@@ -237,7 +240,7 @@ function setSonPage(key) {
 
 // Topp-logo med alltid synlig saldo.
 function brandHtml() {
-  const bal = computeBalance(App.state);
+  const bal = Math.round(totalWealth(App.state, isoDate(new Date())));
   return `<div class="brand">
       <img src="icon-192.png" alt="" width="34" height="34" style="border-radius:9px">
       <b>Honniscoins:</b><span class="brandbal">${bal} 💰</span>
@@ -496,6 +499,23 @@ function renderPoengPage(host) {
   const qPending = questPointsPending(s);
   const hwPending = homeworkPointsPending(s);
 
+  const moneyTab = App.sonMoneyTab || 'oversikt';
+  const tabsBar = `<div class="subtabs">
+      <button class="subtab ${moneyTab === 'oversikt' ? 'on' : ''}" data-money="oversikt">Oversikt</button>
+      <button class="subtab ${moneyTab === 'bank' ? 'on' : ''}" data-money="bank">🏦 Bank</button>
+    </div>`;
+  const bindMoney = () => {
+    host.querySelectorAll('.subtab[data-money]').forEach((b) => {
+      b.onclick = () => { App.sonMoneyTab = b.dataset.money; renderPoengPage(host); };
+    });
+  };
+  if (moneyTab === 'bank') {
+    host.innerHTML = tabsBar + '<div id="bankbody"></div>';
+    bindMoney();
+    renderBankView(document.getElementById('bankbody'));
+    return;
+  }
+
   const statGrid = (info) => `
     <div class="grid3">
       <div class="stat"><b>${info.current}</b><span>Nå${info.currentOngoing ? ' ⏳' : ''}</span></div>
@@ -503,7 +523,7 @@ function renderPoengPage(host) {
       <div class="stat"><b>${info.monthBest}</b><span>Denne mnd${info.monthBestOngoing ? ' ⏳' : ''}</span></div>
     </div>`;
 
-  host.innerHTML = `
+  host.innerHTML = tabsBar + `
     <div class="narrowcol">
     <div class="balance">
       <div class="coins">${bal} <small>Honniscoins</small></div>
@@ -535,7 +555,114 @@ function renderPoengPage(host) {
     </div>
     <div class="sec">📊 Statistikk</div>
     ${statContentHtml(s)}`;
+  bindMoney();
   bindStatChips(host);
+}
+
+// Liten sparkline (siste 30 dager NAV) — punktene bygges i JS, ikke hardkodet.
+function fundSparklineSvg(today) {
+  const n = 30;
+  const iso = [];
+  let t = new Date(today + 'T00:00:00');
+  for (let i = 0; i < n; i++) { iso.unshift(isoDate(t)); t = new Date(t.getTime() - 86400000); }
+  const vals = iso.map((d) => navForDate(d));
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const span = max - min || 1;
+  const W = 240, H = 48, pad = 3;
+  const pts = vals.map((v, i) => {
+    const x = pad + (i / (n - 1)) * (W - 2 * pad);
+    const y = H - pad - ((v - min) / span) * (H - 2 * pad);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const up = vals[n - 1] >= vals[0];
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <polyline fill="none" stroke="${up ? '#39d353' : '#ff5a52'}" stroke-width="2" points="${pts}"></polyline>
+    </svg>`;
+}
+
+function renderBankView(host) {
+  const s = App.state;
+  const today = isoDate(new Date());
+  const spend = spendable(s);
+  const bVal = bankValue(s, today);
+  const total = totalWealth(s, today);
+  const savVal = savingsValue(s, today);
+  const savPrin = savingsPrincipal(s);
+  const savInt = savVal - savPrin;
+  const fVal = fundValue(s, today);
+  const fMkt = fundMarketValue(s, today);
+  const navToday = navForDate(today);
+  const navPrev = navForDate(isoDate(new Date(Date.now() - 86400000)));
+  const dayPct = navPrev ? ((navToday / navPrev - 1) * 100) : 0;
+  const arrow = dayPct >= 0 ? '▲' : '▼';
+  const rnd = (x) => Math.round(x);
+
+  host.innerHTML = `
+    <div class="balance">
+      <div class="coins">${rnd(total)} <small>Formue</small></div>
+      <div class="kr">Ledig: <b>${spend} 💰</b> · I banken: <b>${rnd(bVal)} 💰</b></div>
+    </div>
+
+    <div class="card bankcard">
+      <div class="bankhead">🏦 Sparekonto <span class="muted">Trygt — vokser garantert</span></div>
+      <div class="bankval">${rnd(savVal)} 💰 ${savInt >= 1 ? `<span class="gain up">+${rnd(savInt)} rente</span>` : ''}</div>
+      <div class="muted" style="font-size:.8rem">Innskutt: ${rnd(savPrin)} 💰</div>
+      <div class="btnrow">
+        <button class="btn good" data-bank-in="savings">Sett inn</button>
+        <button class="btn" data-bank-out="savings">Ta ut</button>
+      </div>
+      <div class="bankform" id="bf-savings" hidden></div>
+    </div>
+
+    <div class="card bankcard">
+      <div class="bankhead">📈 Fond <span class="muted">Svinger — aldri under innskudd</span></div>
+      <div class="bankval">${rnd(fVal)} 💰
+        <span class="gain ${dayPct >= 0 ? 'up' : 'down'}">${arrow} ${Math.abs(dayPct).toFixed(1)} % i dag</span></div>
+      ${fundSparklineSvg(today)}
+      <div class="muted" style="font-size:.8rem">Markedsverdi: ${rnd(fMkt)} 💰</div>
+      <div class="btnrow">
+        <button class="btn good" data-bank-in="fund">Sett inn</button>
+        <button class="btn" data-bank-out="fund">Ta ut</button>
+      </div>
+      <div class="bankform" id="bf-fund" hidden></div>
+    </div>`;
+
+  bindBankView(host);
+}
+
+function bindBankView(host) {
+  const s = App.state;
+  const today = isoDate(new Date());
+  const openForm = (product, dir) => {
+    const box = host.querySelector(`#bf-${product}`);
+    const maxIn = spendable(s);
+    const maxOut = product === 'savings' ? Math.floor(savingsValue(s, today)) : Math.floor(fundValue(s, today));
+    const cap = dir === 'in' ? maxIn : maxOut;
+    box.hidden = false;
+    box.innerHTML = `
+      <div class="muted" style="font-size:.8rem;margin:6px 0">${dir === 'in' ? 'Maks å sette inn' : 'Maks å ta ut'}: ${cap} 💰</div>
+      ${stepperHtml(`id="bank-amt-${product}"`, '', { min: 0, step: 1 })}
+      <div class="btnrow">
+        <button class="btn good" data-bank-confirm="${product}" data-dir="${dir}">${dir === 'in' ? 'Bekreft innskudd' : 'Bekreft uttak'}</button>
+        <button class="btn" data-bank-cancel="${product}">Avbryt</button>
+      </div>
+      <div class="err" id="bank-err-${product}" style="color:#ff5a52;font-size:.8rem"></div>`;
+    bindSteppers(box);
+    box.querySelector(`[data-bank-cancel="${product}"]`).onclick = () => { box.hidden = true; box.innerHTML = ''; };
+    box.querySelector(`[data-bank-confirm="${product}"]`).onclick = () => {
+      const amt = Math.floor(Number(box.querySelector(`#bank-amt-${product}`).value) || 0);
+      const err = box.querySelector(`#bank-err-${product}`);
+      if (amt <= 0) { err.textContent = 'Skriv et beløp over 0.'; return; }
+      if (amt > cap) { err.textContent = `Maks ${cap} 💰.`; return; }
+      const ctx = { now: nowIso(), id: newId() };
+      const fn = dir === 'in' ? depositBank : withdrawBank;
+      App.state = fn(App.state, { product, amount: amt, by: 'son' }, ctx);
+      save();
+      renderSon();
+    };
+  };
+  host.querySelectorAll('[data-bank-in]').forEach((b) => (b.onclick = () => openForm(b.dataset.bankIn, 'in')));
+  host.querySelectorAll('[data-bank-out]').forEach((b) => (b.onclick = () => openForm(b.dataset.bankOut, 'out')));
 }
 
 // Frist-tekst for en quest sett fra sønnen: forfalt (rødt), i dag, om N dager, dato.
@@ -1818,6 +1945,11 @@ function renderPoengTab(host) {
       <div class="row" style="border:none"><div class="lbl">Kr per Honniscoin</div>
         <input class="inp" id="krRate" type="number" min="0" step="0.5" value="${s.settings.krPerCoin}"></div>
     </div>
+    <div class="sec">🏦 Bank</div>
+    <div class="card" style="padding:2px 12px">
+      <div class="row" style="border:none"><div class="lbl">Sparerente <span class="muted">(% per uke)</span></div>
+        ${stepperHtml('id="savRate"', Math.round(((s.settings.bank && s.settings.bank.savingsWeeklyRate) || 0) * 100), { min: 0, step: 1 })}</div>
+    </div>
     <div class="sec">Varsling</div>
     <label>Epost for shop-varsler
       <input class="inp wide" id="notifyEmail" type="email" style="width:100%"
@@ -1853,6 +1985,14 @@ function renderPoengTab(host) {
   const emailInp = document.getElementById('notifyEmail');
   if (emailInp) emailInp.onchange = () => {
     s.settings.notifyEmail = emailInp.value.trim() || null;
+    s.settings.updatedAt = nowIso();
+    save();
+  };
+  const savRate = document.getElementById('savRate');
+  if (savRate) savRate.onchange = () => {
+    const pct = Math.max(0, Number(savRate.value) || 0);
+    if (!s.settings.bank) s.settings.bank = { savingsWeeklyRate: 0 };
+    s.settings.bank.savingsWeeklyRate = pct / 100;
     s.settings.updatedAt = nowIso();
     save();
   };
@@ -2115,6 +2255,11 @@ function renderLoggTab(host) {
           'import-add': `📥 Importerte lekse ${t}`,
         };
         txt = map[e.action] || `Lekse ${t}`;
+      } else if (e.type === 'bank') {
+        const prod = e.product === 'fund' ? 'fond' : 'sparekonto';
+        txt = e.action === 'deposit'
+          ? `🏦 Satte inn <b>${e.amount} 💰</b> i ${prod}`
+          : `🏦 Tok ut <b>${e.amount} 💰</b> fra ${prod}`;
       } else if (e.type === 'resync') {
         const dl = fmtDayLabel(e.day);
         txt =
