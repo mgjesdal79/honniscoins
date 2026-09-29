@@ -1593,23 +1593,22 @@ export function runTests() {
       eq('union ledger lengde', merged.bank.ledger.length, 2);
     },
     function bank_navForDate() {
-      eq('nav ved epoke = 100', L.navForDate(L.BANK_FUND_EPOCH), 100);
-      eq('nav før epoke = 100', L.navForDate('2020-01-01'), 100);
-      // determinisme: samme dato gir samme verdi
-      eq('determinisme', L.navForDate('2026-06-15'), L.navForDate('2026-06-15'));
-      // rails: hver dags avkastning ligger innenfor ±3 %
-      let prev = L.navForDate('2026-06-01');
+      const S = L.defaultState();
+      eq('nav ved epoke = 100', L.navForDate(S, L.BANK_FUND_EPOCH), 100);
+      eq('nav før epoke = 100', L.navForDate(S, '2020-01-01'), 100);
+      eq('determinisme', L.navForDate(S, '2026-06-15'), L.navForDate(S, '2026-06-15'));
+      let prev = L.navForDate(S, '2026-06-01');
       let okCap = true;
       let d = '2026-06-01';
       for (let i = 0; i < 30; i++) {
         d = L.isoDate(new Date(new Date(d).getTime() + 86400000));
-        const cur = L.navForDate(d);
+        const cur = L.navForDate(S, d);
         const r = cur / prev - 1;
         if (r > 0.0301 || r < -0.0301) okCap = false;
         prev = cur;
       }
       ok('daglig endring innenfor ±3 %', okCap);
-      ok('nav er positiv', L.navForDate('2026-06-15') > 0);
+      ok('nav er positiv', L.navForDate(S, '2026-06-15') > 0);
     },
     function bank_savings() {
       const s = L.defaultState();
@@ -1631,7 +1630,7 @@ export function runTests() {
       s.bank.ledger = [
         { id: 'f1', product: 'fund', type: 'deposit', amount: 100, date: '2024-01-01', at: 't1' },
       ];
-      const nav = L.navForDate('2026-06-15');
+      const nav = L.navForDate(s, '2026-06-15');
       eq('markedsverdi = units*nav', Math.round(L.fundMarketValue(s, '2026-06-15')), Math.round(nav));
       // gulv: vist verdi aldri under innskudd
       ok('gulv >= innskudd', L.fundValue(s, '2026-06-15') >= 100 - 1e-6);
@@ -1769,6 +1768,37 @@ export function runTests() {
       mkWeek(s6, '2026-09-21', 'gull');
       s6.settings.bank.vacations = [{ id: 'v', from: '2026-09-14', to: '2026-09-18' }];
       eq('ferie pauser → streak 2', L.fundStreakWeeks(s6, '2026-09-21'), 2);
+    },
+    function bank_curve_effort_driven() {
+      const mkWeek = (s, monday, medal) => {
+        for (const d of L.weekdaysOf(monday)) s.days[d] = { locked: true, subjects: ['Matte'], marks: { '0': { medal } } };
+        return s;
+      };
+      // Ukesvekst måles man→man (7 dager) for å isolere én ukes bidrag.
+      const weekGain = (s, monday) => L.navForDate(s, L.addDaysIso(monday, 7)) / L.navForDate(s, monday) - 1;
+      const gull = mkWeek(L.defaultState(), '2026-09-07', 'gull');
+      const bronse = mkWeek(L.defaultState(), '2026-09-07', 'bronse');
+      const idle = L.defaultState(); // ingen innsats
+      const ferie = L.defaultState();
+      ferie.settings.bank.vacations = [{ id: 'v', from: '2026-09-07', to: '2026-09-13' }];
+      const gGain = weekGain(gull, '2026-09-07');
+      const bGain = weekGain(bronse, '2026-09-07');
+      const iGain = weekGain(idle, '2026-09-07');
+      const fGain = weekGain(ferie, '2026-09-07');
+      ok('god uke > bronse-uke', gGain > bGain);
+      ok('bronse-uke > slapp uke', bGain > iGain);
+      ok('ferie-uke > slapp uke (nøytral)', fGain > iGain);
+      ok('slapp uke kryper (liten positiv)', iGain > 0 && iGain < 0.02);
+      // streak forsterker: samme gull-uke gir mer vekst når den følger to gode uker
+      const streaked = L.defaultState();
+      mkWeek(streaked, '2026-08-24', 'gull');
+      mkWeek(streaked, '2026-08-31', 'gull');
+      mkWeek(streaked, '2026-09-07', 'gull');
+      ok('streak-uke > enkeltstående gull-uke', weekGain(streaked, '2026-09-07') > gGain + 1e-9);
+      // gulv fortsatt intakt selv med lav drift
+      const s = L.defaultState();
+      s.bank.ledger = [{ id: 'f', product: 'fund', type: 'deposit', amount: 50, date: '2024-01-01', at: 't1' }];
+      ok('fond aldri under innskudd', L.fundValue(s, '2026-09-07') >= 50 - 1e-6);
     },
   ];
 

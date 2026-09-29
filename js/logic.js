@@ -110,7 +110,7 @@ function parseIso(s) {
 }
 
 // `iso` + n kalenderdager (kan krysse helg), som 'YYYY-MM-DD'.
-function addDaysIso(iso, n) {
+export function addDaysIso(iso, n) {
   const d = parseIso(iso);
   d.setDate(d.getDate() + n);
   return isoDate(d);
@@ -124,7 +124,7 @@ export const BANK_FUND_EFFORT_PER_POINT = 0.0016; // ukebidrag per innsats-poeng
 export const BANK_FUND_EFFORT_CAP = 0.04; // maks ukentlig innsats-løft (+4 %)
 export const BANK_FUND_STREAK_STEP = 0.05; // forsterkning per streak-uke
 export const BANK_FUND_STREAK_CAP = 10; // maks streak-uker som teller (×1,5)
-export const BANK_FUND_VOL = 0.02; // amplitude før cap
+export const BANK_FUND_VOL = 0.005; // amplitude før cap (lav, så innsats dominerer over flaks)
 export const BANK_FUND_CAP = 0.03; // ±3 %/dag rails
 const BANK_FUND_SEED = 0x9e3779b9;
 
@@ -141,23 +141,108 @@ function bankNoise(iso) {
   return ((h >>> 0) / 4294967296) * 2 - 1;
 }
 
-const navCache = new Map();
-// NAV(iso): 100 ved epoke, produkt av daglige (railede) avkastninger fram til iso.
-export function navForDate(iso) {
-  const BANK_FUND_DRIFT = 0.0035; // lokal konstant for gammel kurve (erstattes i Task 3)
-  if (!iso || iso <= BANK_FUND_EPOCH) return 100;
-  if (navCache.has(iso)) return navCache.get(iso);
+function fundBaseWeekly(state) {
+  const b = state.settings && state.settings.bank;
+  return b && b.fundBaseWeeklyRate != null ? b.fundBaseWeeklyRate : BANK_FUND_BASE_WEEKLY;
+}
+function fundNeutralWeekly(state) {
+  const b = state.settings && state.settings.bank;
+  return b && b.fundNeutralWeeklyRate != null ? b.fundNeutralWeeklyRate : BANK_FUND_NEUTRAL_WEEKLY;
+}
+// Effektiv innsats-styrke = default per-poeng × forelder-multiplikator (default 1).
+export function fundEffortStrength(state) {
+  const b = state.settings && state.settings.bank;
+  const mult = b && b.fundEffortMult != null ? b.fundEffortMult : 1;
+  return BANK_FUND_EFFORT_PER_POINT * mult;
+}
+
+// Siste dato serien må dekke: max(i dag, siste ledger-dato).
+function fundEndIso(state) {
+  let end = new Date().toISOString().slice(0, 10);
+  const led = (state.bank && state.bank.ledger) || [];
+  for (const e of led) if (e.date > end) end = e.date;
+  return end;
+}
+
+// Billig, men kollisjonssikker signatur: fanger innsats-fordeling, ferie, tunables og sluttdato.
+function navSignature(state, end) {
+  const b = (state.settings && state.settings.bank) || {};
+  const days = state.days || {};
+  let lockedCount = 0;
+  let last = '';
+  for (const d of Object.keys(days)) {
+    if (days[d].locked && weekdayKey(d)) {
+      lockedCount++;
+      if (d > last) last = d;
+    }
+  }
+  const effKey = effortRecords(state)
+    .map((r) => r.date + '.' + r.position + '.' + r.score)
+    .sort()
+    .join(',');
+  return [
+    end,
+    fundBaseWeekly(state),
+    fundNeutralWeekly(state),
+    fundEffortStrength(state),
+    JSON.stringify(b.vacations || []),
+    lockedCount,
+    last,
+    effKey,
+  ].join('|');
+}
+
+let _navMemo = { sig: null, series: null, end: null };
+
+// Bygger hele NAV-serien (Map iso→nav) fra epoke til `end`, memoisert på state-signatur.
+function navSeries(state) {
+  const end = fundEndIso(state);
+  const sig = navSignature(state, end);
+  if (_navMemo.sig === sig) return _navMemo;
+  const base = fundBaseWeekly(state);
+  const neutral = fundNeutralWeekly(state);
+  const strength = fundEffortStrength(state);
+  const metricsByWeek = new Map();
+  const wk = (ws) => {
+    if (!metricsByWeek.has(ws)) {
+      metricsByWeek.set(ws, {
+        effort: weekEffortScore(state, ws),
+        streak: fundStreakWeeks(state, ws),
+      });
+    }
+    return metricsByWeek.get(ws);
+  };
+  const series = new Map();
   let nav = 100;
   let d = BANK_FUND_EPOCH;
-  while (d < iso) {
+  let guard = 0;
+  while (d < end && guard < 6000) {
     d = addDaysIso(d, 1);
-    let r = BANK_FUND_DRIFT + BANK_FUND_VOL * bankNoise(d);
+    let r;
+    const noise = BANK_FUND_VOL * bankNoise(d);
+    if (isVacationDay(state, d)) {
+      r = neutral / 7 + noise;
+    } else {
+      const m = wk(weekStartIso(d));
+      const lift = Math.min(BANK_FUND_EFFORT_CAP, strength * m.effort);
+      const factor = 1 + BANK_FUND_STREAK_STEP * Math.min(m.streak, BANK_FUND_STREAK_CAP);
+      r = base / 7 + (lift * factor) / 7 + noise;
+    }
     if (r > BANK_FUND_CAP) r = BANK_FUND_CAP;
     if (r < -BANK_FUND_CAP) r = -BANK_FUND_CAP;
     nav *= 1 + r;
+    series.set(d, nav);
   }
-  navCache.set(iso, nav);
-  return nav;
+  _navMemo = { sig, series, end };
+  return _navMemo;
+}
+
+// NAV(state, iso): 100 ved/ før epoke; ellers slås opp i den memoiserte serien.
+export function navForDate(state, iso) {
+  if (!iso || iso <= BANK_FUND_EPOCH) return 100;
+  const memo = navSeries(state);
+  if (memo.series.has(iso)) return memo.series.get(iso);
+  return memo.series.get(memo.end) || 100; // iso etter slutt → siste kjente verdi
 }
 
 function daysBetween(a, b) {
@@ -211,7 +296,7 @@ export function foldFund(state) {
   let units = 0;
   let principal = 0;
   for (const e of bankEvents(state, 'fund')) {
-    const nav = navForDate(e.date);
+    const nav = navForDate(state, e.date);
     if (e.type === 'deposit') {
       units += e.amount / nav;
       principal += e.amount;
@@ -227,13 +312,13 @@ export function foldFund(state) {
 }
 
 export function fundMarketValue(state, today) {
-  return foldFund(state).units * navForDate(today);
+  return foldFund(state).units * navForDate(state, today);
 }
 
 // Vist verdi = max(marked, innskudd) → papirtap av gevinst, aldri under innskudd.
 export function fundValue(state, today) {
   const { units, principal } = foldFund(state);
-  return Math.max(units * navForDate(today), principal);
+  return Math.max(units * navForDate(state, today), principal);
 }
 
 // Netto coins parkert i banken (dato-uavhengig): Σ innskudd − Σ uttak.
