@@ -21,7 +21,7 @@ import {
   visiblePurchases, shopSpentTotal, reservedTotal, availableBalance,
   depositBank, withdrawBank, savingsValue, savingsPrincipal, fundValue, fundMarketValue,
   netInBank, spendable, bankValue, totalWealth, navForDate, fundWeekStatus,
-  bankTransactions, bankHistoryRange,
+  bankTransactions, bankHistoryRange, addVacation, removeVacation,
 } from './logic.js';
 
 const el = document.getElementById('app');
@@ -2068,7 +2068,14 @@ function renderPoengTab(host) {
     <div class="card" style="padding:2px 12px">
       <div class="row" style="border:none"><div class="lbl">Sparerente <span class="muted">(% per uke)</span></div>
         ${stepperHtml('id="savRate"', Math.round(((s.settings.bank && s.settings.bank.savingsWeeklyRate) || 0) * 100), { min: 0, step: 1 })}</div>
+      <div class="row" style="border:none"><div class="lbl">Fond grunn-drift <span class="muted">(% per uke)</span></div>
+        <input class="inp" id="fundBase" type="number" min="0" step="0.1" style="width:90px"
+          value="${(((s.settings.bank && s.settings.bank.fundBaseWeeklyRate) ?? 0.006) * 100).toFixed(1)}"></div>
+      <div class="row" style="border:none"><div class="lbl">Innsats-styrke <span class="muted">(× normal)</span></div>
+        ${stepperHtml('id="fundMult"', (s.settings.bank && s.settings.bank.fundEffortMult) ?? 1, { min: 0, step: 0.5 })}</div>
     </div>
+    <div class="sec">🌴 Ferieperioder <span class="muted">(fond → nøytral, streak pauser)</span></div>
+    <div class="card" id="vacBox" style="padding:8px 12px"></div>
     <div class="sec">Varsling</div>
     <label>Epost for shop-varsler
       <input class="inp wide" id="notifyEmail" type="email" style="width:100%"
@@ -2115,8 +2122,57 @@ function renderPoengTab(host) {
     s.settings.updatedAt = nowIso();
     save();
   };
+  const fundBase = document.getElementById('fundBase');
+  if (fundBase) fundBase.onchange = () => {
+    if (!s.settings.bank) s.settings.bank = {};
+    s.settings.bank.fundBaseWeeklyRate = Math.max(0, Number(fundBase.value) || 0) / 100;
+    s.settings.updatedAt = nowIso();
+    save();
+  };
+  const fundMult = document.getElementById('fundMult');
+  if (fundMult) fundMult.onchange = () => {
+    if (!s.settings.bank) s.settings.bank = {};
+    s.settings.bank.fundEffortMult = Math.max(0, Number(fundMult.value) || 0);
+    s.settings.updatedAt = nowIso();
+    save();
+  };
+  renderVacations(s);
   renderPayoutSection(document.getElementById('payoutHost'));
   bindSteppers(host);
+}
+
+function renderVacations(s) {
+  const box = document.getElementById('vacBox');
+  if (!box) return;
+  const vs = (s.settings.bank && s.settings.bank.vacations) || [];
+  const rows = vs
+    .slice()
+    .sort((a, b) => a.from.localeCompare(b.from))
+    .map((v) => `<div class="vacrow"><span>${v.from} – ${v.to}</span>
+      <button class="btn tiny" data-vacdel="${v.id}">Slett</button></div>`)
+    .join('');
+  box.innerHTML = `${rows || '<div class="muted" style="font-size:.82rem">Ingen ferieperioder.</div>'}
+    <div class="vacrow vacadd">
+      <input class="inp" id="vacFrom" type="date">
+      <input class="inp" id="vacTo" type="date">
+      <button class="btn good tiny" id="vacAdd">＋ Legg til ferie</button>
+    </div>`;
+  box.querySelectorAll('[data-vacdel]').forEach((b) => {
+    b.onclick = () => {
+      App.state = removeVacation(App.state, { id: b.dataset.vacdel }, { now: nowIso(), id: newId() });
+      save();
+      renderVacations(App.state);
+    };
+  });
+  const addBtn = document.getElementById('vacAdd');
+  if (addBtn) addBtn.onclick = () => {
+    const from = document.getElementById('vacFrom').value;
+    const to = document.getElementById('vacTo').value;
+    if (!from || !to) return;
+    App.state = addVacation(App.state, { from, to }, { now: nowIso(), id: newId() });
+    save();
+    renderVacations(App.state);
+  };
 }
 
 // Egen forelder-fane: styring av daglige rutine-maler (flyttet ut av Settings).
