@@ -1730,6 +1730,46 @@ export function runTests() {
       ok('dag etter er ikke ferie', !L.isVacationDay(s, '2026-10-10'));
       ok('tom ferieliste = aldri ferie', !L.isVacationDay(L.defaultState(), '2026-10-07'));
     },
+    function bank_week_effort_and_streak() {
+      // Hjelper: lås en uke (man–fre) med gitt medalje på én fag-time per dag.
+      const mkWeek = (s, monday, medal) => {
+        for (const d of L.weekdaysOf(monday)) {
+          s.days[d] = { locked: true, subjects: ['Matte'], marks: { '0': { medal } } };
+        }
+        return s;
+      };
+      // Én gull-uke: 5 dager × score 3 = 15
+      let s = L.defaultState();
+      mkWeek(s, '2026-09-07', 'gull'); // uke som starter man 07.09.2026
+      eq('gull-uke innsats = 15', L.weekEffortScore(s, '2026-09-07'), 15);
+      // sølv-uke lavere enn gull-uke
+      let s2 = L.defaultState();
+      mkWeek(s2, '2026-09-07', 'solv');
+      ok('sølv < gull', L.weekEffortScore(s2, '2026-09-07') < L.weekEffortScore(s, '2026-09-07'));
+      // feriedager teller ikke i innsats
+      let s3 = L.defaultState();
+      mkWeek(s3, '2026-09-07', 'gull');
+      s3.settings.bank.vacations = [{ id: 'v', from: '2026-09-07', to: '2026-09-11' }];
+      eq('hel ferieuke = 0 innsats', L.weekEffortScore(s3, '2026-09-07'), 0);
+      // streak: tre gode uker på rad → streak 3 i siste uke
+      let s4 = L.defaultState();
+      mkWeek(s4, '2026-09-07', 'gull');
+      mkWeek(s4, '2026-09-14', 'gull');
+      mkWeek(s4, '2026-09-21', 'gull');
+      eq('streak 3 uker', L.fundStreakWeeks(s4, '2026-09-21'), 3);
+      // en tom (låst, kun fravær) uke i midten resetter streaken
+      let s5 = L.defaultState();
+      mkWeek(s5, '2026-09-07', 'gull');
+      for (const d of L.weekdaysOf('2026-09-14')) s5.days[d] = { locked: true, subjects: ['Matte'], marks: { '0': { medal: '0' } } };
+      mkWeek(s5, '2026-09-21', 'gull');
+      eq('reset → streak 1 i siste uke', L.fundStreakWeeks(s5, '2026-09-21'), 1);
+      // ferieuke i midten PAUSER (bryter ikke) streaken
+      let s6 = L.defaultState();
+      mkWeek(s6, '2026-09-07', 'gull');
+      mkWeek(s6, '2026-09-21', 'gull');
+      s6.settings.bank.vacations = [{ id: 'v', from: '2026-09-14', to: '2026-09-18' }];
+      eq('ferie pauser → streak 2', L.fundStreakWeeks(s6, '2026-09-21'), 2);
+    },
   ];
 
   for (const t of tests) {

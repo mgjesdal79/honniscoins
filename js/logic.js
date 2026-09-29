@@ -1777,6 +1777,46 @@ export function effortRecords(state) {
   return out;
 }
 
+// Sum av innsats-score (🥇3/🥈2/🥉1) på låste, ikke-syke, IKKE-ferie dager i uka som `ws` ligger i.
+export function weekEffortScore(state, ws) {
+  const start = weekStartIso(ws);
+  let sum = 0;
+  for (const r of effortRecords(state)) {
+    if (weekStartIso(r.date) !== start) continue;
+    if (isVacationDay(state, r.date)) continue;
+    sum += r.score;
+  }
+  return sum;
+}
+
+// Antall sammenhengende gode uker t.o.m. uka `ws` (inklusive). Regel per uke, kronologisk fra
+// første uke med låst skoledag: hel-ferieuke PAUSER (teller ikke, resetter ikke); uke med
+// innsats > 0 øker; annen uke (låst men 0 innsats, eller gap) resetter til 0.
+export function fundStreakWeeks(state, ws) {
+  const target = weekStartIso(ws);
+  const locked = Object.keys(state.days || {})
+    .filter((d) => weekdayKey(d) && state.days[d].locked)
+    .sort();
+  if (!locked.length) return 0;
+  let w = weekStartIso(locked[0]);
+  let run = 0;
+  let guard = 0;
+  while (w <= target && guard < 1000) {
+    const vacWeek = weekdaysOf(w).every((d) => isVacationDay(state, d));
+    if (vacWeek) {
+      // pause: la run stå
+    } else if (weekEffortScore(state, w) > 0) {
+      run += 1;
+    } else {
+      run = 0;
+    }
+    if (w === target) return run;
+    w = addDaysIso(w, 7);
+    guard++;
+  }
+  return run;
+}
+
 // Per LÅST dag: antall timer fordelt på kategori – for 100 %-stablet «dagsfordeling».
 // Kategorier: gull/solv/bronse (medaljer), valid (gyldig fravær = uvurdert time på syk dag),
 // invalid (ugyldig fravær '0'), tom (uvurdert time på ikke-syk dag = grå rest).
