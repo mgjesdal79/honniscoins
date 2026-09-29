@@ -573,7 +573,7 @@ function fundSparklineSvg(today) {
   const iso = [];
   let t = new Date(today + 'T00:00:00');
   for (let i = 0; i < n; i++) { iso.unshift(isoDate(t)); t = new Date(t.getTime() - 86400000); }
-  const vals = iso.map((d) => navForDate(d));
+  const vals = iso.map((d) => navForDate(App.state, d));
   const min = Math.min(...vals), max = Math.max(...vals);
   const span = max - min || 1;
   const W = 240, H = 48, pad = 3;
@@ -600,8 +600,8 @@ function renderBankView(host) {
   const savInt = savVal - savPrin;
   const fVal = fundValue(s, today);
   const fMkt = fundMarketValue(s, today);
-  const navToday = navForDate(today);
-  const navPrev = navForDate(isoDate(new Date(Date.now() - 86400000)));
+  const navToday = navForDate(s, today);
+  const navPrev = navForDate(s, isoDate(new Date(Date.now() - 86400000)));
   const dayPct = navPrev ? ((navToday / navPrev - 1) * 100) : 0;
   const arrow = dayPct >= 0 ? '▲' : '▼';
   const rnd = (x) => Math.round(x);
