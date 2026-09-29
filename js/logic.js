@@ -118,7 +118,12 @@ function addDaysIso(iso, n) {
 
 // --- Bank: fondskurve (deterministisk simulert indeks) -------------------
 export const BANK_FUND_EPOCH = '2024-01-01';
-export const BANK_FUND_DRIFT = 0.0035; // ~+0,35 %/dag ≈ +2,5 %/uke forventet
+export const BANK_FUND_BASE_WEEKLY = 0.006; // grunn-drift ~+0,6 %/uke (passiv kryp)
+export const BANK_FUND_NEUTRAL_WEEKLY = 0.02; // ferie/nøytral ~+2 %/uke (vanlig børsuke)
+export const BANK_FUND_EFFORT_PER_POINT = 0.0016; // ukebidrag per innsats-poeng
+export const BANK_FUND_EFFORT_CAP = 0.04; // maks ukentlig innsats-løft (+4 %)
+export const BANK_FUND_STREAK_STEP = 0.05; // forsterkning per streak-uke
+export const BANK_FUND_STREAK_CAP = 10; // maks streak-uker som teller (×1,5)
 export const BANK_FUND_VOL = 0.02; // amplitude før cap
 export const BANK_FUND_CAP = 0.03; // ±3 %/dag rails
 const BANK_FUND_SEED = 0x9e3779b9;
@@ -139,6 +144,7 @@ function bankNoise(iso) {
 const navCache = new Map();
 // NAV(iso): 100 ved epoke, produkt av daglige (railede) avkastninger fram til iso.
 export function navForDate(iso) {
+  const BANK_FUND_DRIFT = 0.0035; // lokal konstant for gammel kurve (erstattes i Task 3)
   if (!iso || iso <= BANK_FUND_EPOCH) return 100;
   if (navCache.has(iso)) return navCache.get(iso);
   let nav = 100;
@@ -276,6 +282,12 @@ export function withdrawBank(state, { product, amount, by = 'son' }, ctx) {
   s.bank.ledger.push({ id: ctx.id, product, type: 'withdraw', amount: amt, date: today, at: ctx.now, by });
   s.log.push({ id: ctx.id, at: ctx.now, actor: by, type: 'bank', action: 'withdraw', product, amount: amt });
   return s;
+}
+
+// En dato er "ferie" hvis den ligger i minst én forelder-markert periode (inklusive ender).
+export function isVacationDay(state, iso) {
+  const vs = (state.settings && state.settings.bank && state.settings.bank.vacations) || [];
+  return vs.some((v) => v && v.from && v.to && iso >= v.from && iso <= v.to);
 }
 
 // Alle bank-transaksjoner, nyeste først (for visning).
@@ -826,6 +838,11 @@ export function migrate(state, todayIso) {
   if (!s.bank || !Array.isArray(s.bank.ledger)) s.bank = { ledger: [] };
   if (!s.settings.bank) s.settings.bank = { savingsWeeklyRate: 0.02 };
   else if (s.settings.bank.savingsWeeklyRate == null) s.settings.bank.savingsWeeklyRate = 0.02;
+  const bk = s.settings.bank;
+  if (bk.fundBaseWeeklyRate == null) bk.fundBaseWeeklyRate = BANK_FUND_BASE_WEEKLY;
+  if (bk.fundNeutralWeeklyRate == null) bk.fundNeutralWeeklyRate = BANK_FUND_NEUTRAL_WEEKLY;
+  if (bk.fundEffortMult == null) bk.fundEffortMult = 1;
+  if (!Array.isArray(bk.vacations)) bk.vacations = [];
   const gen = generateDailyRoutines(expireStaleRoutineInstances(s, todayIso), todayIso);
   const out = syncOpenRoutineInstances(gen, todayIso);
   out.log = pruneLog(out.log);

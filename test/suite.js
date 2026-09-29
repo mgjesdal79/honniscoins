@@ -1712,6 +1712,24 @@ export function runTests() {
       const r4 = L.bankHistoryRange(s, null, '2026-09-03');
       eq('null from = fra første hendelse', r4[r4.length - 1].date, '2026-09-01');
     },
+    function bank_vacation_defaults_and_helper() {
+      // migrate fyller nye fond-defaults uten å røre savingsWeeklyRate
+      const m = L.migrate({ settings: {}, days: {}, log: [] }, '2026-09-29');
+      eq('base default', m.settings.bank.fundBaseWeeklyRate, 0.006);
+      eq('neutral default', m.settings.bank.fundNeutralWeeklyRate, 0.02);
+      eq('effort mult default', m.settings.bank.fundEffortMult, 1);
+      eq('vacations default', m.settings.bank.vacations, []);
+      eq('savingsWeeklyRate urørt', m.settings.bank.savingsWeeklyRate, 0.02);
+      // isVacationDay: inklusive begge ender
+      const s = L.defaultState();
+      s.settings.bank.vacations = [{ id: 'v1', from: '2026-10-05', to: '2026-10-09' }];
+      ok('start-dag er ferie', L.isVacationDay(s, '2026-10-05'));
+      ok('slutt-dag er ferie', L.isVacationDay(s, '2026-10-09'));
+      ok('dag i midten er ferie', L.isVacationDay(s, '2026-10-07'));
+      ok('dag før er ikke ferie', !L.isVacationDay(s, '2026-10-04'));
+      ok('dag etter er ikke ferie', !L.isVacationDay(s, '2026-10-10'));
+      ok('tom ferieliste = aldri ferie', !L.isVacationDay(L.defaultState(), '2026-10-07'));
+    },
   ];
 
   for (const t of tests) {
