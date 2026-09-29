@@ -20,7 +20,7 @@ import {
   commitShopPurchase, hidePurchase, shopItemsByStatus, activeShopItems, activePurchases,
   visiblePurchases, shopSpentTotal, reservedTotal, availableBalance,
   depositBank, withdrawBank, savingsValue, savingsPrincipal, fundValue, fundMarketValue,
-  netInBank, spendable, bankValue, totalWealth, navForDate,
+  netInBank, spendable, bankValue, totalWealth, navForDate, fundWeekStatus,
   bankTransactions, bankHistoryRange,
 } from './logic.js';
 
@@ -606,6 +606,15 @@ function renderBankView(host) {
   const arrow = dayPct >= 0 ? '▲' : '▼';
   const rnd = (x) => Math.round(x);
 
+  const ws = fundWeekStatus(s, today);
+  const pct = ws.weeklyPct.toFixed(1).replace('.', ',');
+  const streakBit = ws.streakWeeks > 1 ? ` 🔥 streak ×${ws.streakWeeks}` : '';
+  const windText =
+    ws.mode === 'vacation' ? '🌴 Ferie — vanlig børsuke'
+    : ws.mode === 'active' ? `📈 +${pct} % medvind denne uka — sterk innsats!${streakBit}`
+    : '🌱 Rolig uke — fondet kryper';
+  const windClass = ws.mode === 'active' ? 'wind up' : ws.mode === 'vacation' ? 'wind vac' : 'wind';
+
   host.innerHTML = `
     <div class="balance">
       <div class="coins">${rnd(total)} <small>Formue</small></div>
@@ -628,6 +637,7 @@ function renderBankView(host) {
       <div class="bankval">${rnd(fVal)} 💰
         <span class="gain ${dayPct >= 0 ? 'up' : 'down'}">${arrow} ${Math.abs(dayPct).toFixed(1)} % i dag</span></div>
       ${fundSparklineSvg(today)}
+      <div class="${windClass}">${windText}</div>
       <div class="muted" style="font-size:.8rem">Markedsverdi: ${rnd(fMkt)} 💰</div>
       <div class="btnrow">
         <button class="btn good" data-bank-in="fund">Sett inn</button>
