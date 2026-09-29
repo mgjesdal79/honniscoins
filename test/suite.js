@@ -1593,23 +1593,22 @@ export function runTests() {
       eq('union ledger lengde', merged.bank.ledger.length, 2);
     },
     function bank_navForDate() {
-      eq('nav ved epoke = 100', L.navForDate(L.BANK_FUND_EPOCH), 100);
-      eq('nav før epoke = 100', L.navForDate('2020-01-01'), 100);
-      // determinisme: samme dato gir samme verdi
-      eq('determinisme', L.navForDate('2026-06-15'), L.navForDate('2026-06-15'));
-      // rails: hver dags avkastning ligger innenfor ±3 %
-      let prev = L.navForDate('2026-06-01');
+      const S = L.defaultState();
+      eq('nav ved epoke = 100', L.navForDate(S, L.BANK_FUND_EPOCH), 100);
+      eq('nav før epoke = 100', L.navForDate(S, '2020-01-01'), 100);
+      eq('determinisme', L.navForDate(S, '2026-06-15'), L.navForDate(S, '2026-06-15'));
+      let prev = L.navForDate(S, '2026-06-01');
       let okCap = true;
       let d = '2026-06-01';
       for (let i = 0; i < 30; i++) {
         d = L.isoDate(new Date(new Date(d).getTime() + 86400000));
-        const cur = L.navForDate(d);
+        const cur = L.navForDate(S, d);
         const r = cur / prev - 1;
         if (r > 0.0301 || r < -0.0301) okCap = false;
         prev = cur;
       }
       ok('daglig endring innenfor ±3 %', okCap);
-      ok('nav er positiv', L.navForDate('2026-06-15') > 0);
+      ok('nav er positiv', L.navForDate(S, '2026-06-15') > 0);
     },
     function bank_savings() {
       const s = L.defaultState();
@@ -1631,7 +1630,7 @@ export function runTests() {
       s.bank.ledger = [
         { id: 'f1', product: 'fund', type: 'deposit', amount: 100, date: '2024-01-01', at: 't1' },
       ];
-      const nav = L.navForDate('2026-06-15');
+      const nav = L.navForDate(s, '2026-06-15');
       eq('markedsverdi = units*nav', Math.round(L.fundMarketValue(s, '2026-06-15')), Math.round(nav));
       // gulv: vist verdi aldri under innskudd
       ok('gulv >= innskudd', L.fundValue(s, '2026-06-15') >= 100 - 1e-6);
@@ -1711,6 +1710,136 @@ export function runTests() {
       // from=null → fra første hendelse
       const r4 = L.bankHistoryRange(s, null, '2026-09-03');
       eq('null from = fra første hendelse', r4[r4.length - 1].date, '2026-09-01');
+    },
+    function bank_vacation_defaults_and_helper() {
+      // migrate fyller nye fond-defaults uten å røre savingsWeeklyRate
+      const m = L.migrate({ settings: {}, days: {}, log: [] }, '2026-09-29');
+      eq('base default', m.settings.bank.fundBaseWeeklyRate, 0.006);
+      eq('neutral default', m.settings.bank.fundNeutralWeeklyRate, 0.02);
+      eq('effort mult default', m.settings.bank.fundEffortMult, 1);
+      eq('vacations default', m.settings.bank.vacations, []);
+      eq('savingsWeeklyRate urørt', m.settings.bank.savingsWeeklyRate, 0.02);
+      // isVacationDay: inklusive begge ender
+      const s = L.defaultState();
+      s.settings.bank.vacations = [{ id: 'v1', from: '2026-10-05', to: '2026-10-09' }];
+      ok('start-dag er ferie', L.isVacationDay(s, '2026-10-05'));
+      ok('slutt-dag er ferie', L.isVacationDay(s, '2026-10-09'));
+      ok('dag i midten er ferie', L.isVacationDay(s, '2026-10-07'));
+      ok('dag før er ikke ferie', !L.isVacationDay(s, '2026-10-04'));
+      ok('dag etter er ikke ferie', !L.isVacationDay(s, '2026-10-10'));
+      ok('tom ferieliste = aldri ferie', !L.isVacationDay(L.defaultState(), '2026-10-07'));
+    },
+    function bank_week_effort_and_streak() {
+      // Hjelper: lås en uke (man–fre) med gitt medalje på én fag-time per dag.
+      const mkWeek = (s, monday, medal) => {
+        for (const d of L.weekdaysOf(monday)) {
+          s.days[d] = { locked: true, subjects: ['Matte'], marks: { '0': { medal } } };
+        }
+        return s;
+      };
+      // Én gull-uke: 5 dager × score 3 = 15
+      let s = L.defaultState();
+      mkWeek(s, '2026-09-07', 'gull'); // uke som starter man 07.09.2026
+      eq('gull-uke innsats = 15', L.weekEffortScore(s, '2026-09-07'), 15);
+      // sølv-uke lavere enn gull-uke
+      let s2 = L.defaultState();
+      mkWeek(s2, '2026-09-07', 'solv');
+      ok('sølv < gull', L.weekEffortScore(s2, '2026-09-07') < L.weekEffortScore(s, '2026-09-07'));
+      // feriedager teller ikke i innsats
+      let s3 = L.defaultState();
+      mkWeek(s3, '2026-09-07', 'gull');
+      s3.settings.bank.vacations = [{ id: 'v', from: '2026-09-07', to: '2026-09-11' }];
+      eq('hel ferieuke = 0 innsats', L.weekEffortScore(s3, '2026-09-07'), 0);
+      // streak: tre gode uker på rad → streak 3 i siste uke
+      let s4 = L.defaultState();
+      mkWeek(s4, '2026-09-07', 'gull');
+      mkWeek(s4, '2026-09-14', 'gull');
+      mkWeek(s4, '2026-09-21', 'gull');
+      eq('streak 3 uker', L.fundStreakWeeks(s4, '2026-09-21'), 3);
+      // en tom (låst, kun fravær) uke i midten resetter streaken
+      let s5 = L.defaultState();
+      mkWeek(s5, '2026-09-07', 'gull');
+      for (const d of L.weekdaysOf('2026-09-14')) s5.days[d] = { locked: true, subjects: ['Matte'], marks: { '0': { medal: '0' } } };
+      mkWeek(s5, '2026-09-21', 'gull');
+      eq('reset → streak 1 i siste uke', L.fundStreakWeeks(s5, '2026-09-21'), 1);
+      // ferieuke i midten PAUSER (bryter ikke) streaken
+      let s6 = L.defaultState();
+      mkWeek(s6, '2026-09-07', 'gull');
+      mkWeek(s6, '2026-09-21', 'gull');
+      s6.settings.bank.vacations = [{ id: 'v', from: '2026-09-14', to: '2026-09-18' }];
+      eq('ferie pauser → streak 2', L.fundStreakWeeks(s6, '2026-09-21'), 2);
+    },
+    function bank_curve_effort_driven() {
+      const mkWeek = (s, monday, medal) => {
+        for (const d of L.weekdaysOf(monday)) s.days[d] = { locked: true, subjects: ['Matte'], marks: { '0': { medal } } };
+        return s;
+      };
+      // Ukesvekst måles man→man (7 dager) for å isolere én ukes bidrag.
+      const weekGain = (s, monday) => L.navForDate(s, L.addDaysIso(monday, 7)) / L.navForDate(s, monday) - 1;
+      const gull = mkWeek(L.defaultState(), '2026-09-07', 'gull');
+      const bronse = mkWeek(L.defaultState(), '2026-09-07', 'bronse');
+      const idle = L.defaultState(); // ingen innsats
+      const ferie = L.defaultState();
+      ferie.settings.bank.vacations = [{ id: 'v', from: '2026-09-07', to: '2026-09-13' }];
+      const gGain = weekGain(gull, '2026-09-07');
+      const bGain = weekGain(bronse, '2026-09-07');
+      const iGain = weekGain(idle, '2026-09-07');
+      const fGain = weekGain(ferie, '2026-09-07');
+      ok('god uke > bronse-uke', gGain > bGain);
+      ok('bronse-uke > slapp uke', bGain > iGain);
+      ok('ferie-uke > slapp uke (nøytral)', fGain > iGain);
+      ok('slapp uke kryper (liten positiv)', iGain > 0 && iGain < 0.02);
+      // streak forsterker: samme gull-uke gir mer vekst når den følger to gode uker
+      const streaked = L.defaultState();
+      mkWeek(streaked, '2026-08-24', 'gull');
+      mkWeek(streaked, '2026-08-31', 'gull');
+      mkWeek(streaked, '2026-09-07', 'gull');
+      ok('streak-uke > enkeltstående gull-uke', weekGain(streaked, '2026-09-07') > gGain + 1e-9);
+      // gulv fortsatt intakt selv med lav drift
+      const s = L.defaultState();
+      s.bank.ledger = [{ id: 'f', product: 'fund', type: 'deposit', amount: 50, date: '2024-01-01', at: 't1' }];
+      ok('fond aldri under innskudd', L.fundValue(s, '2026-09-07') >= 50 - 1e-6);
+    },
+    function bank_week_status() {
+      const mkWeek = (s, monday, medal) => {
+        for (const d of L.weekdaysOf(monday)) s.days[d] = { locked: true, subjects: ['Matte'], marks: { '0': { medal } } };
+        return s;
+      };
+      // slapp uke → mode 'idle'
+      const idle = L.fundWeekStatus(L.defaultState(), '2026-09-09');
+      eq('idle mode', idle.mode, 'idle');
+      ok('idle positiv men liten', idle.weeklyPct > 0 && idle.weeklyPct < 2);
+      // god uke → mode 'active', høyere prosent
+      const g = mkWeek(L.defaultState(), '2026-09-07', 'gull');
+      const act = L.fundWeekStatus(g, '2026-09-09');
+      eq('active mode', act.mode, 'active');
+      ok('active > idle', act.weeklyPct > idle.weeklyPct);
+      // hel ferieuke → mode 'vacation', nøytral prosent (~2)
+      const f = L.defaultState();
+      f.settings.bank.vacations = [{ id: 'v', from: '2026-09-07', to: '2026-09-11' }];
+      const vac = L.fundWeekStatus(f, '2026-09-09');
+      eq('vacation mode', vac.mode, 'vacation');
+      ok('vacation ~ nøytral 2 %', Math.abs(vac.weeklyPct - 2) < 0.001);
+    },
+    function bank_vacation_mutations() {
+      const ctx1 = { now: '2026-09-29T09:00:00.000Z', id: 'v1' };
+      const ctx2 = { now: '2026-09-29T09:01:00.000Z', id: 'v2' };
+      let s = L.defaultState();
+      s = L.addVacation(s, { from: '2026-10-05', to: '2026-10-09' }, ctx1);
+      eq('én ferieperiode', s.settings.bank.vacations.length, 1);
+      eq('id satt', s.settings.bank.vacations[0].id, 'v1');
+      eq('updatedAt bumpet', s.settings.updatedAt, ctx1.now);
+      eq('logg-gren bank', s.log[s.log.length - 1].type, 'bank');
+      // omvendt rekkefølge normaliseres (from <= to)
+      let s2 = L.addVacation(L.defaultState(), { from: '2026-12-31', to: '2026-12-20' }, ctx1);
+      eq('normalisert from', s2.settings.bank.vacations[0].from, '2026-12-20');
+      eq('normalisert to', s2.settings.bank.vacations[0].to, '2026-12-31');
+      // tom fra/til = no-op
+      const s3 = L.addVacation(L.defaultState(), { from: '', to: '2026-10-09' }, ctx1);
+      eq('tom from = ingen periode', s3.settings.bank.vacations.length, 0);
+      // fjerning
+      const removed = L.removeVacation(s, { id: 'v1' }, ctx2);
+      eq('ferie fjernet', removed.settings.bank.vacations.length, 0);
     },
   ];
 

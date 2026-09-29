@@ -110,7 +110,7 @@ function parseIso(s) {
 }
 
 // `iso` + n kalenderdager (kan krysse helg), som 'YYYY-MM-DD'.
-function addDaysIso(iso, n) {
+export function addDaysIso(iso, n) {
   const d = parseIso(iso);
   d.setDate(d.getDate() + n);
   return isoDate(d);
@@ -118,8 +118,13 @@ function addDaysIso(iso, n) {
 
 // --- Bank: fondskurve (deterministisk simulert indeks) -------------------
 export const BANK_FUND_EPOCH = '2024-01-01';
-export const BANK_FUND_DRIFT = 0.0035; // ~+0,35 %/dag ≈ +2,5 %/uke forventet
-export const BANK_FUND_VOL = 0.02; // amplitude før cap
+export const BANK_FUND_BASE_WEEKLY = 0.006; // grunn-drift ~+0,6 %/uke (passiv kryp)
+export const BANK_FUND_NEUTRAL_WEEKLY = 0.02; // ferie/nøytral ~+2 %/uke (vanlig børsuke)
+export const BANK_FUND_EFFORT_PER_POINT = 0.0016; // ukebidrag per innsats-poeng
+export const BANK_FUND_EFFORT_CAP = 0.04; // maks ukentlig innsats-løft (+4 %)
+export const BANK_FUND_STREAK_STEP = 0.05; // forsterkning per streak-uke
+export const BANK_FUND_STREAK_CAP = 10; // maks streak-uker som teller (×1,5)
+export const BANK_FUND_VOL = 0.005; // amplitude før cap (lav, så innsats dominerer over flaks)
 export const BANK_FUND_CAP = 0.03; // ±3 %/dag rails
 const BANK_FUND_SEED = 0x9e3779b9;
 
@@ -136,22 +141,108 @@ function bankNoise(iso) {
   return ((h >>> 0) / 4294967296) * 2 - 1;
 }
 
-const navCache = new Map();
-// NAV(iso): 100 ved epoke, produkt av daglige (railede) avkastninger fram til iso.
-export function navForDate(iso) {
-  if (!iso || iso <= BANK_FUND_EPOCH) return 100;
-  if (navCache.has(iso)) return navCache.get(iso);
+function fundBaseWeekly(state) {
+  const b = state.settings && state.settings.bank;
+  return b && b.fundBaseWeeklyRate != null ? b.fundBaseWeeklyRate : BANK_FUND_BASE_WEEKLY;
+}
+function fundNeutralWeekly(state) {
+  const b = state.settings && state.settings.bank;
+  return b && b.fundNeutralWeeklyRate != null ? b.fundNeutralWeeklyRate : BANK_FUND_NEUTRAL_WEEKLY;
+}
+// Effektiv innsats-styrke = default per-poeng × forelder-multiplikator (default 1).
+export function fundEffortStrength(state) {
+  const b = state.settings && state.settings.bank;
+  const mult = b && b.fundEffortMult != null ? b.fundEffortMult : 1;
+  return BANK_FUND_EFFORT_PER_POINT * mult;
+}
+
+// Siste dato serien må dekke: max(i dag, siste ledger-dato).
+function fundEndIso(state) {
+  let end = new Date().toISOString().slice(0, 10);
+  const led = (state.bank && state.bank.ledger) || [];
+  for (const e of led) if (e.date > end) end = e.date;
+  return end;
+}
+
+// Billig, men kollisjonssikker signatur: fanger innsats-fordeling, ferie, tunables og sluttdato.
+function navSignature(state, end) {
+  const b = (state.settings && state.settings.bank) || {};
+  const days = state.days || {};
+  let lockedCount = 0;
+  let last = '';
+  for (const d of Object.keys(days)) {
+    if (days[d].locked && weekdayKey(d)) {
+      lockedCount++;
+      if (d > last) last = d;
+    }
+  }
+  const effKey = effortRecords(state)
+    .map((r) => r.date + '.' + r.position + '.' + r.score)
+    .sort()
+    .join(',');
+  return [
+    end,
+    fundBaseWeekly(state),
+    fundNeutralWeekly(state),
+    fundEffortStrength(state),
+    JSON.stringify(b.vacations || []),
+    lockedCount,
+    last,
+    effKey,
+  ].join('|');
+}
+
+let _navMemo = { sig: null, series: null, end: null };
+
+// Bygger hele NAV-serien (Map iso→nav) fra epoke til `end`, memoisert på state-signatur.
+function navSeries(state) {
+  const end = fundEndIso(state);
+  const sig = navSignature(state, end);
+  if (_navMemo.sig === sig) return _navMemo;
+  const base = fundBaseWeekly(state);
+  const neutral = fundNeutralWeekly(state);
+  const strength = fundEffortStrength(state);
+  const metricsByWeek = new Map();
+  const wk = (ws) => {
+    if (!metricsByWeek.has(ws)) {
+      metricsByWeek.set(ws, {
+        effort: weekEffortScore(state, ws),
+        streak: fundStreakWeeks(state, ws),
+      });
+    }
+    return metricsByWeek.get(ws);
+  };
+  const series = new Map();
   let nav = 100;
   let d = BANK_FUND_EPOCH;
-  while (d < iso) {
+  let guard = 0;
+  while (d < end && guard < 6000) {
     d = addDaysIso(d, 1);
-    let r = BANK_FUND_DRIFT + BANK_FUND_VOL * bankNoise(d);
+    let r;
+    const noise = BANK_FUND_VOL * bankNoise(d);
+    if (isVacationDay(state, d)) {
+      r = neutral / 7 + noise;
+    } else {
+      const m = wk(weekStartIso(d));
+      const lift = Math.min(BANK_FUND_EFFORT_CAP, strength * m.effort);
+      const factor = 1 + BANK_FUND_STREAK_STEP * Math.min(m.streak, BANK_FUND_STREAK_CAP);
+      r = base / 7 + (lift * factor) / 7 + noise;
+    }
     if (r > BANK_FUND_CAP) r = BANK_FUND_CAP;
     if (r < -BANK_FUND_CAP) r = -BANK_FUND_CAP;
     nav *= 1 + r;
+    series.set(d, nav);
   }
-  navCache.set(iso, nav);
-  return nav;
+  _navMemo = { sig, series, end };
+  return _navMemo;
+}
+
+// NAV(state, iso): 100 ved/ før epoke; ellers slås opp i den memoiserte serien.
+export function navForDate(state, iso) {
+  if (!iso || iso <= BANK_FUND_EPOCH) return 100;
+  const memo = navSeries(state);
+  if (memo.series.has(iso)) return memo.series.get(iso);
+  return memo.series.get(memo.end) || 100; // iso etter slutt → siste kjente verdi
 }
 
 function daysBetween(a, b) {
@@ -205,7 +296,7 @@ export function foldFund(state) {
   let units = 0;
   let principal = 0;
   for (const e of bankEvents(state, 'fund')) {
-    const nav = navForDate(e.date);
+    const nav = navForDate(state, e.date);
     if (e.type === 'deposit') {
       units += e.amount / nav;
       principal += e.amount;
@@ -221,13 +312,13 @@ export function foldFund(state) {
 }
 
 export function fundMarketValue(state, today) {
-  return foldFund(state).units * navForDate(today);
+  return foldFund(state).units * navForDate(state, today);
 }
 
 // Vist verdi = max(marked, innskudd) → papirtap av gevinst, aldri under innskudd.
 export function fundValue(state, today) {
   const { units, principal } = foldFund(state);
-  return Math.max(units * navForDate(today), principal);
+  return Math.max(units * navForDate(state, today), principal);
 }
 
 // Netto coins parkert i banken (dato-uavhengig): Σ innskudd − Σ uttak.
@@ -275,6 +366,34 @@ export function withdrawBank(state, { product, amount, by = 'son' }, ctx) {
   if (amt > Math.floor(val + 1e-9)) return s; // kan ikke ta ut mer enn produktverdi
   s.bank.ledger.push({ id: ctx.id, product, type: 'withdraw', amount: amt, date: today, at: ctx.now, by });
   s.log.push({ id: ctx.id, at: ctx.now, actor: by, type: 'bank', action: 'withdraw', product, amount: amt });
+  return s;
+}
+
+// En dato er "ferie" hvis den ligger i minst én forelder-markert periode (inklusive ender).
+export function isVacationDay(state, iso) {
+  const vs = (state.settings && state.settings.bank && state.settings.bank.vacations) || [];
+  return vs.some((v) => v && v.from && v.to && iso >= v.from && iso <= v.to);
+}
+
+export function addVacation(state, { from, to }, ctx) {
+  const s = clone(state);
+  if (!s.settings.bank) s.settings.bank = {};
+  if (!Array.isArray(s.settings.bank.vacations)) s.settings.bank.vacations = [];
+  if (!from || !to) return s;
+  const a = from <= to ? from : to;
+  const b = from <= to ? to : from;
+  s.settings.bank.vacations.push({ id: ctx.id, from: a, to: b });
+  s.settings.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor: 'parent', type: 'bank', action: 'vacation-add', from: a, to: b });
+  return s;
+}
+
+export function removeVacation(state, { id }, ctx) {
+  const s = clone(state);
+  const vs = (s.settings.bank && s.settings.bank.vacations) || [];
+  s.settings.bank.vacations = vs.filter((v) => v.id !== id);
+  s.settings.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor: 'parent', type: 'bank', action: 'vacation-remove', vid: id });
   return s;
 }
 
@@ -826,6 +945,11 @@ export function migrate(state, todayIso) {
   if (!s.bank || !Array.isArray(s.bank.ledger)) s.bank = { ledger: [] };
   if (!s.settings.bank) s.settings.bank = { savingsWeeklyRate: 0.02 };
   else if (s.settings.bank.savingsWeeklyRate == null) s.settings.bank.savingsWeeklyRate = 0.02;
+  const bk = s.settings.bank;
+  if (bk.fundBaseWeeklyRate == null) bk.fundBaseWeeklyRate = BANK_FUND_BASE_WEEKLY;
+  if (bk.fundNeutralWeeklyRate == null) bk.fundNeutralWeeklyRate = BANK_FUND_NEUTRAL_WEEKLY;
+  if (bk.fundEffortMult == null) bk.fundEffortMult = 1;
+  if (!Array.isArray(bk.vacations)) bk.vacations = [];
   const gen = generateDailyRoutines(expireStaleRoutineInstances(s, todayIso), todayIso);
   const out = syncOpenRoutineInstances(gen, todayIso);
   out.log = pruneLog(out.log);
@@ -1758,6 +1882,62 @@ export function effortRecords(state) {
     }
   }
   return out;
+}
+
+// Sum av innsats-score (🥇3/🥈2/🥉1) på låste, ikke-syke, IKKE-ferie dager i uka som `ws` ligger i.
+export function weekEffortScore(state, ws) {
+  const start = weekStartIso(ws);
+  let sum = 0;
+  for (const r of effortRecords(state)) {
+    if (weekStartIso(r.date) !== start) continue;
+    if (isVacationDay(state, r.date)) continue;
+    sum += r.score;
+  }
+  return sum;
+}
+
+// Antall sammenhengende gode uker t.o.m. uka `ws` (inklusive). Regel per uke, kronologisk fra
+// første uke med låst skoledag: hel-ferieuke PAUSER (teller ikke, resetter ikke); uke med
+// innsats > 0 øker; annen uke (låst men 0 innsats, eller gap) resetter til 0.
+export function fundStreakWeeks(state, ws) {
+  const target = weekStartIso(ws);
+  const locked = Object.keys(state.days || {})
+    .filter((d) => weekdayKey(d) && state.days[d].locked)
+    .sort();
+  if (!locked.length) return 0;
+  let w = weekStartIso(locked[0]);
+  let run = 0;
+  let guard = 0;
+  while (w <= target && guard < 1000) {
+    const vacWeek = weekdaysOf(w).every((d) => isVacationDay(state, d));
+    if (vacWeek) {
+      // pause: la run stå
+    } else if (weekEffortScore(state, w) > 0) {
+      run += 1;
+    } else {
+      run = 0;
+    }
+    if (w === target) return run;
+    w = addDaysIso(w, 7);
+    guard++;
+  }
+  return run;
+}
+
+// Status for uka `today` ligger i — til guttens medvinds-linje.
+// Returnerer { mode:'vacation'|'active'|'idle', weeklyPct, streakWeeks, effort }.
+export function fundWeekStatus(state, today) {
+  const ws = weekStartIso(today);
+  const allVac = weekdaysOf(ws).every((d) => isVacationDay(state, d));
+  if (allVac) {
+    return { mode: 'vacation', weeklyPct: fundNeutralWeekly(state) * 100, streakWeeks: 0, effort: 0 };
+  }
+  const effort = weekEffortScore(state, ws);
+  const streakWeeks = fundStreakWeeks(state, ws);
+  const lift = Math.min(BANK_FUND_EFFORT_CAP, fundEffortStrength(state) * effort);
+  const factor = 1 + BANK_FUND_STREAK_STEP * Math.min(streakWeeks, BANK_FUND_STREAK_CAP);
+  const weekly = fundBaseWeekly(state) + lift * factor;
+  return { mode: effort > 0 ? 'active' : 'idle', weeklyPct: weekly * 100, streakWeeks, effort };
 }
 
 // Per LÅST dag: antall timer fordelt på kategori – for 100 %-stablet «dagsfordeling».
