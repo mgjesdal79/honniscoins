@@ -1821,6 +1821,26 @@ export function runTests() {
       eq('vacation mode', vac.mode, 'vacation');
       ok('vacation ~ nøytral 2 %', Math.abs(vac.weeklyPct - 2) < 0.001);
     },
+    function bank_vacation_mutations() {
+      const ctx1 = { now: '2026-09-29T09:00:00.000Z', id: 'v1' };
+      const ctx2 = { now: '2026-09-29T09:01:00.000Z', id: 'v2' };
+      let s = L.defaultState();
+      s = L.addVacation(s, { from: '2026-10-05', to: '2026-10-09' }, ctx1);
+      eq('én ferieperiode', s.settings.bank.vacations.length, 1);
+      eq('id satt', s.settings.bank.vacations[0].id, 'v1');
+      eq('updatedAt bumpet', s.settings.updatedAt, ctx1.now);
+      eq('logg-gren bank', s.log[s.log.length - 1].type, 'bank');
+      // omvendt rekkefølge normaliseres (from <= to)
+      let s2 = L.addVacation(L.defaultState(), { from: '2026-12-31', to: '2026-12-20' }, ctx1);
+      eq('normalisert from', s2.settings.bank.vacations[0].from, '2026-12-20');
+      eq('normalisert to', s2.settings.bank.vacations[0].to, '2026-12-31');
+      // tom fra/til = no-op
+      const s3 = L.addVacation(L.defaultState(), { from: '', to: '2026-10-09' }, ctx1);
+      eq('tom from = ingen periode', s3.settings.bank.vacations.length, 0);
+      // fjerning
+      const removed = L.removeVacation(s, { id: 'v1' }, ctx2);
+      eq('ferie fjernet', removed.settings.bank.vacations.length, 0);
+    },
   ];
 
   for (const t of tests) {

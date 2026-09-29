@@ -375,6 +375,28 @@ export function isVacationDay(state, iso) {
   return vs.some((v) => v && v.from && v.to && iso >= v.from && iso <= v.to);
 }
 
+export function addVacation(state, { from, to }, ctx) {
+  const s = clone(state);
+  if (!s.settings.bank) s.settings.bank = {};
+  if (!Array.isArray(s.settings.bank.vacations)) s.settings.bank.vacations = [];
+  if (!from || !to) return s;
+  const a = from <= to ? from : to;
+  const b = from <= to ? to : from;
+  s.settings.bank.vacations.push({ id: ctx.id, from: a, to: b });
+  s.settings.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor: 'parent', type: 'bank', action: 'vacation-add', from: a, to: b });
+  return s;
+}
+
+export function removeVacation(state, { id }, ctx) {
+  const s = clone(state);
+  const vs = (s.settings.bank && s.settings.bank.vacations) || [];
+  s.settings.bank.vacations = vs.filter((v) => v.id !== id);
+  s.settings.updatedAt = ctx.now;
+  s.log.push({ id: ctx.id, at: ctx.now, actor: 'parent', type: 'bank', action: 'vacation-remove', vid: id });
+  return s;
+}
+
 // Alle bank-transaksjoner, nyeste først (for visning).
 export function bankTransactions(state) {
   const led = state.bank && state.bank.ledger ? state.bank.ledger : [];
