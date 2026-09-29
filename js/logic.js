@@ -1902,6 +1902,22 @@ export function fundStreakWeeks(state, ws) {
   return run;
 }
 
+// Status for uka `today` ligger i — til guttens medvinds-linje.
+// Returnerer { mode:'vacation'|'active'|'idle', weeklyPct, streakWeeks, effort }.
+export function fundWeekStatus(state, today) {
+  const ws = weekStartIso(today);
+  const allVac = weekdaysOf(ws).every((d) => isVacationDay(state, d));
+  if (allVac) {
+    return { mode: 'vacation', weeklyPct: fundNeutralWeekly(state) * 100, streakWeeks: 0, effort: 0 };
+  }
+  const effort = weekEffortScore(state, ws);
+  const streakWeeks = fundStreakWeeks(state, ws);
+  const lift = Math.min(BANK_FUND_EFFORT_CAP, fundEffortStrength(state) * effort);
+  const factor = 1 + BANK_FUND_STREAK_STEP * Math.min(streakWeeks, BANK_FUND_STREAK_CAP);
+  const weekly = fundBaseWeekly(state) + lift * factor;
+  return { mode: effort > 0 ? 'active' : 'idle', weeklyPct: weekly * 100, streakWeeks, effort };
+}
+
 // Per LÅST dag: antall timer fordelt på kategori – for 100 %-stablet «dagsfordeling».
 // Kategorier: gull/solv/bronse (medaljer), valid (gyldig fravær = uvurdert time på syk dag),
 // invalid (ugyldig fravær '0'), tom (uvurdert time på ikke-syk dag = grå rest).

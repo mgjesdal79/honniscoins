@@ -1800,6 +1800,27 @@ export function runTests() {
       s.bank.ledger = [{ id: 'f', product: 'fund', type: 'deposit', amount: 50, date: '2024-01-01', at: 't1' }];
       ok('fond aldri under innskudd', L.fundValue(s, '2026-09-07') >= 50 - 1e-6);
     },
+    function bank_week_status() {
+      const mkWeek = (s, monday, medal) => {
+        for (const d of L.weekdaysOf(monday)) s.days[d] = { locked: true, subjects: ['Matte'], marks: { '0': { medal } } };
+        return s;
+      };
+      // slapp uke → mode 'idle'
+      const idle = L.fundWeekStatus(L.defaultState(), '2026-09-09');
+      eq('idle mode', idle.mode, 'idle');
+      ok('idle positiv men liten', idle.weeklyPct > 0 && idle.weeklyPct < 2);
+      // god uke → mode 'active', høyere prosent
+      const g = mkWeek(L.defaultState(), '2026-09-07', 'gull');
+      const act = L.fundWeekStatus(g, '2026-09-09');
+      eq('active mode', act.mode, 'active');
+      ok('active > idle', act.weeklyPct > idle.weeklyPct);
+      // hel ferieuke → mode 'vacation', nøytral prosent (~2)
+      const f = L.defaultState();
+      f.settings.bank.vacations = [{ id: 'v', from: '2026-09-07', to: '2026-09-11' }];
+      const vac = L.fundWeekStatus(f, '2026-09-09');
+      eq('vacation mode', vac.mode, 'vacation');
+      ok('vacation ~ nøytral 2 %', Math.abs(vac.weeklyPct - 2) < 0.001);
+    },
   ];
 
   for (const t of tests) {
