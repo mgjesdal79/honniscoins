@@ -504,6 +504,67 @@ export function runTests() {
       const s3 = L.lockDay(s2, { date: '2026-08-03', locked: false, actor: 'son' }, { now: 't2', id: 'l2' });
       eq('åpnet igjen', s3.days['2026-08-03'].locked, false);
     },
+
+    // --- medaljeverdier stemples ved lås (endring påvirker ikke tidligere opptjent) ---
+    function medal_stamp_freezes_earned() {
+      const s = L.defaultState();
+      // dag låst (stemplet) ved gamle verdier 1/2/3
+      s.days['2026-08-20'] = {
+        subjects: ['A', 'B'], marks: { 0: { medal: 'gull' }, 1: { medal: 'bronse' } },
+        locked: true, lockedAt: 't', medalValues: { bronse: 1, solv: 2, gull: 3 },
+      };
+      s.settings.medalValues = { bronse: 3, solv: 4, gull: 5 }; // hev verdiene
+      eq('stemplet dag bruker gammelt', L.computeEarned(s), 4); // 3(gull)+1(bronse), ikke 5+3
+    },
+    function unstamped_locked_day_uses_settings() {
+      const s = L.defaultState();
+      s.settings.medalValues = { bronse: 3, solv: 4, gull: 5 };
+      s.days['2026-08-20'] = { subjects: ['A'], marks: { 0: { medal: 'gull' } }, locked: true, lockedAt: 't' }; // ustemplet
+      eq('ustemplet bruker settings', L.computeEarned(s), 5);
+    },
+    function lockDay_stamps_medal_values() {
+      const s = L.defaultState();
+      s.settings.medalValues = { bronse: 3, solv: 4, gull: 5 };
+      const s2 = L.lockDay(s, { date: '2026-08-03', locked: true, actor: 'son' }, { now: 't', id: 'l1' });
+      eq('stempel ved lås', s2.days['2026-08-03'].medalValues, { bronse: 3, solv: 4, gull: 5 });
+      // senere settings-endring rører ikke stempelet
+      s2.settings.medalValues = { bronse: 9, solv: 9, gull: 9 };
+      eq('stempel uavhengig av settings', s2.days['2026-08-03'].medalValues, { bronse: 3, solv: 4, gull: 5 });
+    },
+    function closeWeek_stamps_medal_values() {
+      const s = L.defaultState();
+      s.settings.timetable.mon = ['A'];
+      s.settings.medalValues = { bronse: 3, solv: 4, gull: 5 };
+      const s2 = L.closeWeek(s, { weekIso: '2026-10-07', actor: 'son' }, { now: 't', id: 'c1' });
+      eq('stempel ved uke-lås', s2.days['2026-10-05'].medalValues, { bronse: 3, solv: 4, gull: 5 });
+    },
+    function migrate_freezes_and_bumps_medal_values() {
+      const s = L.defaultState(); // medalValues 1/2/3
+      s.days['2026-08-20'] = { subjects: ['A'], marks: { 0: { medal: 'gull' } }, locked: true, lockedAt: 't' }; // gammelt regime, ustemplet
+      const m = L.migrate(s, '2026-09-05'); // lørdag → ingen rutine-generering
+      eq('bumpet settings til 3/4/5', m.settings.medalValues, { bronse: 3, solv: 4, gull: 5 });
+      eq('frøs gammel dag ved 1/2/3', m.days['2026-08-20'].medalValues, { bronse: 1, solv: 2, gull: 3 });
+      eq('gammel dag beholder poeng', L.computeEarned(m), 3); // gull ved gammelt stempel, ikke 5
+      // idempotent + overskriver ikke senere manuell endring
+      m.settings.medalValues = { bronse: 9, solv: 9, gull: 9 };
+      const m2 = L.migrate(m, '2026-09-05');
+      eq('bump kjører ikke igjen', m2.settings.medalValues, { bronse: 9, solv: 9, gull: 9 });
+      eq('gammel dag fortsatt frosset', m2.days['2026-08-20'].medalValues, { bronse: 1, solv: 2, gull: 3 });
+    },
+    function merge_preserves_medal_stamp_with_lock() {
+      const local = L.defaultState();
+      const remote = L.defaultState();
+      remote.days['2026-08-20'] = {
+        subjects: ['A'], marks: { 0: { medal: 'gull' } },
+        locked: true, lockedAt: 't2', medalValues: { bronse: 1, solv: 2, gull: 3 },
+      };
+      local.days['2026-08-20'] = {
+        subjects: ['A'], marks: { 0: { medal: 'gull' } },
+        locked: true, lockedAt: 't1', medalValues: { bronse: 3, solv: 4, gull: 5 },
+      };
+      const out = L.mergeState(local, remote); // remote-lås nyere (t2 > t1) → tar remote-stempel
+      eq('fletting tar vinnende lås-stempel', out.days['2026-08-20'].medalValues, { bronse: 1, solv: 2, gull: 3 });
+    },
     function closeWeek_locks_all_and_marks() {
       const s = L.defaultState();
       s.settings.timetable.mon = ['A'];

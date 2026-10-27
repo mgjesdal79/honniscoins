@@ -52,13 +52,20 @@ export function defaultState() {
   };
 }
 
+// Medaljeverdiene som gjelder for en dag: stempelet satt ved lås, ellers gjeldende settings.
+// Slik påvirker ikke en senere verdiendring dager som alt er låst («tidligere opptjent»).
+export function dayMedalValues(state, day) {
+  return (day && day.medalValues) || state.settings.medalValues;
+}
+
 // Kun LÅSTE dager teller (lås = commit).
 export function computeEarned(state) {
-  const v = state.settings.medalValues;
   let sum = 0;
   for (const date of Object.keys(state.days || {})) {
-    if (!state.days[date].locked) continue;
-    const marks = state.days[date].marks || {};
+    const day = state.days[date];
+    if (!day.locked) continue;
+    const v = dayMedalValues(state, day);
+    const marks = day.marks || {};
     for (const idx of Object.keys(marks)) sum += medalPoints(marks[idx].medal, v);
   }
   return sum;
@@ -635,6 +642,7 @@ export function lockDay(state, { date, locked, actor }, ctx) {
   if (!s.days[date]) s.days[date] = { subjects: subjectsForDate(state, date), marks: {} };
   s.days[date].locked = !!locked;
   s.days[date].lockedAt = ctx.now;
+  if (locked) s.days[date].medalValues = { ...s.settings.medalValues }; // frys verdiene ved lås
   s.log.push({ id: ctx.id, at: ctx.now, actor, type: 'lock', day: date, to: !!locked });
   return s;
 }
@@ -647,6 +655,7 @@ export function closeWeek(state, { weekIso, actor }, ctx) {
     if (!s.days[d]) s.days[d] = { subjects: subjectsForDate(state, d), marks: {} };
     s.days[d].locked = true;
     s.days[d].lockedAt = ctx.now;
+    s.days[d].medalValues = { ...s.settings.medalValues }; // frys verdiene ved lås
   }
   if (!s.weekLocks) s.weekLocks = {};
   s.weekLocks[ws] = { closed: true, at: ctx.now, by: actor };
@@ -941,6 +950,19 @@ export function migrate(state, todayIso) {
         if (!day.lockedAt) day.lockedAt = stamp;
       }
     }
+  }
+  // Medaljeverdi-stempel: frys eksisterende låste dager på GJELDENDE verdi FØR en evt. bump,
+  // så en senere verdiendring ikke påvirker tidligere opptjent («earned» = låst).
+  for (const d of Object.keys(s.days || {})) {
+    const day = s.days[d];
+    if (day.locked && !day.medalValues) day.medalValues = { ...s.settings.medalValues };
+  }
+  // Engangs-heving av medaljeverdier (bronse mer verdt): bronse 3, sølv 4, gull 5.
+  // Guardet så den kjører én gang og ikke overstyrer en senere manuell endring; frosne
+  // dager over er allerede stemplet, så bare framtidige låser bruker de nye verdiene.
+  if (!s.settings.medalBump35) {
+    s.settings.medalValues = { bronse: 3, solv: 4, gull: 5 };
+    s.settings.medalBump35 = true;
   }
   if (!s.bank || !Array.isArray(s.bank.ledger)) s.bank = { ledger: [] };
   if (!s.settings.bank) s.settings.bank = { savingsWeeklyRate: 0.02 };
@@ -1296,7 +1318,7 @@ export function routinesRemaining(state, dateIso) {
 function dayMedalPoints(state, iso) {
   const day = (state.days || {})[iso];
   if (!day) return 0;
-  const v = state.settings.medalValues;
+  const v = dayMedalValues(state, day);
   const marks = day.marks || {};
   let s = 0;
   for (const idx of Object.keys(marks)) s += medalPoints(marks[idx].medal, v);
@@ -1429,6 +1451,7 @@ export function mergeState(local, remote) {
     if ((remote.days[date].lockedAt || '') > (out.days[date].lockedAt || '')) {
       out.days[date].locked = !!remote.days[date].locked;
       out.days[date].lockedAt = remote.days[date].lockedAt;
+      if (remote.days[date].medalValues) out.days[date].medalValues = clone(remote.days[date].medalValues);
     }
   }
 
