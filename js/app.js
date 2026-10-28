@@ -17,7 +17,7 @@ import {
   effortRecords, periodBounds, filterRecordsByPeriod,
   statBySubject, statByPosition, statHeatmap, statDailyTotal, statWeeklyTotal, statMedalDistribution, dayComposition,
   addShopItem, updateShopItem, deleteShopItem, setShopPrice, requestShopItem, cancelShopRequest,
-  commitShopPurchase, hidePurchase, shopItemsByStatus, activeShopItems, activePurchases,
+  commitShopPurchase, hidePurchase, shopItemsByStatus, moveShopItem, activeShopItems, activePurchases,
   visiblePurchases, shopSpentTotal, reservedTotal, availableBalance,
   depositBank, withdrawBank, savingsValue, savingsPrincipal, fundValue, fundMarketValue,
   netInBank, spendable, bankValue, totalWealth, navForDate, fundWeekStatus,
@@ -1042,12 +1042,16 @@ function renderShopPage(host) {
   const spent = shopSpentTotal(App.state);
   const avail = availableBalance(App.state);
 
-  const cardHtml = (it) => {
+  const cardHtml = (it, idx) => {
     const canBuy = avail >= (it.price || 0);
     const imgInner = it.image ? `<img src="${it.image}" alt="">` : `<span class="ph">🎁</span>`;
     const btn = canBuy
       ? `<button class="shopbuy" data-buy="${it.id}">Kjøp</button>`
       : `<button class="shopbuy lock" disabled>Mangler ${(it.price || 0) - avail} 💰</button>`;
+    const moveRow = forSale.length > 1 ? `<div class="shopmove">
+      <button class="smv" data-smv-up="${it.id}" ${idx > 0 ? '' : 'disabled'} aria-label="Flytt opp">▲</button>
+      <button class="smv" data-smv-down="${it.id}" ${idx < forSale.length - 1 ? '' : 'disabled'} aria-label="Flytt ned">▼</button>
+    </div>` : '';
     return `<div class="shopcard">
       <div class="img" style="background:${shopGrad(it.color)}">${imgInner}</div>
       <div class="body">
@@ -1056,6 +1060,7 @@ function renderShopPage(host) {
         ${it.link ? `<a class="link" href="${safeShopHref(it.link)}" target="_blank" rel="noopener">Se produkt</a>` : ''}
         ${btn}
         <button class="btn good shopedit" data-shopedit="${it.id}">✏️ Rediger</button>
+        ${moveRow}
       </div></div>`;
   };
 
@@ -1116,6 +1121,14 @@ function bindSonShop(host) {
   }));
   host.querySelectorAll('[data-shopedit]').forEach((b) => (b.onclick = () =>
     openShopEdit('shopAddForm', b.dataset.shopedit, 'son')));
+  host.querySelectorAll('[data-smv-up]').forEach((b) => (b.onclick = () => {
+    App.state = moveShopItem(App.state, { id: b.dataset.smvUp, dir: 'up' }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  host.querySelectorAll('[data-smv-down]').forEach((b) => (b.onclick = () => {
+    App.state = moveShopItem(App.state, { id: b.dataset.smvDown, dir: 'down' }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
   host.querySelectorAll('[data-phide]').forEach((b) => (b.onclick = () => {
     App.state = hidePurchase(App.state, { id: b.dataset.phide, hidden: true }, { now: nowIso(), id: newId() });
     save(); routeToView();
@@ -1990,7 +2003,7 @@ function renderQuestsTab(host) {
 function renderShopTab(host) {
   const requested = shopItemsByStatus(App.state, 'requested');
   const wishes = shopItemsByStatus(App.state, 'wish');
-  const active = activeShopItems(App.state).filter((x) => x.status === 'available');
+  const active = shopItemsByStatus(App.state, 'available');
 
   const reqCard = (it) => `<div class="card" style="margin-bottom:8px">
     <div style="display:flex;gap:10px;align-items:center">
@@ -2012,8 +2025,14 @@ function renderShopTab(host) {
       <button class="btn ghost" data-shopdelp="${it.id}">Slett</button>
     </div></div>`;
 
-  const activeCard = (it) => `<div class="card" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
-    <div><b>${escapeHtml(it.title)}</b> <span class="muted">· ${it.price || 0} 💰</span></div>
+  const activeCard = (it, idx) => `<div class="card" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+    <div style="display:flex;gap:8px;align-items:center">
+      ${active.length > 1 ? `<div class="shopmove col">
+        <button class="smv" data-smv-up="${it.id}" ${idx > 0 ? '' : 'disabled'} aria-label="Flytt opp">▲</button>
+        <button class="smv" data-smv-down="${it.id}" ${idx < active.length - 1 ? '' : 'disabled'} aria-label="Flytt ned">▼</button>
+      </div>` : ''}
+      <div><b>${escapeHtml(it.title)}</b> <span class="muted">· ${it.price || 0} 💰</span></div>
+    </div>
     <div style="display:flex;gap:8px"><button class="btn good shopedit" data-shopeditp="${it.id}">✏️ Rediger</button>
       <button class="link" data-shopdelp="${it.id}">slett</button></div></div>`;
 
@@ -2045,6 +2064,14 @@ function renderShopTab(host) {
   }));
   host.querySelectorAll('[data-shopeditp]').forEach((b) => (b.onclick = () =>
     openShopEdit('shopAddFormP', b.dataset.shopeditp, 'parent')));
+  host.querySelectorAll('[data-smv-up]').forEach((b) => (b.onclick = () => {
+    App.state = moveShopItem(App.state, { id: b.dataset.smvUp, dir: 'up' }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
+  host.querySelectorAll('[data-smv-down]').forEach((b) => (b.onclick = () => {
+    App.state = moveShopItem(App.state, { id: b.dataset.smvDown, dir: 'down' }, { now: nowIso(), id: newId() });
+    save(); routeToView();
+  }));
   const addBtn = document.getElementById('shopAddBtnP');
   if (addBtn) addBtn.onclick = () => renderShopAddForm(document.getElementById('shopAddFormP'), 'parent');
 }

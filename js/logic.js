@@ -1729,6 +1729,7 @@ export function addShopItem(state, { title, link = '', image = null, color = nul
     price: Number(price) || 0,
     priceSet: priced,
     status: priced ? 'available' : 'wish',
+    order: nextShopOrder(s), // legges bakerst i rekkefølgen
     createdBy: by,
     createdAt: ctx.now,
     requestedAt: null,
@@ -1846,8 +1847,47 @@ export function activeShopItems(state) {
   return (state.shopItems || []).filter((x) => !x.removed);
 }
 
+// Sorter varer på manuell rekkefølge (`order` stigende), med `createdAt` som fallback
+// for legacy-varer uten `order` (sorteres etter de med order, eldste først).
+function shopOrderCmp(a, b) {
+  const ao = a.order, bo = b.order;
+  if (ao != null && bo != null) return ao - bo;
+  if (ao != null) return -1;
+  if (bo != null) return 1;
+  return (a.createdAt || '').localeCompare(b.createdAt || '');
+}
+
+// Neste ledige order = høyeste blant aktive varer + 1 (0 hvis ingen).
+function nextShopOrder(state) {
+  const orders = (state.shopItems || [])
+    .filter((x) => !x.removed && x.order != null)
+    .map((x) => x.order);
+  return orders.length ? Math.max(...orders) + 1 : 0;
+}
+
 export function shopItemsByStatus(state, status) {
-  return activeShopItems(state).filter((x) => x.status === status);
+  return activeShopItems(state).filter((x) => x.status === status).sort(shopOrderCmp);
+}
+
+// Flytt en «Til salgs»-vare opp/ned i rekkefølgen (dir: 'up' | 'down').
+// Normaliserer available-lista til sammenhengende order, bytter nabo, og bumper
+// updatedAt KUN på varer som faktisk endret order (flettevennlig). No-op i kantene.
+export function moveShopItem(state, { id, dir }, ctx) {
+  const s = clone(state);
+  const items = (s.shopItems || []).filter((x) => !x.removed && x.status === 'available').sort(shopOrderCmp);
+  const i = items.findIndex((x) => x.id === id);
+  if (i < 0) return state;
+  const j = dir === 'up' ? i - 1 : i + 1;
+  if (j < 0 || j >= items.length) return state;
+  const seq = items.map((_, k) => k); // sammenhengende målrekkefølge 0..n-1
+  [seq[i], seq[j]] = [seq[j], seq[i]];
+  items.forEach((it, k) => {
+    if (it.order !== seq[k]) {
+      it.order = seq[k];
+      it.updatedAt = ctx.now;
+    }
+  });
+  return s;
 }
 
 export function activePurchases(state) {
