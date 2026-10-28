@@ -265,10 +265,20 @@ Kjernearkitektur, domenemodell, testing, deploy og konvensjoner ligger fortsatt 
   (`available` hvis `priceSet && price>0`, ellers `wish`), `setShopPrice`, `updateShopItem`
   (price-patch: `wish↔available`-veksling når pris settes/nullstilles), `deleteShopItem`
   (tombstone), `requestShopItem` (gatet), `cancelShopRequest`, `commitShopPurchase` (atomisk:
-  push purchase-snapshot + item `removed:true`+`status:'committed'`), `hidePurchase`. Avledet:
-  `activeShopItems`, `shopItemsByStatus`, `activePurchases` (sortert `at` desc), `visiblePurchases`.
+  push purchase-snapshot + item `removed:true`+`status:'committed'`), `hidePurchase`,
+  `moveShopItem(state,{id,dir},ctx)` (b65). Avledet: `activeShopItems`, `shopItemsByStatus`,
+  `activePurchases` (sortert `at` desc), `visiblePurchases`.
+- **Rekkefølge (b65):** hver vare har et valgfritt `order`-felt (heltall). `addShopItem` stempler
+  `order: nextShopOrder(state)` (max+1). `shopItemsByStatus` sorterer med `shopOrderCmp`
+  (`order` stigende; varer uten `order` sist, fallback `createdAt` → eldre blobber uten feltet er
+  stabile). **`moveShopItem`** bytter en «Til salgs» (`available`) vare med nabo opp/ned: normaliserer
+  listen til sammenhengende 0..N `order`, bytter de to indeksene, og bumper `updatedAt` KUN på varene
+  som faktisk endret seg (minimal flette-churn). Fletting via `mergeById` (LWW per id) holder
+  rekkefølgen sync-trygg — array-posisjon ville ikke overlevd fletting. **Både sønn og forelder**
+  kan omrokere (▲/▼-piller, `.shopmove`/`.smv`), kun på `available`-varer; pilene er disablet ved
+  kanten og skjult når < 2 varer.
 - **Fletting:** `shopItems`/`purchases` flettes **LWW per id** (`mergeById`) — statusendring/
-  sletting/hidden vinner nyest.
+  sletting/hidden/`order` vinner nyest.
 - **Bilder:** `resizeImageToSquarePng(file, size=400)` (app.js) → transparent kvadratisk 400×400
   PNG (contain/sentrert), lagres base64 i `shopItems[].image`. **Blob-vekst boundet:**
   `pruneShopImages(state, keep=SHOP_IMG_KEEP=20)` beholder base64 kun på de 20 nyeste kjøpene,

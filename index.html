@@ -304,6 +304,10 @@
   .shopcard .price{display:flex;align-items:center;gap:4px;font-weight:800;color:var(--gold);font-size:1rem}
   .shopbuy{margin-top:auto;background:var(--gold);color:#1a1400;border:none;border-radius:10px;padding:9px;font-weight:800;font-size:.9rem;width:100%}
   .shopbuy.lock{background:#26324a;color:#7f93b3}
+  .shopmove{display:flex;gap:6px;justify-content:center}
+  .shopmove.col{flex-direction:column;gap:4px}
+  .smv{background:#26324a;color:#cfe0ff;border:none;border-radius:8px;width:38px;height:30px;font-size:.85rem;font-weight:800;cursor:pointer}
+  .smv:disabled{opacity:.3;cursor:default}
   .shopreq{display:flex;gap:11px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:8px}
   .shopreq .th{width:46px;height:46px;border-radius:10px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex-shrink:0;overflow:hidden}
   .shopreq .th img{width:100%;height:100%;object-fit:contain}
@@ -372,7 +376,7 @@
   <div id="app"></div>
   <div id="appVersion"></div>
   <script>
-    window.APP_VERSION = '2026.10.27 (b64 · Medaljeverdier: bronse 3 / sølv 4 / gull 5, frys tidligere opptjent)';
+    window.APP_VERSION = '2026.10.28 (b65 · Shop: endre rekkefølge på «Til salgs»-varer med opp/ned-piler)';
     window.EDGE_FUNCTION_URL = 'https://vkhktataxypuobrzslbi.supabase.co/functions/v1/clever-function';
   </script>
   <script type="module" src="./js/app.js"></script>

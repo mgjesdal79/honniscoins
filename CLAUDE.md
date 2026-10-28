@@ -113,9 +113,11 @@ under kontekst-grensa. Les den relevante seksjonen der når oppgaven gjelder bit
 Kjerne (arkitektur, domenemodell, testing, deploy, konvensjoner) ligger fortsatt under.
 
 ## Testing
-- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 567/567 grønne per nå (inkl.
+- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 576/576 grønne per nå (inkl.
   medaljeverdi-stempling b64: lås/uke-lås-stempel, frys av tidligere opptjent ved verdiendring,
-  migrate-frys+bump, flette-bevaring; + sidequests
+  migrate-frys+bump, flette-bevaring; shop-rekkefølge b65: `order`-stempling ved add,
+  `shopItemsByStatus`-sortering (legacy-fallback `createdAt`), `moveShopItem`-bytte
+  (kun `available`, kant-noop, nabo over wish-vare); + sidequests
   m/arkiv, lekser, rutiner inkl. rekkefølge/tekst-synk + egen-fane-helpere
   (`routineInstancesForDate`/`routinesRemaining`/arkiv-filter) + leadDay/straks-generering ved
   add/update + `expireStaleRoutineInstances`-utløp (b55/b56) + auto-fullføring/vekk (`completed`,

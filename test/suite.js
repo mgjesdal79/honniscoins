@@ -1452,6 +1452,51 @@ export function runTests() {
       eq('status available', s.shopItems[0].status, 'available');
       eq('pris satt', s.shopItems[0].price, 60);
     },
+    function shop_addShopItem_sets_order() {
+      let s = L.defaultState();
+      s = L.addShopItem(s, { title: 'A', price: 10, priceSet: true, by: 'parent' }, { now: 't1', id: 'a' });
+      s = L.addShopItem(s, { title: 'B', price: 10, priceSet: true, by: 'parent' }, { now: 't2', id: 'b' });
+      eq('første order 0', s.shopItems[0].order, 0);
+      eq('andre order 1', s.shopItems[1].order, 1);
+    },
+    function shop_moveShopItem_swaps_available() {
+      let s = L.defaultState();
+      s = L.addShopItem(s, { title: 'A', price: 10, priceSet: true, by: 'parent' }, { now: 't1', id: 'a' });
+      s = L.addShopItem(s, { title: 'B', price: 10, priceSet: true, by: 'parent' }, { now: 't2', id: 'b' });
+      s = L.addShopItem(s, { title: 'C', price: 10, priceSet: true, by: 'parent' }, { now: 't3', id: 'c' });
+      s = L.moveShopItem(s, { id: 'c', dir: 'up' }, { now: 't4', id: 'm1' });
+      eq('c flyttet opp', L.shopItemsByStatus(s, 'available').map((x) => x.id), ['a', 'c', 'b']);
+      s = L.moveShopItem(s, { id: 'a', dir: 'down' }, { now: 't5', id: 'm2' });
+      eq('a flyttet ned', L.shopItemsByStatus(s, 'available').map((x) => x.id), ['c', 'a', 'b']);
+    },
+    function shop_moveShopItem_edge_noop() {
+      let s = L.defaultState();
+      s = L.addShopItem(s, { title: 'A', price: 10, priceSet: true, by: 'parent' }, { now: 't1', id: 'a' });
+      s = L.addShopItem(s, { title: 'B', price: 10, priceSet: true, by: 'parent' }, { now: 't2', id: 'b' });
+      const s2 = L.moveShopItem(s, { id: 'a', dir: 'up' }, { now: 't3', id: 'm' });
+      eq('topp opp = uendret', L.shopItemsByStatus(s2, 'available').map((x) => x.id), ['a', 'b']);
+      const s3 = L.moveShopItem(s, { id: 'b', dir: 'down' }, { now: 't4', id: 'm' });
+      eq('bunn ned = uendret', L.shopItemsByStatus(s3, 'available').map((x) => x.id), ['a', 'b']);
+    },
+    function shop_moveShopItem_only_available_neighbors() {
+      let s = L.defaultState();
+      s.shopItems = [
+        { id: 'a', status: 'available', removed: false, order: 0, createdAt: 't0' },
+        { id: 'w', status: 'wish', removed: false, order: 1, createdAt: 't1' },
+        { id: 'b', status: 'available', removed: false, order: 2, createdAt: 't2' },
+      ];
+      s = L.moveShopItem(s, { id: 'b', dir: 'up' }, { now: 't5', id: 'm' });
+      eq('b opp forbi wish', L.shopItemsByStatus(s, 'available').map((x) => x.id), ['b', 'a']);
+      eq('wish urørt', L.shopItemsByStatus(s, 'wish').map((x) => x.id), ['w']);
+    },
+    function shop_shopItemsByStatus_sorts_legacy_by_createdAt() {
+      const s = L.defaultState();
+      s.shopItems = [
+        { id: 'b', status: 'available', removed: false, createdAt: 't2' },
+        { id: 'a', status: 'available', removed: false, createdAt: 't1' },
+      ];
+      eq('legacy sorter på createdAt', L.shopItemsByStatus(s, 'available').map((x) => x.id), ['a', 'b']);
+    },
     function shop_setShopPrice_activates() {
       const c1 = { now: '2026-09-06T10:00:00.000Z', id: 'i3' };
       let s = L.addShopItem(L.defaultState(), { title: 'Bok', by: 'son' }, c1);
