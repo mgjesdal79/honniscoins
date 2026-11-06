@@ -1747,6 +1747,26 @@ export function runTests() {
       const payoutFloor = Math.max(L.fundMarketValue(s2, '2024-01-02'), 50);
       ok('fullt uttak >= innskudd', payoutFloor >= 50 - 1e-6);
     },
+    function bank_fund_principal() {
+      const s0 = L.defaultState();
+      eq('fundPrincipal tom = 0', L.fundPrincipal(s0), 0);
+      // innskudd 100 på epoke -> principal 100
+      const s = L.defaultState();
+      s.bank.ledger = [{ id: 'f1', product: 'fund', type: 'deposit', amount: 100, date: '2024-01-01', at: 't1' }];
+      eq('fundPrincipal = innskudd', L.fundPrincipal(s), 100);
+      // avkastning (vist verdi − innskutt) aldri negativ
+      ok('fond-avkastning >= 0', L.fundValue(s, '2026-06-15') - L.fundPrincipal(s) >= -1e-6);
+      // uttak reduserer innskudd proporsjonalt (matcher foldFund)
+      const sw = L.withdrawBank(s, { product: 'fund', amount: L.fundValue(s, '2024-01-02') / 2, by: 'son' }, { now: '2024-01-02T09:00:00.000Z', id: 'w1' });
+      ok('fundPrincipal < innskudd etter uttak', L.fundPrincipal(sw) < 100);
+      // samlet bank-avkastning (bankValue − total innskutt) >= 0 med både spare + fond
+      let s2 = shopStateWithCoins(); // 6 coins
+      s2 = L.depositBank(s2, { product: 'fund', amount: 2, by: 'son' }, { now: '2026-09-02T09:00:00.000Z', id: 'p1' });
+      s2 = L.depositBank(s2, { product: 'savings', amount: 3, by: 'son' }, { now: '2026-09-02T09:05:00.000Z', id: 'p2' });
+      const totalPrin = L.savingsPrincipal(s2) + L.fundPrincipal(s2);
+      eq('samlet innskutt = 5', Math.round(totalPrin), 5);
+      ok('samlet bank-avkastning >= 0', L.bankValue(s2, '2026-09-30') - totalPrin >= -1e-6);
+    },
     function bank_balance_integration() {
       const s = shopStateWithCoins();
       s.bank = { ledger: [] };

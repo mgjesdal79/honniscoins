@@ -19,7 +19,7 @@ import {
   addShopItem, updateShopItem, deleteShopItem, setShopPrice, requestShopItem, cancelShopRequest,
   commitShopPurchase, hidePurchase, shopItemsByStatus, moveShopItem, activeShopItems, activePurchases,
   visiblePurchases, shopSpentTotal, reservedTotal, availableBalance,
-  depositBank, withdrawBank, savingsValue, savingsPrincipal, fundValue, fundMarketValue,
+  depositBank, withdrawBank, savingsValue, savingsPrincipal, fundValue, fundMarketValue, fundPrincipal,
   netInBank, spendable, bankValue, totalWealth, navForDate, fundWeekStatus,
   bankTransactions, bankHistoryRange, addVacation, removeVacation,
 } from './logic.js';
@@ -600,6 +600,10 @@ function renderBankView(host) {
   const savInt = savVal - savPrin;
   const fVal = fundValue(s, today);
   const fMkt = fundMarketValue(s, today);
+  const fPrin = fundPrincipal(s);
+  const fGain = Math.round(fVal - fPrin); // ≥ 0 pga. gulvet
+  const bankPrin = Math.round(savPrin + fPrin);
+  const bankGain = Math.round(bVal - (savPrin + fPrin));
   const navToday = navForDate(s, today);
   const navPrev = navForDate(s, isoDate(new Date(Date.now() - 86400000)));
   const dayPct = navPrev ? ((navToday / navPrev - 1) * 100) : 0;
@@ -619,6 +623,7 @@ function renderBankView(host) {
     <div class="balance">
       <div class="coins">${rnd(total)} <small>Formue</small></div>
       <div class="kr">Ledig: <b>${spend} 💰</b> · I banken: <b>${rnd(bVal)} 💰</b></div>
+      ${bankPrin > 0 ? `<div class="kr">Innskutt <b>${bankPrin} 💰</b> → <b class="gain up">+${bankGain} avkastning</b> 📈</div>` : ''}
     </div>
 
     <div class="card bankcard">
@@ -634,11 +639,11 @@ function renderBankView(host) {
 
     <div class="card bankcard">
       <div class="bankhead">📈 Fond <span class="muted">Svinger — aldri under innskudd</span></div>
-      <div class="bankval">${rnd(fVal)} 💰
+      <div class="bankval">${rnd(fVal)} 💰 <span class="gain up">+${fGain} avkastning</span>
         <span class="gain ${dayPct >= 0 ? 'up' : 'down'}">${arrow} ${Math.abs(dayPct).toFixed(1)} % i dag</span></div>
       ${fundSparklineSvg(today)}
       <div class="${windClass}">${windText}</div>
-      <div class="muted" style="font-size:.8rem">Markedsverdi: ${rnd(fMkt)} 💰</div>
+      <div class="muted" style="font-size:.8rem">Innskutt: ${rnd(fPrin)} 💰 · Markedsverdi: ${rnd(fMkt)} 💰</div>
       <div class="btnrow">
         <button class="btn good" data-bank-in="fund">Sett inn</button>
         <button class="btn" data-bank-out="fund">Ta ut</button>

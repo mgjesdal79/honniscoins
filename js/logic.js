@@ -328,6 +328,11 @@ export function fundValue(state, today) {
   return Math.max(units * navForDate(state, today), principal);
 }
 
+// Innskutt i fondet (symmetrisk med savingsPrincipal). Vist verdi − dette = avkastning (≥0 pga gulv).
+export function fundPrincipal(state) {
+  return foldFund(state).principal;
+}
+
 // Netto coins parkert i banken (dato-uavhengig): Σ innskudd − Σ uttak.
 export function netInBank(state) {
   const led = state.bank && state.bank.ledger ? state.bank.ledger : [];
