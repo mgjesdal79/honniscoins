@@ -113,7 +113,8 @@ under kontekst-grensa. Les den relevante seksjonen der når oppgaven gjelder bit
 Kjerne (arkitektur, domenemodell, testing, deploy, konvensjoner) ligger fortsatt under.
 
 ## Testing
-- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 576/576 grønne per nå (inkl.
+- Ren logikk: `test/suite.js` (delt, DOM-fri, `runTests()`). 582/582 grønne per nå (inkl.
+  bank innskudd/avkastning b66: `fundPrincipal` tom/innskudd/uttak + samlet bank-avkastning ≥0;
   medaljeverdi-stempling b64: lås/uke-lås-stempel, frys av tidligere opptjent ved verdiendring,
   migrate-frys+bump, flette-bevaring; shop-rekkefølge b65: `order`-stempling ved add,
   `shopItemsByStatus`-sortering (legacy-fallback `createdAt`), `moveShopItem`-bytte

@@ -345,7 +345,9 @@ Kjernearkitektur, domenemodell, testing, deploy og konvensjoner ligger fortsatt 
   `foldSavings`→lotter, `savingsLotValue`
   (`amount×(1+rate×uker)`, uker = dager/7 desimal → vokser DAGLIG), `savingsValue(state,date)`,
   `savingsPrincipal`. Fond: `foldFund`→`{units,principal}`, `fundMarketValue(state,date)`,
-  `fundValue(state,date)`=`max(units×nav, principal)`. Uttak reduserer eldste lotter først
+  `fundValue(state,date)`=`max(units×nav, principal)`, **`fundPrincipal(state)`** (b66, =
+  `foldFund.principal`, symmetrisk med `savingsPrincipal`; vist verdi − dette = avkastning ≥0 pga
+  gulv). Uttak reduserer eldste lotter først
   (savings, behold date/rate) / units+principal proporsjonalt med `f=amount/V` (fund).
   Saldo: `netInBank`=Σinn−Σut (dato-uavhengig), `spendable`=`availableBalance` (nå bank-bevisst),
   `bankValue(state,date)`, `totalWealth(state,date)`. Mutasjoner: `depositBank`/`withdrawBank`
@@ -367,6 +369,13 @@ Kjernearkitektur, domenemodell, testing, deploy og konvensjoner ligger fortsatt 
   `.statchip`/`.statperiod`/`.statrange`; default 30 d) + tabell (Spare/Fond/Totalt, dagsendring).
   Sub-tab-bytte nullstiller `bankView` til `main`. CSS: `.bankcard`/`.bankhead`/`.bankval`/`.gain`
   (`.up`/`.down`)/`.spark`/`.bankform`/`.bankrow`(+`.head`/`.now`/`-d`/`-v`/`-t`).
+- **Innskudd vs. avkastning (b66):** fond-kortet viser nå samme split som sparekontoen —
+  verdilinja får `+Z avkastning` (`fGain = fundValue − fundPrincipal`, alltid ≥0 pga gulvet →
+  marked under innskudd = «+0 avkastning», samme format alltid; `Markedsverdi`-linja viser rå
+  marked), muted-linja: `Innskutt: X 💰 · Markedsverdi: Y 💰`. Formue-headeren får en **samlet
+  split-linje** `Innskutt <bankPrin> 💰 → +<bankGain> avkastning 📈` (`bankPrin = savingsPrincipal
+  + fundPrincipal`, `bankGain = bankValue − bankPrin`; **kun spare+fond**, ledige coins ikke med;
+  vises kun når `bankPrin > 0`). Ren presentasjon — ingen datamodell/migrering.
 - **UI (forelder):** Settings (`renderPoengTab`) har «🏦 Bank»-seksjon → **Sparerente (%/uke)**
   (`#savRate` stepper, lagres som brøk `pct/100`, bumper `settings.updatedAt`; gjelder kun NYE
   innskudd — eksisterende lotter beholder stemplet rate). Logg-gren (`renderLoggTab`,
